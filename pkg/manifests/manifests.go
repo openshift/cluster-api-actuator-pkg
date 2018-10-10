@@ -1,7 +1,9 @@
-package framework
+package manifests
 
 import (
+	"bytes"
 	"fmt"
+	"text/template"
 
 	appsv1beta2 "k8s.io/api/apps/v1beta2"
 	apiv1 "k8s.io/api/core/v1"
@@ -9,9 +11,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/cert/triple"
 	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
+	clusterv1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 )
 
 func ClusterAPIServerAPIServiceObjects(clusterAPINamespace string) (*apiv1.Secret, *apiregistrationv1beta1.APIService, error) {
@@ -571,6 +575,139 @@ func ClusterAPIEtcdService(clusterAPINamespace string) *apiv1.Service {
 			},
 			Selector: map[string]string{
 				"app": "etcd",
+			},
+		},
+	}
+}
+
+func TestingMachine(clusterID string, namespace string, providerConfig clusterv1alpha1.ProviderConfig) *clusterv1alpha1.Machine {
+	randomUUID := string(uuid.NewUUID())
+	machine := &clusterv1alpha1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:         clusterID + "-machine-" + randomUUID[:6],
+			Namespace:    namespace,
+			GenerateName: "vs-master-",
+			Labels: map[string]string{
+				"sigs.k8s.io/cluster-api-cluster": clusterID,
+			},
+		},
+		Spec: clusterv1alpha1.MachineSpec{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{
+					"node-role.kubernetes.io/compute": "",
+				},
+			},
+			ProviderConfig: providerConfig,
+			Versions: clusterv1alpha1.MachineVersionInfo{
+				Kubelet:      "1.10.1",
+				ControlPlane: "1.10.1",
+			},
+		},
+	}
+
+	return machine
+}
+
+func MasterMachine(clusterID, namespace string, providerConfig clusterv1alpha1.ProviderConfig) *clusterv1alpha1.Machine {
+	randomUUID := string(uuid.NewUUID())
+	machine := &clusterv1alpha1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:         clusterID + "-master-machine-" + randomUUID[:6],
+			Namespace:    namespace,
+			GenerateName: "vs-master-",
+			Labels: map[string]string{
+				"sigs.k8s.io/cluster-api-cluster": clusterID,
+			},
+		},
+		Spec: clusterv1alpha1.MachineSpec{
+			ProviderConfig: providerConfig,
+			Versions: clusterv1alpha1.MachineVersionInfo{
+				Kubelet:      "1.10.1",
+				ControlPlane: "1.10.1",
+			},
+		},
+	}
+
+	return machine
+}
+
+func MasterMachineUserDataSecret(secretName, namespace string) *apiv1.Secret {
+	return &apiv1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: namespace,
+		},
+		Data: map[string][]byte{
+			"userData": []byte(masterUserDataBlob),
+		},
+	}
+}
+
+func WorkerMachineUserDataSecret(secretName, namespace, masterIP string) (*apiv1.Secret, error) {
+	params := userDataParams{
+		MasterIP: masterIP,
+	}
+	t, err := template.New("workeruserdata").Parse(workerUserDataBlob)
+	if err != nil {
+		return nil, err
+	}
+	var buf bytes.Buffer
+	err = t.Execute(&buf, params)
+	if err != nil {
+		return nil, err
+	}
+
+	return &apiv1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: namespace,
+		},
+		Data: map[string][]byte{
+			"userData": []byte(buf.String()),
+		},
+	}, nil
+}
+
+func WorkerMachineSet(clusterID, namespace string, providerConfig clusterv1alpha1.ProviderConfig) *clusterv1alpha1.MachineSet {
+	var replicas int32 = 1
+	randomUUID := string(uuid.NewUUID())
+	return &clusterv1alpha1.MachineSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:         clusterID + "-worker-machineset-" + randomUUID[:6],
+			Namespace:    namespace,
+			GenerateName: clusterID + "-worker-machine-" + randomUUID[:6] + "-",
+			Labels: map[string]string{
+				"sigs.k8s.io/cluster-api-cluster": clusterID,
+			},
+		},
+		Spec: clusterv1alpha1.MachineSetSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"sigs.k8s.io/cluster-api-machineset": clusterID + "-worker-machineset-" + randomUUID[:6],
+					"sigs.k8s.io/cluster-api-cluster":    clusterID,
+				},
+			},
+			Replicas: &replicas,
+			Template: clusterv1alpha1.MachineTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: clusterID + "-worker-machine-" + randomUUID[:6] + "-",
+					Labels: map[string]string{
+						"sigs.k8s.io/cluster-api-machineset": clusterID + "-worker-machineset-" + randomUUID[:6],
+						"sigs.k8s.io/cluster-api-cluster":    clusterID,
+					},
+				},
+				Spec: clusterv1alpha1.MachineSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: map[string]string{
+							"node-role.kubernetes.io/compute": "",
+						},
+					},
+					ProviderConfig: providerConfig,
+					Versions: clusterv1alpha1.MachineVersionInfo{
+						Kubelet:      "1.10.1",
+						ControlPlane: "1.10.1",
+					},
+				},
 			},
 		},
 	}

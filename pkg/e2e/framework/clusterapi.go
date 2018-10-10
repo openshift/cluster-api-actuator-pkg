@@ -9,13 +9,14 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/prometheus/common/log"
 
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/manifests"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func (f *Framework) DeployClusterAPIStack(clusterAPINamespace, provider string) {
 
 	By("Deploy cluster API stack components")
-	certsSecret, apiAPIService, err := ClusterAPIServerAPIServiceObjects(clusterAPINamespace)
+	certsSecret, apiAPIService, err := manifests.ClusterAPIServerAPIServiceObjects(clusterAPINamespace)
 	Expect(err).NotTo(HaveOccurred())
 	_, err = f.KubeClient.CoreV1().Secrets(certsSecret.Namespace).Create(certsSecret)
 	Expect(err).NotTo(HaveOccurred())
@@ -31,27 +32,27 @@ func (f *Framework) DeployClusterAPIStack(clusterAPINamespace, provider string) 
 	_, err = f.APIRegistrationClient.Apiregistration().APIServices().Create(apiAPIService)
 	Expect(err).NotTo(HaveOccurred())
 
-	apiService := ClusterAPIService(clusterAPINamespace)
+	apiService := manifests.ClusterAPIService(clusterAPINamespace)
 	_, err = f.KubeClient.CoreV1().Services(apiService.Namespace).Create(apiService)
 	Expect(err).NotTo(HaveOccurred())
 
-	clusterAPIDeployment := ClusterAPIDeployment(clusterAPINamespace)
+	clusterAPIDeployment := manifests.ClusterAPIDeployment(clusterAPINamespace)
 	_, err = f.KubeClient.AppsV1beta2().Deployments(clusterAPIDeployment.Namespace).Create(clusterAPIDeployment)
 	Expect(err).NotTo(HaveOccurred())
 
-	clusterAPIControllersDeployment := ClusterAPIControllersDeployment(clusterAPINamespace, provider)
+	clusterAPIControllersDeployment := manifests.ClusterAPIControllersDeployment(clusterAPINamespace, provider)
 	_, err = f.KubeClient.AppsV1beta2().Deployments(clusterAPIDeployment.Namespace).Create(clusterAPIControllersDeployment)
 	Expect(err).NotTo(HaveOccurred())
 
-	clusterAPIRoleBinding := ClusterAPIRoleBinding(clusterAPINamespace)
+	clusterAPIRoleBinding := manifests.ClusterAPIRoleBinding(clusterAPINamespace)
 	_, err = f.KubeClient.RbacV1().RoleBindings(clusterAPIRoleBinding.Namespace).Create(clusterAPIRoleBinding)
 	Expect(err).NotTo(HaveOccurred())
 
-	clusterAPIEtcdCluster := ClusterAPIEtcdCluster(clusterAPINamespace)
+	clusterAPIEtcdCluster := manifests.ClusterAPIEtcdCluster(clusterAPINamespace)
 	_, err = f.KubeClient.AppsV1beta2().StatefulSets(clusterAPIEtcdCluster.Namespace).Create(clusterAPIEtcdCluster)
 	Expect(err).NotTo(HaveOccurred())
 
-	etcdService := ClusterAPIEtcdService(clusterAPINamespace)
+	etcdService := manifests.ClusterAPIEtcdService(clusterAPINamespace)
 	_, err = f.KubeClient.CoreV1().Services(etcdService.Namespace).Create(etcdService)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -78,7 +79,7 @@ func (f *Framework) DestroyClusterAPIStack(clusterAPINamespace, provider string)
 	var zero int64 = 0
 
 	By("Deleting etcd service")
-	etcdService := ClusterAPIEtcdService(clusterAPINamespace)
+	etcdService := manifests.ClusterAPIEtcdService(clusterAPINamespace)
 	err := WaitUntilDeleted(func() error {
 		return f.KubeClient.CoreV1().Services(etcdService.Namespace).Delete(etcdService.Name, &metav1.DeleteOptions{})
 	}, func() error {
@@ -88,7 +89,7 @@ func (f *Framework) DestroyClusterAPIStack(clusterAPINamespace, provider string)
 	Expect(err).NotTo(HaveOccurred())
 
 	By("Scaling down etcd cluster")
-	clusterAPIEtcdCluster := ClusterAPIEtcdCluster(clusterAPINamespace)
+	clusterAPIEtcdCluster := manifests.ClusterAPIEtcdCluster(clusterAPINamespace)
 	f.ScaleSatefulSetDownToZero(clusterAPIEtcdCluster)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -104,7 +105,7 @@ func (f *Framework) DestroyClusterAPIStack(clusterAPINamespace, provider string)
 	// No longer affecting future deployments since it lives in a different namespace.
 
 	By("Deleting role binding")
-	clusterAPIRoleBinding := ClusterAPIRoleBinding(clusterAPINamespace)
+	clusterAPIRoleBinding := manifests.ClusterAPIRoleBinding(clusterAPINamespace)
 	err = WaitUntilDeleted(func() error {
 		return f.KubeClient.RbacV1().RoleBindings(clusterAPIRoleBinding.Namespace).Delete(clusterAPIRoleBinding.Name, &metav1.DeleteOptions{})
 	}, func() error {
@@ -113,7 +114,7 @@ func (f *Framework) DestroyClusterAPIStack(clusterAPINamespace, provider string)
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	clusterAPIControllersDeployment := ClusterAPIControllersDeployment(clusterAPINamespace, provider)
+	clusterAPIControllersDeployment := manifests.ClusterAPIControllersDeployment(clusterAPINamespace, provider)
 	By("Scaling down controllers deployment")
 	err = f.ScaleDeploymentDownToZero(clusterAPIControllersDeployment)
 	Expect(err).NotTo(HaveOccurred())
@@ -128,7 +129,7 @@ func (f *Framework) DestroyClusterAPIStack(clusterAPINamespace, provider string)
 	// Ignore the error, the deployment has 0 replicas.
 	// No longer affecting future deployments since it lives in a different namespace.
 
-	clusterAPIDeployment := ClusterAPIDeployment(clusterAPINamespace)
+	clusterAPIDeployment := manifests.ClusterAPIDeployment(clusterAPINamespace)
 	By("Scaling down apiserver deployment")
 	err = f.ScaleDeploymentDownToZero(clusterAPIDeployment)
 	Expect(err).NotTo(HaveOccurred())
@@ -144,7 +145,7 @@ func (f *Framework) DestroyClusterAPIStack(clusterAPINamespace, provider string)
 	// No longer affecting future deployments since it lives in a different namespace.
 
 	By("Deleting cluster api service")
-	apiService := ClusterAPIService(clusterAPINamespace)
+	apiService := manifests.ClusterAPIService(clusterAPINamespace)
 	err = WaitUntilDeleted(func() error {
 		return f.KubeClient.CoreV1().Services(apiService.Namespace).Delete(apiService.Name, &metav1.DeleteOptions{})
 	}, func() error {
@@ -154,7 +155,7 @@ func (f *Framework) DestroyClusterAPIStack(clusterAPINamespace, provider string)
 	Expect(err).NotTo(HaveOccurred())
 
 	// Even though the certs are different, only the secret name(space) and apiservice name(space) are actually used
-	certsSecret, apiAPIService, err := ClusterAPIServerAPIServiceObjects(clusterAPINamespace)
+	certsSecret, apiAPIService, err := manifests.ClusterAPIServerAPIServiceObjects(clusterAPINamespace)
 	Expect(err).NotTo(HaveOccurred())
 
 	By("Deleting cluster api api service")
