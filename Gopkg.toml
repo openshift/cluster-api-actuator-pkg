@@ -39,4 +39,5 @@
 
 [[constraint]]
   name = "sigs.k8s.io/cluster-api"
-  branch = "master"
+  # The last revision before CRDs
+  revision = "f31486484d5b33c785540eeaffd47fe57832aef5"

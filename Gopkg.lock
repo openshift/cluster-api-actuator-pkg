@@ -1031,8 +1031,7 @@
   revision = "c01ed926f1243ac17a23a66f67da7fbdb2e2e298"
 
 [[projects]]
-  branch = "master"
-  digest = "1:9c510bf7fbb7c80ee1e41252bc08dcd82d24048be47e2b7c212e2cda4e2a8fa7"
+  digest = "1:08a06bcc698f1c308d3a80aa36bd98f76913dfc8b069c45537bcad465454a688"
   name = "sigs.k8s.io/cluster-api"
   packages = [
     "pkg/apis/cluster",
@@ -1043,7 +1042,7 @@
     "pkg/client/clientset_generated/clientset/typed/cluster/v1alpha1",
   ]
   pruneopts = ""
-  revision = "f302034cfa525bd57a891532e761f742687e5392"
+  revision = "f31486484d5b33c785540eeaffd47fe57832aef5"
 
 [solve-meta]
   analyzer-name = "dep"
