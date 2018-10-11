@@ -323,7 +323,7 @@ func (f *Framework) GetMasterMachineRestConfig(masterMachine *clusterv1alpha1.Ma
 	err = wait.Poll(PollInterval, PoolKubeConfigTimeout, func() (bool, error) {
 		log.Infof("Pulling kubeconfig from %v:8443", masterPublicDNSName)
 		var err error
-		masterKubeconfig, err = ReadKubeconfigFromServer("ec2-user", masterPublicDNSName, f.SSHKey)
+		masterKubeconfig, err = ReadKubeconfigFromServer(f.SSHUser, masterPublicDNSName, f.SSHKey)
 		if err != nil {
 			log.Infof("Unable to pull kubeconfig: %v", err)
 			return false, nil
