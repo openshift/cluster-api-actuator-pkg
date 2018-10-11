@@ -47,12 +47,16 @@ var ClusterID string
 // Path to private ssh to connect to instances (e.g. to download kubeconfig or copy docker images)
 var sshkey string
 
+// Default ssh user
+var sshuser string
+
 var actuatorImage string
 
 func init() {
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "kubeconfig file")
 	flag.StringVar(&ClusterID, "cluster-id", "", "cluster ID")
 	flag.StringVar(&sshkey, "ssh-key", "", "Path to private ssh to connect to instances (e.g. to download kubeconfig or copy docker images)")
+	flag.StringVar(&sshuser, "ssh-user", "ec2-user", "Ssh user to connect to instances")
 	flag.StringVar(&actuatorImage, "actuator-image", "gcr.io/k8s-cluster-api/machine-controller:0.0.1", "Actuator image to run")
 
 	flag.Parse()
@@ -66,6 +70,7 @@ type Framework struct {
 	Kubeconfig            string
 	RestConfig            *rest.Config
 	SSHKey                string
+	SSHUser               string
 	ActuatorImage         string
 }
 
@@ -80,6 +85,7 @@ func NewFramework() *Framework {
 	f := &Framework{
 		Kubeconfig:    kubeconfig,
 		SSHKey:        sshkey,
+		SSHUser:       sshuser,
 		ActuatorImage: actuatorImage,
 	}
 
