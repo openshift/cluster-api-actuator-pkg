@@ -74,6 +74,17 @@ func (f *Framework) DeployClusterAPIStack(clusterAPINamespace, actuatorImage, ac
 	})
 	f.ErrNotExpected(err)
 
+	f.By("Waiting until cluster objects can be listed")
+	err = wait.Poll(PollInterval, PoolClusterAPIDeploymentTimeout, func() (bool, error) {
+		_, err := f.CAPIClient.ClusterV1alpha1().Clusters(clusterAPIDeployment.Namespace).List(metav1.ListOptions{})
+		if err != nil {
+			log.Infof("unable to list clusters: %v", err)
+			return false, nil
+		}
+
+		return true, nil
+	})
+
 	f.By("Cluster API stack deployed")
 }
 

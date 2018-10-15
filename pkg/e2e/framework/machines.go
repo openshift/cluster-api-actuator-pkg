@@ -181,7 +181,7 @@ func (f *Framework) CreateMachineSetAndWait(machineset *clusterv1alpha1.MachineS
 }
 
 func (f *Framework) DeleteMachineSetAndWait(machineset *clusterv1alpha1.MachineSet, client CloudProviderClient) error {
-	f.By("Get all machineset's machines")
+	f.By(fmt.Sprintf("Get all %q machineset's machines", machineset.Name))
 	machines, err := f.CAPIClient.ClusterV1alpha1().Machines(machineset.Namespace).List(metav1.ListOptions{
 		LabelSelector: labels.SelectorFromSet(machineset.Spec.Selector.MatchLabels).String(),
 	})
@@ -343,19 +343,23 @@ func InitMachinesToDelete() *MachinesToDelete {
 }
 
 func (m *MachinesToDelete) AddMachine(machine *clusterv1alpha1.Machine, framework *Framework, client CloudProviderClient) {
-	m.machines = append(m.machines, machineToDelete{machine: machine, framework: framework, client: client})
+	m.machines = append([]machineToDelete{machineToDelete{machine: machine, framework: framework, client: client}}, m.machines...)
 }
 
 func (m *MachinesToDelete) AddMachineSet(machineset *clusterv1alpha1.MachineSet, framework *Framework, client CloudProviderClient) {
-	m.machinesets = append(m.machinesets, machinesetToDelete{machineset: machineset, framework: framework, client: client})
+	m.machinesets = append([]machinesetToDelete{machinesetToDelete{machineset: machineset, framework: framework, client: client}}, m.machinesets...)
 }
 
 func (m *MachinesToDelete) Delete() {
+	for _, item := range m.machinesets {
+		item.framework.DeleteMachineSetAndWait(item.machineset, item.client)
+	}
+
+	m.machinesets = make([]machinesetToDelete, 0)
+
 	for _, item := range m.machines {
 		item.framework.DeleteMachineAndWait(item.machine, item.client)
 	}
 
-	for _, item := range m.machinesets {
-		item.framework.DeleteMachineSetAndWait(item.machineset, item.client)
-	}
+	m.machines = make([]machineToDelete, 0)
 }
