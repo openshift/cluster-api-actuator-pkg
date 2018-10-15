@@ -24,7 +24,7 @@ import (
 
 const (
 	// Default timeout for pools
-	PoolTimeout = 60 * time.Second
+	PoolTimeout = 5 * time.Minute
 	// Default waiting interval for pools
 	PollInterval = 5 * time.Second
 	// Node waiting internal
@@ -34,7 +34,7 @@ const (
 	PoolDeletionTimeout             = 1 * time.Minute
 	// Pool timeout for kubeconfig
 	PoolKubeConfigTimeout = 10 * time.Minute
-	PoolNodesReadyTimeout = 5 * time.Minute
+	PoolNodesReadyTimeout = 10 * time.Minute
 	// Instances are running timeout
 	TimeoutPoolMachineRunningInterval = 10 * time.Minute
 )
@@ -52,12 +52,18 @@ var sshuser string
 
 var actuatorImage string
 
+var libvirtURI string
+var libvirtPK string
+
 func init() {
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "kubeconfig file")
 	flag.StringVar(&ClusterID, "cluster-id", "", "cluster ID")
 	flag.StringVar(&sshkey, "ssh-key", "", "Path to private ssh to connect to instances (e.g. to download kubeconfig or copy docker images)")
 	flag.StringVar(&sshuser, "ssh-user", "ec2-user", "Ssh user to connect to instances")
 	flag.StringVar(&actuatorImage, "actuator-image", "gcr.io/k8s-cluster-api/machine-controller:0.0.1", "Actuator image to run")
+	// libvirt specific flags
+	flag.StringVar(&libvirtURI, "libvirt-uri", "", "Libvirt URI to connect to libvirt from within machine controller container")
+	flag.StringVar(&libvirtPK, "libvirt-pk", "", "Private key to connect to qemu+ssh libvirt uri")
 
 	flag.Parse()
 }
@@ -81,6 +87,9 @@ type Framework struct {
 
 	SSH *SSHConfig
 
+	LibvirtURI string
+	LibvirtPK  string
+
 	ActuatorImage  string
 	ErrNotExpected ErrNotExpectedFnc
 	By             ByFnc
@@ -100,6 +109,9 @@ func NewFramework() (*Framework, error) {
 			Key:  sshkey,
 			User: sshuser,
 		},
+
+		LibvirtURI: libvirtURI,
+		LibvirtPK:  libvirtPK,
 
 		ActuatorImage: actuatorImage,
 	}
@@ -127,6 +139,8 @@ func NewFrameworkFromConfig(config *rest.Config, sshConfig *SSHConfig) (*Framewo
 		RestConfig:    config,
 		SSH:           sshConfig,
 		ActuatorImage: actuatorImage,
+		LibvirtURI:    libvirtURI,
+		LibvirtPK:     libvirtPK,
 	}
 
 	f.ErrNotExpected = f.DefaultErrNotExpected
@@ -300,12 +314,14 @@ func SigKubeDescribe(text string, body func()) bool {
 
 func (f *Framework) UploadDockerImageToInstance(image, targetMachine string) error {
 	log.Infof("Uploading %q to the master machine under %q", image, targetMachine)
-	cmd := exec.Command("bash", "-c", fmt.Sprintf(
-		"docker save %v | bzip2 | ssh -o StrictHostKeyChecking=no -i %v ec2-user@%v \"bunzip2 > /tmp/tempimage.bz2 && sudo docker load -i /tmp/tempimage.bz2\"",
+	cmdStr := fmt.Sprintf(
+		"docker save %v | bzip2 | ssh -o StrictHostKeyChecking=no -i %v %v@%v \"bunzip2 > /tmp/tempimage.bz2 && sudo docker load -i /tmp/tempimage.bz2\"",
 		image,
 		f.SSH.Key,
+		f.SSH.User,
 		targetMachine,
-	))
+	)
+	cmd := exec.Command("bash", "-c", cmdStr)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Info(string(out))
