@@ -950,7 +950,8 @@ func ClusterAPIControllersDeployment(clusterAPINamespace, actuatorImage string, 
 							},
 							Command: []string{"./machine-controller-manager"},
 							Args: []string{
-								"--log-level=debug",
+								"--logtostderr=true",
+								"--v=3",
 								"--kubeconfig=/etc/kubernetes/admin.conf",
 							},
 							Resources: apiv1.ResourceRequirements{
