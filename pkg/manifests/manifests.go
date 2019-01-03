@@ -715,7 +715,7 @@ func ClusterRoleBinding(clusterAPINamespace string) *rbacv1.ClusterRoleBinding {
 	}
 }
 
-func ClusterAPIControllersDeployment(clusterAPINamespace, actuatorImage string, ActuatorPrivateKey string) *appsv1.Deployment {
+func ClusterAPIControllersDeployment(clusterAPINamespace, machineControllerImage, machineManagerImage, nodelinkControllerImage, ActuatorPrivateKey string) *appsv1.Deployment {
 	var replicas int32 = 1
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -765,7 +765,7 @@ func ClusterAPIControllersDeployment(clusterAPINamespace, actuatorImage string, 
 					Containers: []apiv1.Container{
 						{
 							Name:  fmt.Sprintf("machine-controller"),
-							Image: actuatorImage,
+							Image: machineControllerImage,
 							VolumeMounts: []apiv1.VolumeMount{
 								{
 									Name:      "config",
@@ -809,7 +809,7 @@ func ClusterAPIControllersDeployment(clusterAPINamespace, actuatorImage string, 
 						{
 							Name: "nodelink-controller",
 							// TODO(jchaloup): use other than the latest tag
-							Image: "openshift/origin-machine-api-operator:latest",
+							Image: nodelinkControllerImage,
 							VolumeMounts: []apiv1.VolumeMount{
 								{
 									Name:      "config",
@@ -834,7 +834,7 @@ func ClusterAPIControllersDeployment(clusterAPINamespace, actuatorImage string, 
 						},
 						{
 							Name:  "manager",
-							Image: actuatorImage,
+							Image: machineManagerImage,
 							Command: []string{
 								"/manager",
 							},
