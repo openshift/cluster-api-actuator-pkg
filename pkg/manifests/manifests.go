@@ -31,7 +31,7 @@ func ClusterCRDManifest() *v1beta1.CustomResourceDefinition {
 		},
 		Spec: v1beta1.CustomResourceDefinitionSpec{
 			Group:   "machine.openshift.io",
-			Version: "v1alpha1",
+			Version: "v1beta1",
 			Names: v1beta1.CustomResourceDefinitionNames{
 				Plural: "clusters",
 				Kind:   "Cluster",
@@ -172,7 +172,7 @@ func MachineCRDManifest() *v1beta1.CustomResourceDefinition {
 		},
 		Spec: v1beta1.CustomResourceDefinitionSpec{
 			Group:   "machine.openshift.io",
-			Version: "v1alpha1",
+			Version: "v1beta1",
 			Names: v1beta1.CustomResourceDefinitionNames{
 				Plural: "machines",
 				Kind:   "Machine",
@@ -312,7 +312,7 @@ func MachineSetCRDManifest() *v1beta1.CustomResourceDefinition {
 		},
 		Spec: v1beta1.CustomResourceDefinitionSpec{
 			Group:   "machine.openshift.io",
-			Version: "v1alpha1",
+			Version: "v1beta1",
 			Names: v1beta1.CustomResourceDefinitionNames{
 				Plural: "machinesets",
 				Kind:   "MachineSet",
@@ -462,7 +462,7 @@ func MachineDeploymentCRDManifest() *v1beta1.CustomResourceDefinition {
 		},
 		Spec: v1beta1.CustomResourceDefinitionSpec{
 			Group:   "machine.openshift.io",
-			Version: "v1alpha1",
+			Version: "v1beta1",
 			Names: v1beta1.CustomResourceDefinitionNames{
 				Plural: "machinedeployments",
 				Kind:   "MachineDeployment",
