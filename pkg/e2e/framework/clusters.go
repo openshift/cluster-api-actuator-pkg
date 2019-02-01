@@ -23,7 +23,7 @@ func (f *Framework) CreateClusterAndWait(cluster *machinev1beta1.Cluster) {
 	f.ErrNotExpected(err)
 
 	err = wait.Poll(PollInterval, PoolTimeout, func() (bool, error) {
-		_, err := f.CAPIClient.ClusterV1alpha1().Clusters(cluster.Namespace).Get(cluster.Name, metav1.GetOptions{})
+		_, err := f.CAPIClient.MachineV1beta1().Clusters(cluster.Namespace).Get(cluster.Name, metav1.GetOptions{})
 		if err != nil {
 			return false, nil
 		}
