@@ -434,17 +434,6 @@ MachineLoop:
 // Validate the number of nodes scales down to the initial number before scale out
 // Delete the machineAutoscaler object
 // Delete the clusterAutoscaler object
-// ExpectAutoscalerScalesOut is an smoke test for the autoscaling feature
-// Create a clusterAutoscaler object
-// Create a machineAutoscaler object
-// Create a workLoad to force autoscaling
-// Validate the targeted machineSet scales out the field for the expected number of replicas
-// Validate the number of nodes in the cluster is growing
-// Delete the workLoad and so provoke scale down
-// Validate the targeted machineSet scales down its replica count
-// Validate the number of nodes scales down to the initial number before scale out
-// Delete the machineAutoscaler object
-// Delete the clusterAutoscaler object
 func (tc *testConfig) ExpectAutoscalerScalesOut(ctx context.Context) error {
 	listOptions := client.ListOptions{
 		Namespace: namespace,
