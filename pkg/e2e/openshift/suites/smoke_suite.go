@@ -364,7 +364,7 @@ func (tc *testConfig) ExpectNewNodeWhenDeletingMachine(ctx context.Context) erro
 	var triagedWorkerNode corev1.Node
 MachineLoop:
 	for _, m := range machineList.Items {
-		if m.Labels["sigs.k8s.io/cluster-api-machine-role"] == "worker" {
+		if m.Labels["machine.openshift.io/cluster-api-machine-role"] == "worker" {
 			for _, n := range nodeList.Items {
 				if m.Status.NodeRef == nil {
 					glog.Errorf("no NodeRef found in machine %v", m.Name)
