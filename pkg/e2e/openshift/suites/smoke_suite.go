@@ -471,6 +471,7 @@ func (tc *testConfig) ExpectAutoscalerScalesOut(ctx context.Context) error {
 
 	glog.Infof("Create ClusterAutoscaler and MachineAutoscaler objects. Targeting machineSet %s", targetMachineSet.Name)
 	initialNumberOfReplicas := targetMachineSet.Spec.Replicas
+	tenSeconds := "10s"
 	clusterAutoscaler := caov1alpha1.ClusterAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "default",
@@ -483,10 +484,10 @@ func (tc *testConfig) ExpectAutoscalerScalesOut(ctx context.Context) error {
 		Spec: caov1alpha1.ClusterAutoscalerSpec{
 			ScaleDown: &caov1alpha1.ScaleDownConfig{
 				Enabled:           true,
-				DelayAfterAdd:     "10s",
-				DelayAfterDelete:  "10s",
-				DelayAfterFailure: "10s",
-				UnneededTime:      "10s",
+				DelayAfterAdd:     &tenSeconds,
+				DelayAfterDelete:  &tenSeconds,
+				DelayAfterFailure: &tenSeconds,
+				UnneededTime:      &tenSeconds,
 			},
 		},
 	}
