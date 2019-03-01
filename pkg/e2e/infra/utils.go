@@ -5,7 +5,11 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/scale"
 	"k8s.io/client-go/tools/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
 	"github.com/golang/glog"
 	e2e "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/framework"
@@ -25,7 +29,7 @@ func isOneMachinePerNode(client runtimeclient.Client) bool {
 	machineList := mapiv1beta1.MachineList{}
 	nodeList := corev1.NodeList{}
 
-	if err := wait.PollImmediate(5*time.Second, e2e.WaitShort, func() (bool, error) {
+	if err := wait.PollImmediate(5*time.Second, e2e.WaitMedium, func() (bool, error) {
 		if err := client.List(context.TODO(), &listOptions, &machineList); err != nil {
 			glog.Errorf("Error querying api for machineList object: %v, retrying...", err)
 			return false, nil
@@ -133,6 +137,43 @@ func getMachineFromNode(client runtimeclient.Client, node *corev1.Node) (*mapiv1
 	return &machine, nil
 }
 
+func getMachineSetFromMachine(client runtimeclient.Client, machine mapiv1beta1.Machine) (*mapiv1beta1.MachineSet, error) {
+	for key := range machine.OwnerReferences {
+		if machine.OwnerReferences[key].Kind == "MachineSet" {
+			machineSet := mapiv1beta1.MachineSet{}
+			key := runtimeclient.ObjectKey{Namespace: e2e.TestContext.MachineApiNamespace, Name: machine.OwnerReferences[key].Name}
+			if err := wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
+				if err := client.Get(context.TODO(), key, &machineSet); err != nil {
+					glog.Errorf("error querying api for machineSet object: %v, retrying...", err)
+					return false, nil
+				}
+				return true, nil
+			}); err != nil {
+				glog.Errorf("Error calling getMachineSetFromMachine: %v", err)
+				return nil, err
+			}
+			return &machineSet, nil
+		}
+	}
+	return nil, fmt.Errorf("no MachineSet found for machine %q", machine.Name)
+}
+
+func getMachineSetByName(client runtimeclient.Client, name string) (*mapiv1beta1.MachineSet, error) {
+	machineSet := mapiv1beta1.MachineSet{}
+	key := runtimeclient.ObjectKey{Namespace: e2e.TestContext.MachineApiNamespace, Name: name}
+	if err := wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
+		if err := client.Get(context.TODO(), key, &machineSet); err != nil {
+			glog.Errorf("error querying api for machineSet object: %v, retrying...", err)
+			return false, nil
+		}
+		return true, nil
+	}); err != nil {
+		glog.Errorf("Error calling getMachineByName: %v", err)
+		return nil, err
+	}
+	return &machineSet, nil
+}
+
 func waitUntilAllNodesAreSchedulable(client runtimeclient.Client) error {
 	return wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
 		nodeList := corev1.NodeList{}
@@ -146,8 +187,27 @@ func waitUntilAllNodesAreSchedulable(client runtimeclient.Client) error {
 				glog.Errorf("Node %q is unschedulable", node.Name)
 				return false, nil
 			}
-			glog.Errorf("Node %q is schedulable", node.Name)
+			glog.Infof("Node %q is schedulable", node.Name)
 		}
 		return true, nil
 	})
+}
+
+func getScaleClient() (scale.ScalesGetter, error) {
+	cfg, err := e2e.LoadConfig()
+	if err != nil {
+		return nil, fmt.Errorf("error getting config %v", err)
+	}
+	mapper, err := apiutil.NewDiscoveryRESTMapper(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("error calling NewDiscoveryRESTMapper %v", err)
+	}
+
+	discovery := discovery.NewDiscoveryClientForConfigOrDie(cfg)
+	scaleKindResolver := scale.NewDiscoveryScaleKindResolver(discovery)
+	scaleClient, err := scale.NewForConfig(cfg, mapper, dynamic.LegacyAPIPathResolverFunc, scaleKindResolver)
+	if err != nil {
+		return nil, fmt.Errorf("error calling building scale client %v", err)
+	}
+	return scaleClient, nil
 }
