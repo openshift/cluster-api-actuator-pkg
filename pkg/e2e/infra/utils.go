@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/scale"
@@ -174,6 +176,24 @@ func getMachineSetByName(client runtimeclient.Client, name string) (*mapiv1beta1
 	return &machineSet, nil
 }
 
+func getMachineSetList(client runtimeclient.Client) (*mapiv1beta1.MachineSetList, error) {
+	machineSetList := mapiv1beta1.MachineSetList{}
+	listOptions := runtimeclient.ListOptions{
+		Namespace: e2e.TestContext.MachineApiNamespace,
+	}
+	if err := wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
+		if err := client.List(context.TODO(), &listOptions, &machineSetList); err != nil {
+			glog.Errorf("error querying api for machineSetList object: %v, retrying...", err)
+			return false, nil
+		}
+		return true, nil
+	}); err != nil {
+		glog.Errorf("Error calling getAllMachineSetList: %v", err)
+		return nil, err
+	}
+	return &machineSetList, nil
+}
+
 func waitUntilAllNodesAreSchedulable(client runtimeclient.Client) error {
 	return wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
 		nodeList := corev1.NodeList{}
@@ -210,4 +230,55 @@ func getScaleClient() (scale.ScalesGetter, error) {
 		return nil, fmt.Errorf("error calling building scale client %v", err)
 	}
 	return scaleClient, nil
+}
+
+func scaleWorkers(client runtimeclient.Client, replicas int) error {
+	workerNode, err := getWorkerNode(client)
+	if err != nil {
+		return fmt.Errorf("error calling getWorkerNode %v", err)
+	}
+	glog.Infof("Got workerNode %q", workerNode.Name)
+
+	workerMachine, err := getMachineFromNode(client, workerNode)
+	if err != nil {
+		return fmt.Errorf("error calling getMachineFromNode %v", err)
+	}
+	glog.Infof("Got workerMachine %q", workerMachine.Name)
+
+	workerMachineSet, err := getMachineSetFromMachine(client, *workerMachine)
+	if err != nil {
+		return fmt.Errorf("error calling getMachineSetFromMachine %v", err)
+	}
+	glog.Infof("Got workerMachineSet %q", workerMachineSet.Name)
+
+	scaleClient, err := getScaleClient()
+	if err != nil {
+		return fmt.Errorf("error calling getScaleClient %v", err)
+	}
+
+	scale, err := scaleClient.Scales(e2e.TestContext.MachineApiNamespace).Get(schema.GroupResource{Group: "machine.openshift.io", Resource: "MachineSet"}, workerMachineSet.Name)
+	if err != nil {
+		return fmt.Errorf("error calling scaleClient.Scales get: %v", err)
+	}
+
+	scaleUpdate := scale.DeepCopy()
+	scaleUpdate.Spec.Replicas = int32(replicas)
+	_, err = scaleClient.Scales(e2e.TestContext.MachineApiNamespace).Update(schema.GroupResource{Group: "machine.openshift.io", Resource: "MachineSet"}, scaleUpdate)
+	if err != nil {
+		return fmt.Errorf("error calling scaleClient.Scales update: %v", err)
+	}
+
+	glog.Infof("%q original replicas: %d. Scaling to: %d", workerMachineSet.Name, *workerMachineSet.Spec.Replicas, replicas)
+	return nil
+}
+
+func machineSetsSnapShot(client runtimeclient.Client) error {
+	machineSetList, err := getMachineSetList(client)
+	if err != nil {
+		return fmt.Errorf("error calling getMachineSetList: %v", err)
+	}
+	for key := range machineSetList.Items {
+		glog.Infof("MachineSet %q replicas %d. Ready: %d, available %d", machineSetList.Items[key].Name, *machineSetList.Items[key].Spec.Replicas, machineSetList.Items[key].Status.ReadyReplicas, machineSetList.Items[key].Status.AvailableReplicas)
+	}
+	return nil
 }

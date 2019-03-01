@@ -5,17 +5,16 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang/glog"
 	g "github.com/onsi/ginkgo"
 	o "github.com/onsi/gomega"
 	e2e "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/framework"
 	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/klog/glog"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -154,53 +153,29 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 	})
 
 	g.It("grow or decrease when scaling out or in", func() {
+		g.By("checking initial cluster state")
 		client, err := e2e.LoadClient()
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		scaleClient, err := getScaleClient()
-		o.Expect(err).NotTo(o.HaveOccurred())
-
-		// Initial cluster state
-		g.By("checking initial cluster state")
 		initialClusterSize, err := getClusterSize(client)
 		waitForClusterSizeToBeHealthy(*initialClusterSize)
 
-		g.By("getting a worker machineSet")
-		workerNode, err := getWorkerNode(client)
-		o.Expect(err).NotTo(o.HaveOccurred())
-
-		workerMachine, err := getMachineFromNode(client, workerNode)
-		o.Expect(err).NotTo(o.HaveOccurred())
-
-		workerMachineSet, err := getMachineSetFromMachine(client, *workerMachine)
-		o.Expect(err).NotTo(o.HaveOccurred())
-
+		g.By("scaling out workers")
 		scaleOut := 3
 		scaleIn := 1
-		originalReplicas := int(*workerMachineSet.Spec.Replicas)
+		originalReplicas := 1
 		clusterGrowth := scaleOut - originalReplicas
 		clusterDecrease := scaleOut - scaleIn
+		intermediateClusterSize := *initialClusterSize + clusterGrowth
 		finalClusterSize := *initialClusterSize + clusterGrowth - clusterDecrease
-
-		g.By(fmt.Sprintf("machineSet %q has %d replicas. Scaling out to %d replicas", workerMachineSet.Name, originalReplicas, scaleOut))
-		scale, err := scaleClient.Scales(e2e.TestContext.MachineApiNamespace).Get(schema.GroupResource{Group: "machine.openshift.io", Resource: "MachineSet"}, workerMachineSet.Name)
+		err = scaleWorkers(client, scaleOut)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		scaleUpdate := scale.DeepCopy()
-		scaleUpdate.Spec.Replicas = int32(scaleOut)
-		_, err = scaleClient.Scales(e2e.TestContext.MachineApiNamespace).Update(schema.GroupResource{Group: "machine.openshift.io", Resource: "MachineSet"}, scaleUpdate)
-		o.Expect(err).NotTo(o.HaveOccurred())
+		g.By(fmt.Sprintf("waiting for cluster to grow %d nodes. Size should be %d", clusterGrowth, intermediateClusterSize))
+		waitForClusterSizeToBeHealthy(intermediateClusterSize)
 
-		g.By(fmt.Sprintf("waiting for cluster to grow %d nodes", clusterGrowth))
-		waitForClusterSizeToBeHealthy(*initialClusterSize + clusterGrowth)
-
-		g.By(fmt.Sprintf("machineSet %q has %d replicas. Scaling in to %d replicas", workerMachineSet.Name, scaleOut, scaleIn))
-		scale, err = scaleClient.Scales(e2e.TestContext.MachineApiNamespace).Get(schema.GroupResource{Group: "machine.openshift.io", Resource: "MachineSet"}, workerMachineSet.Name)
-		o.Expect(err).NotTo(o.HaveOccurred())
-
-		scaleUpdate = scale.DeepCopy()
-		scaleUpdate.Spec.Replicas = int32(scaleIn)
-		_, err = scaleClient.Scales(e2e.TestContext.MachineApiNamespace).Update(schema.GroupResource{Group: "machine.openshift.io", Resource: "MachineSet"}, scaleUpdate)
+		g.By("scaling in workers")
+		err = scaleWorkers(client, scaleIn)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By(fmt.Sprintf("waiting for cluster to decrease %d nodes. Final size should be %d nodes", clusterDecrease, finalClusterSize))
@@ -213,6 +188,7 @@ func waitForClusterSizeToBeHealthy(targetSize int) {
 	o.Expect(err).NotTo(o.HaveOccurred())
 
 	o.Eventually(func() int {
+		machineSetsSnapShot(client)
 		finalClusterSize, err := getClusterSize(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		return *finalClusterSize
