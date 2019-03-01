@@ -2,7 +2,6 @@ package infra
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -11,7 +10,6 @@ import (
 	o "github.com/onsi/gomega"
 	e2e "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/framework"
 	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
-	controllernode "github.com/openshift/cluster-api/pkg/controller/node"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -20,58 +18,17 @@ import (
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = g.Describe("[Feature:Machines] Machines should", func() {
+var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 	defer g.GinkgoRecover()
 
-	g.It("be linked with nodes", func() {
+	g.It("have machines resources backing nodes", func() {
 		var err error
 		client, err := e2e.LoadClient()
 		o.Expect(err).NotTo(o.HaveOccurred())
-
-		listOptions := runtimeclient.ListOptions{
-			Namespace: e2e.TestContext.MachineApiNamespace,
-		}
-		machineList := mapiv1beta1.MachineList{}
-		nodeList := corev1.NodeList{}
-
-		err = wait.PollImmediate(5*time.Second, e2e.WaitShort, func() (bool, error) {
-			if err := client.List(context.TODO(), &listOptions, &machineList); err != nil {
-				glog.Errorf("error querying api for machineList object: %v, retrying...", err)
-				return false, nil
-			}
-			if err := client.List(context.TODO(), &listOptions, &nodeList); err != nil {
-				glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
-				return false, nil
-			}
-
-			// Every machine needs to be linked to a node, though some nodes do not have to linked to any machines
-			glog.Infof("Expecting at least the same number of machines as nodes, have %v nodes and %v machines", len(nodeList.Items), len(machineList.Items))
-			if len(machineList.Items) > len(nodeList.Items) {
-				return false, nil
-			}
-
-			nodeNameToMachineAnnotation := make(map[string]string)
-			for _, node := range nodeList.Items {
-				nodeNameToMachineAnnotation[node.Name] = node.Annotations[controllernode.MachineAnnotationKey]
-			}
-			for _, machine := range machineList.Items {
-				if machine.Status.NodeRef == nil {
-					glog.Errorf("machine %s has no NodeRef, retrying...", machine.Name)
-					return false, nil
-				}
-				nodeName := machine.Status.NodeRef.Name
-				if nodeNameToMachineAnnotation[nodeName] != fmt.Sprintf("%s/%s", e2e.TestContext.MachineApiNamespace, machine.Name) {
-					glog.Errorf("node name %s does not match expected machine name %s, retrying...", nodeName, machine.Name)
-					return false, nil
-				}
-				glog.Infof("Machine %q is linked to node %q", machine.Name, nodeName)
-			}
-			return true, nil
-		})
-		o.Expect(err).NotTo(o.HaveOccurred())
+		o.Expect(isOneMachinePerNode(client)).To(o.BeTrue())
 	})
 
-	g.It("have ability to additively reconcile taints", func() {
+	g.It("additively reconcile taints from machines to nodes", func() {
 		var err error
 		client, err := e2e.LoadClient()
 		o.Expect(err).NotTo(o.HaveOccurred())
@@ -152,119 +109,67 @@ var _ = g.Describe("[Feature:Machines] Machines should", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 	})
 
-	g.It("be replaced with new one when deleted", func() {
+	g.It("recover from deleted worker machines", func() {
 		var err error
 		client, err := e2e.LoadClient()
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		// Assume cluster state
+		// Initial cluster state
+		g.By("checking initial cluster state")
+		initialClusterSize, err := getClusterSize(client)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		err = e2e.WaitUntilAllNodesAreReady(client)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		err = waitUntilAllNodesAreSchedulable(client)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		o.Expect(isOneMachinePerNode(client)).To(o.BeTrue())
+		glog.Infof("Initial cluster size: %d node", *initialClusterSize)
+
+		workerNode, err := getWorkerNode(client)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		workerMachine, err := getMachineFromNode(client, workerNode)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		g.By(fmt.Sprintf("deleting machine object %q", workerMachine.Name))
+		o.Eventually(func() bool {
+			if err := client.Delete(context.TODO(), workerMachine); err != nil {
+				glog.Errorf("Error querying api for machine object %q: %v, retrying...", workerMachine.Name, err)
+				return false
+			}
+			return true
+		}, e2e.WaitShort, 5*time.Second).Should(o.BeTrue())
+
+		g.By(fmt.Sprintf("waiting for node object %q to go away", workerNode.Name))
+		nodeList := corev1.NodeList{}
+		o.Eventually(func() bool {
+			if err := client.List(context.TODO(), nil, &nodeList); err != nil {
+				glog.Errorf("Error querying api for nodeList object: %v, retrying...", err)
+				return false
+			}
+			for _, n := range nodeList.Items {
+				if n.Name == workerNode.Name {
+					glog.Infof("Node %q still exists. Node conditions are: %v", workerNode.Name, workerNode.Status.Conditions)
+					return false
+				}
+			}
+			return true
+		}, e2e.WaitLong, 5*time.Second).Should(o.BeTrue())
+
+		g.By(fmt.Sprintf("waiting for new node object to come up"))
+		o.Eventually(func() int {
+			finalClusterSize, err := getClusterSize(client)
+			o.Expect(err).NotTo(o.HaveOccurred())
+			return *finalClusterSize
+		}, e2e.WaitLong, 5*time.Second).Should(o.BeNumerically("==", *initialClusterSize))
+
+		g.By(fmt.Sprintf("waiting for all nodes to be ready"))
 		err = e2e.WaitUntilAllNodesAreReady(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		glog.Info("Get machineList")
-		machineList := mapiv1beta1.MachineList{}
-		err = wait.PollImmediate(1*time.Second, e2e.WaitShort, func() (bool, error) {
-			if err := client.List(context.TODO(), runtimeclient.InNamespace(e2e.TestContext.MachineApiNamespace), &machineList); err != nil {
-				glog.Errorf("error querying api for machineList object: %v, retrying...", err)
-				return false, nil
-			}
-			return true, nil
-		})
+		g.By(fmt.Sprintf("waiting for all nodes to be schedulable"))
+		err = waitUntilAllNodesAreSchedulable(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		glog.Info("Get nodeList")
-		nodeList := corev1.NodeList{}
-		err = wait.PollImmediate(1*time.Second, e2e.WaitShort, func() (bool, error) {
-			if err := client.List(context.TODO(), nil, &nodeList); err != nil {
-				glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
-				return false, nil
-			}
-			return true, nil
-		})
-		o.Expect(err).NotTo(o.HaveOccurred())
-
-		clusterInitialTotalNodes := len(nodeList.Items)
-		clusterInitialTotalMachines := len(machineList.Items)
-		var triagedWorkerMachine *mapiv1beta1.Machine
-		var triagedWorkerNode *corev1.Node
-
-		glog.Infof("Initial number of nodes: %v, initial number of machines: %v", clusterInitialTotalNodes, clusterInitialTotalMachines)
-
-		err = func() error {
-			for _, machine := range machineList.Items {
-				if machine.Status.NodeRef == nil {
-					glog.Infof("Machine %q is not linked to any node", machine.Name)
-					continue
-				}
-				node := corev1.Node{}
-				if err := client.Get(context.TODO(), types.NamespacedName{Name: machine.Status.NodeRef.Name}, &node); err != nil {
-					glog.Errorf("error querying api for node object: %v, retrying...", err)
-					continue
-				}
-
-				if node.Labels == nil {
-					continue
-				}
-
-				if _, exists := node.Labels["node-role.kubernetes.io/worker"]; !exists {
-					continue
-				}
-
-				triagedWorkerNode = node.DeepCopy()
-				triagedWorkerMachine = machine.DeepCopy()
-				break
-			}
-			if triagedWorkerMachine == nil {
-				return errors.New("Unable to find any worker machine")
-			}
-			return nil
-		}()
-		o.Expect(err).NotTo(o.HaveOccurred())
-
-		glog.Infof("Delete machine %v", triagedWorkerMachine.Name)
-		err = wait.PollImmediate(1*time.Second, e2e.WaitShort, func() (bool, error) {
-			if err := client.Delete(context.TODO(), triagedWorkerMachine); err != nil {
-				glog.Errorf("error querying api for Deployment object: %v, retrying...", err)
-				return false, nil
-			}
-			return true, nil
-		})
-		o.Expect(err).NotTo(o.HaveOccurred())
-
-		err = wait.PollImmediate(5*time.Second, e2e.WaitMedium, func() (bool, error) {
-			if err := client.List(context.TODO(), runtimeclient.InNamespace(e2e.TestContext.MachineApiNamespace), &machineList); err != nil {
-				glog.Errorf("error querying api for machineList object: %v, retrying...", err)
-				return false, nil
-			}
-			glog.Info("Expect new machine to come up")
-			return len(machineList.Items) == clusterInitialTotalMachines, nil
-		})
-		o.Expect(err).NotTo(o.HaveOccurred())
-
-		err = wait.PollImmediate(5*time.Second, e2e.WaitLong, func() (bool, error) {
-			if err := client.List(context.TODO(), nil, &nodeList); err != nil {
-				glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
-				return false, nil
-			}
-			glog.Info("Expect deleted machine node to go away")
-			for _, n := range nodeList.Items {
-				if n.Name == triagedWorkerNode.Name {
-					return false, nil
-				}
-			}
-			return true, nil
-		})
-		o.Expect(err).NotTo(o.HaveOccurred())
-
-		err = wait.PollImmediate(5*time.Second, e2e.WaitLong, func() (bool, error) {
-			if err := client.List(context.TODO(), nil, &nodeList); err != nil {
-				glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
-				return false, nil
-			}
-			glog.Info("Expect new node to come up")
-			return len(nodeList.Items) == clusterInitialTotalNodes, nil
-		})
-		o.Expect(err).NotTo(o.HaveOccurred())
+		g.By(fmt.Sprintf("waiting for each node to be backed by a machine"))
+		o.Expect(isOneMachinePerNode(client)).To(o.BeTrue())
 	})
-
 })

@@ -436,6 +436,7 @@ func WaitUntilAllNodesAreReady(client runtimeclient.Client) error {
 				glog.Errorf("Node %q is not ready", node.Name)
 				return false, nil
 			}
+			glog.Errorf("Node %q is ready", node.Name)
 		}
 		return true, nil
 	})
