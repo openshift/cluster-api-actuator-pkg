@@ -118,13 +118,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		// Initial cluster state
 		g.By("checking initial cluster state")
 		initialClusterSize, err := getClusterSize(client)
-		o.Expect(err).NotTo(o.HaveOccurred())
-		err = e2e.WaitUntilAllNodesAreReady(client)
-		o.Expect(err).NotTo(o.HaveOccurred())
-		err = waitUntilAllNodesAreSchedulable(client)
-		o.Expect(err).NotTo(o.HaveOccurred())
-		o.Expect(isOneMachinePerNode(client)).To(o.BeTrue())
-		glog.Infof("Initial cluster size: %d node", *initialClusterSize)
+		waitForClusterSizeToBeHealthy(*initialClusterSize)
 
 		workerNode, err := getWorkerNode(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
@@ -156,22 +150,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		}, e2e.WaitLong, 5*time.Second).Should(o.BeTrue())
 
 		g.By(fmt.Sprintf("waiting for new node object to come up"))
-		o.Eventually(func() int {
-			finalClusterSize, err := getClusterSize(client)
-			o.Expect(err).NotTo(o.HaveOccurred())
-			return *finalClusterSize
-		}, e2e.WaitLong, 5*time.Second).Should(o.BeNumerically("==", *initialClusterSize))
-
-		g.By(fmt.Sprintf("waiting for all nodes to be ready"))
-		err = e2e.WaitUntilAllNodesAreReady(client)
-		o.Expect(err).NotTo(o.HaveOccurred())
-
-		g.By(fmt.Sprintf("waiting for all nodes to be schedulable"))
-		err = waitUntilAllNodesAreSchedulable(client)
-		o.Expect(err).NotTo(o.HaveOccurred())
-
-		g.By(fmt.Sprintf("waiting for each node to be backed by a machine"))
-		o.Expect(isOneMachinePerNode(client)).To(o.BeTrue())
+		waitForClusterSizeToBeHealthy(*initialClusterSize)
 	})
 
 	g.It("grow or decrease when scaling out or in", func() {
@@ -184,19 +163,15 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		// Initial cluster state
 		g.By("checking initial cluster state")
 		initialClusterSize, err := getClusterSize(client)
-		o.Expect(err).NotTo(o.HaveOccurred())
-		err = e2e.WaitUntilAllNodesAreReady(client)
-		o.Expect(err).NotTo(o.HaveOccurred())
-		err = waitUntilAllNodesAreSchedulable(client)
-		o.Expect(err).NotTo(o.HaveOccurred())
-		o.Expect(isOneMachinePerNode(client)).To(o.BeTrue())
-		glog.Infof("Initial cluster size: %d node", *initialClusterSize)
+		waitForClusterSizeToBeHealthy(*initialClusterSize)
 
 		g.By("getting a worker machineSet")
 		workerNode, err := getWorkerNode(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
+
 		workerMachine, err := getMachineFromNode(client, workerNode)
 		o.Expect(err).NotTo(o.HaveOccurred())
+
 		workerMachineSet, err := getMachineSetFromMachine(client, *workerMachine)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
@@ -206,59 +181,51 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		clusterGrowth := scaleOut - originalReplicas
 		clusterDecrease := scaleOut - scaleIn
 		finalClusterSize := *initialClusterSize + clusterGrowth - clusterDecrease
+
 		g.By(fmt.Sprintf("machineSet %q has %d replicas. Scaling out to %d replicas", workerMachineSet.Name, originalReplicas, scaleOut))
 		scale, err := scaleClient.Scales(e2e.TestContext.MachineApiNamespace).Get(schema.GroupResource{Group: "machine.openshift.io", Resource: "MachineSet"}, workerMachineSet.Name)
 		o.Expect(err).NotTo(o.HaveOccurred())
+
 		scaleUpdate := scale.DeepCopy()
 		scaleUpdate.Spec.Replicas = int32(scaleOut)
 		_, err = scaleClient.Scales(e2e.TestContext.MachineApiNamespace).Update(schema.GroupResource{Group: "machine.openshift.io", Resource: "MachineSet"}, scaleUpdate)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By(fmt.Sprintf("waiting for cluster to grow %d nodes", clusterGrowth))
-		o.Eventually(func() int {
-			finalClusterSize, err := getClusterSize(client)
-			o.Expect(err).NotTo(o.HaveOccurred())
-			machineSet, err := getMachineSetByName(client, workerMachineSet.Name)
-			o.Expect(err).NotTo(o.HaveOccurred())
-			glog.Infof("Scaling machineSet %q. Replicas: %d, ready: %d, available: %d", machineSet.Name, machineSet.Status.Replicas, machineSet.Status.ReadyReplicas, machineSet.Status.AvailableReplicas)
-			return *finalClusterSize
-		}, e2e.WaitLong, 5*time.Second).Should(o.BeNumerically("==", *initialClusterSize+clusterGrowth))
-
-		g.By(fmt.Sprintf("waiting for all nodes to be ready"))
-		err = e2e.WaitUntilAllNodesAreReady(client)
-		o.Expect(err).NotTo(o.HaveOccurred())
-
-		g.By(fmt.Sprintf("waiting for all nodes to be schedulable"))
-		err = waitUntilAllNodesAreSchedulable(client)
-		o.Expect(err).NotTo(o.HaveOccurred())
-
-		g.By(fmt.Sprintf("waiting for each node to be backed by a machine"))
-		o.Expect(isOneMachinePerNode(client)).To(o.BeTrue())
+		waitForClusterSizeToBeHealthy(*initialClusterSize + clusterGrowth)
 
 		g.By(fmt.Sprintf("machineSet %q has %d replicas. Scaling in to %d replicas", workerMachineSet.Name, scaleOut, scaleIn))
 		scale, err = scaleClient.Scales(e2e.TestContext.MachineApiNamespace).Get(schema.GroupResource{Group: "machine.openshift.io", Resource: "MachineSet"}, workerMachineSet.Name)
 		o.Expect(err).NotTo(o.HaveOccurred())
+
 		scaleUpdate = scale.DeepCopy()
 		scaleUpdate.Spec.Replicas = int32(scaleIn)
 		_, err = scaleClient.Scales(e2e.TestContext.MachineApiNamespace).Update(schema.GroupResource{Group: "machine.openshift.io", Resource: "MachineSet"}, scaleUpdate)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By(fmt.Sprintf("waiting for cluster to decrease %d nodes. Final size should be %d nodes", clusterDecrease, finalClusterSize))
-		o.Eventually(func() int {
-			finalClusterSize, err := getClusterSize(client)
-			o.Expect(err).NotTo(o.HaveOccurred())
-			return *finalClusterSize
-		}, e2e.WaitLong, 5*time.Second).Should(o.BeNumerically("==", finalClusterSize))
-
-		g.By(fmt.Sprintf("waiting for all nodes to be ready"))
-		err = e2e.WaitUntilAllNodesAreReady(client)
-		o.Expect(err).NotTo(o.HaveOccurred())
-
-		g.By(fmt.Sprintf("waiting for all nodes to be schedulable"))
-		err = waitUntilAllNodesAreSchedulable(client)
-		o.Expect(err).NotTo(o.HaveOccurred())
-
-		g.By(fmt.Sprintf("waiting for each node to be backed by a machine"))
-		o.Expect(isOneMachinePerNode(client)).To(o.BeTrue())
+		waitForClusterSizeToBeHealthy(finalClusterSize)
 	})
 })
+
+func waitForClusterSizeToBeHealthy(targetSize int) {
+	client, err := e2e.LoadClient()
+	o.Expect(err).NotTo(o.HaveOccurred())
+
+	o.Eventually(func() int {
+		finalClusterSize, err := getClusterSize(client)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		return *finalClusterSize
+	}, e2e.WaitLong, 5*time.Second).Should(o.BeNumerically("==", targetSize))
+
+	g.By(fmt.Sprintf("waiting for all nodes to be ready"))
+	err = e2e.WaitUntilAllNodesAreReady(client)
+	o.Expect(err).NotTo(o.HaveOccurred())
+
+	g.By(fmt.Sprintf("waiting for all nodes to be schedulable"))
+	err = waitUntilAllNodesAreSchedulable(client)
+	o.Expect(err).NotTo(o.HaveOccurred())
+
+	g.By(fmt.Sprintf("waiting for each node to be backed by a machine"))
+	o.Expect(isOneMachinePerNode(client)).To(o.BeTrue())
+}
