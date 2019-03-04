@@ -24,10 +24,9 @@ import (
 )
 
 const (
-	nodeWorkerRoleLabel        = "node-role.kubernetes.io/worker"
-	deprecatedMachineRoleLabel = "sigs.k8s.io/cluster-api-machine-role"
-	machineRoleLabel           = "machine.openshift.io/cluster-api-machine-role"
-	machineAPIGroup            = "machine.openshift.io"
+	nodeWorkerRoleLabel = "node-role.kubernetes.io/worker"
+	machineRoleLabel    = "machine.openshift.io/cluster-api-machine-role"
+	machineAPIGroup     = "machine.openshift.io"
 )
 
 func isOneMachinePerNode(client runtimeclient.Client) bool {
@@ -99,7 +98,8 @@ func getClusterSize(client runtimeclient.Client) (*int, error) {
 	return &size, nil
 }
 
-func getWorkerNode(client runtimeclient.Client) (*corev1.Node, error) {
+// getAWorkerNode returns a node with the nodeWorkerRoleLabel label
+func getAWorkerNode(client runtimeclient.Client) (*corev1.Node, error) {
 	nodeList := corev1.NodeList{}
 	listOptions := runtimeclient.ListOptions{}
 	listOptions.MatchingLabels(map[string]string{nodeWorkerRoleLabel: ""})
@@ -120,6 +120,7 @@ func getWorkerNode(client runtimeclient.Client) (*corev1.Node, error) {
 	return &nodeList.Items[0], nil
 }
 
+// getMachineFromNode returns the machine reference by the given node "controllernode.MachineAnnotationKey" annotation
 func getMachineFromNode(client runtimeclient.Client, node *corev1.Node) (*mapiv1beta1.Machine, error) {
 	machineNamespaceKey, ok := node.Annotations[controllernode.MachineAnnotationKey]
 	if !ok {
@@ -145,6 +146,7 @@ func getMachineFromNode(client runtimeclient.Client, node *corev1.Node) (*mapiv1
 	return &machine, nil
 }
 
+// getMachineSetFromMachine returns the machineSet referenced by OwnerReferences in a given machine
 func getMachineSetFromMachine(client runtimeclient.Client, machine mapiv1beta1.Machine) (*mapiv1beta1.MachineSet, error) {
 	for key := range machine.OwnerReferences {
 		if machine.OwnerReferences[key].Kind == "MachineSet" {
@@ -166,22 +168,7 @@ func getMachineSetFromMachine(client runtimeclient.Client, machine mapiv1beta1.M
 	return nil, fmt.Errorf("no MachineSet found for machine %q", machine.Name)
 }
 
-func getMachineSetByName(client runtimeclient.Client, name string) (*mapiv1beta1.MachineSet, error) {
-	machineSet := mapiv1beta1.MachineSet{}
-	key := runtimeclient.ObjectKey{Namespace: e2e.TestContext.MachineApiNamespace, Name: name}
-	if err := wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
-		if err := client.Get(context.TODO(), key, &machineSet); err != nil {
-			glog.Errorf("error querying api for machineSet object: %v, retrying...", err)
-			return false, nil
-		}
-		return true, nil
-	}); err != nil {
-		glog.Errorf("Error calling getMachineByName: %v", err)
-		return nil, err
-	}
-	return &machineSet, nil
-}
-
+// getMachineSetList returns a MachineSetList object
 func getMachineSetList(client runtimeclient.Client) (*mapiv1beta1.MachineSetList, error) {
 	machineSetList := mapiv1beta1.MachineSetList{}
 	listOptions := runtimeclient.ListOptions{
@@ -200,12 +187,13 @@ func getMachineSetList(client runtimeclient.Client) (*mapiv1beta1.MachineSetList
 	return &machineSetList, nil
 }
 
+// getMachineSetList returns a MachineSetList object filtered by machineRoleLabel
 func getMachineSetListWorkers(client runtimeclient.Client) (*mapiv1beta1.MachineSetList, error) {
 	machineSetList := mapiv1beta1.MachineSetList{}
 	listOptions := runtimeclient.ListOptions{
 		Namespace: e2e.TestContext.MachineApiNamespace,
 	}
-	listOptions.MatchingLabels(map[string]string{deprecatedMachineRoleLabel: "worker"})
+	listOptions.MatchingLabels(map[string]string{machineRoleLabel: "worker"})
 	if err := wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
 		if err := client.List(context.TODO(), &listOptions, &machineSetList); err != nil {
 			glog.Errorf("error querying api for machineSetList object: %v, retrying...", err)
@@ -219,6 +207,7 @@ func getMachineSetListWorkers(client runtimeclient.Client) (*mapiv1beta1.Machine
 	return &machineSetList, nil
 }
 
+// getMachineSetList returns a MachineList object
 func getMachineList(client runtimeclient.Client) (*mapiv1beta1.MachineList, error) {
 	machineList := mapiv1beta1.MachineList{}
 	listOptions := runtimeclient.ListOptions{
@@ -237,6 +226,7 @@ func getMachineList(client runtimeclient.Client) (*mapiv1beta1.MachineList, erro
 	return &machineList, nil
 }
 
+// waitUntilAllNodesAreSchedulable waits for all cluster nodes to be schedulable and returns false otherwise
 func waitUntilAllNodesAreSchedulable(client runtimeclient.Client) error {
 	return wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
 		nodeList := corev1.NodeList{}
@@ -256,6 +246,7 @@ func waitUntilAllNodesAreSchedulable(client runtimeclient.Client) error {
 	})
 }
 
+// getScaleClient returns a ScalesGetter object to manipulate scale subresources
 func getScaleClient() (scale.ScalesGetter, error) {
 	cfg, err := e2e.LoadConfig()
 	if err != nil {
@@ -277,7 +268,7 @@ func getScaleClient() (scale.ScalesGetter, error) {
 
 // scaleAWorker finds a worker machineSet and scales it to the given number of replicas
 func scaleAWorker(client runtimeclient.Client, replicas int) error {
-	workerNode, err := getWorkerNode(client)
+	workerNode, err := getAWorkerNode(client)
 	if err != nil {
 		return fmt.Errorf("error calling getWorkerNode %v", err)
 	}
@@ -316,6 +307,7 @@ func scaleAWorker(client runtimeclient.Client, replicas int) error {
 	return nil
 }
 
+// getMachineSet returns a machineSet fetched by name
 func getMachineSet(client runtimeclient.Client, name string) (*mapiv1beta1.MachineSet, error) {
 	machineSet := &mapiv1beta1.MachineSet{}
 	key := runtimeclient.ObjectKey{Namespace: e2e.TestContext.MachineApiNamespace, Name: name}
@@ -331,6 +323,7 @@ func getMachineSet(client runtimeclient.Client, name string) (*mapiv1beta1.Machi
 	return machineSet, nil
 }
 
+// scaleMachineSet scales a machineSet with a given name to the given number of replicas
 func scaleMachineSet(name string, replicas int) error {
 	scaleClient, err := getScaleClient()
 	if err != nil {
@@ -400,15 +393,20 @@ func getNodesFromMachineSet(client runtimeclient.Client, machineSet mapiv1beta1.
 // getNodeFromMachine returns the node object referenced by machine.Status.NodeRef
 func getNodeFromMachine(client runtimeclient.Client, machine mapiv1beta1.Machine) (*corev1.Node, error) {
 	var node corev1.Node
-	if machine.Status.NodeRef != nil {
-		key := runtimeclient.ObjectKey{Namespace: machine.Status.NodeRef.Namespace, Name: machine.Status.NodeRef.Name}
-		if err := client.Get(context.Background(), key, &node); err != nil {
-			return nil, fmt.Errorf("error getting node %q: %v", node.Name, err)
-		}
+	if machine.Status.NodeRef == nil {
+		glog.Infof("machine %q has no NodeRef", machine.Name)
+		return nil, nil
 	}
+	key := runtimeclient.ObjectKey{Namespace: machine.Status.NodeRef.Namespace, Name: machine.Status.NodeRef.Name}
+	if err := client.Get(context.Background(), key, &node); err != nil {
+		return nil, fmt.Errorf("error getting node %q: %v", node.Name, err)
+	}
+
+	glog.Infof("Machine %q is backing node %q", machine.Name, node.Name)
 	return &node, nil
 }
 
+// machineSetsSnapShot logs the state of all the machineSets in the cluster
 func machineSetsSnapShot(client runtimeclient.Client) error {
 	machineSetList, err := getMachineSetList(client)
 	if err != nil {

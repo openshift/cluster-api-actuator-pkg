@@ -119,7 +119,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		initialClusterSize, err := getClusterSize(client)
 		waitForClusterSizeToBeHealthy(*initialClusterSize)
 
-		workerNode, err := getWorkerNode(client)
+		workerNode, err := getAWorkerNode(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		workerMachine, err := getMachineFromNode(client, workerNode)
 		o.Expect(err).NotTo(o.HaveOccurred())
@@ -186,7 +186,6 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		client, err := e2e.LoadClient()
 		o.Expect(err).NotTo(o.HaveOccurred())
 		scaleOut := 3
-		scaleIn := 1
 
 		g.By("checking initial cluster size")
 		initialClusterSize, err := getClusterSize(client)
@@ -196,17 +195,21 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		machineSetList, err := getMachineSetListWorkers(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(len(machineSetList.Items)).To(o.BeNumerically(">", 2))
+		machineSetWorker0 := machineSetList.Items[0]
+		initialReplicasMachineSet0 := int(*machineSetWorker0.Spec.Replicas)
+		machineSetWorker1 := machineSetList.Items[1]
+		initialReplicasMachineSet1 := int(*machineSetWorker1.Spec.Replicas)
 
-		g.By(fmt.Sprintf("scaling %q from %d to %d", machineSetList.Items[0].Name, machineSetList.Items[0].Spec.Replicas, scaleOut))
-		err = scaleMachineSet(machineSetList.Items[0].Name, scaleOut)
+		g.By(fmt.Sprintf("scaling %q from %d to %d replicas", machineSetWorker0.Name, initialReplicasMachineSet0, scaleOut))
+		err = scaleMachineSet(machineSetWorker0.Name, scaleOut)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		g.By(fmt.Sprintf("scaling %q from %d to %d", machineSetList.Items[1].Name, machineSetList.Items[1].Spec.Replicas, scaleOut))
-		err = scaleMachineSet(machineSetList.Items[1].Name, scaleOut)
+		g.By(fmt.Sprintf("scaling %q from %d to %d replicas", machineSetWorker1.Name, initialReplicasMachineSet1, scaleOut))
+		err = scaleMachineSet(machineSetWorker1.Name, scaleOut)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		o.Eventually(func() bool {
-			nodes, err := getNodesFromMachineSet(client, machineSetList.Items[0])
+			nodes, err := getNodesFromMachineSet(client, machineSetWorker0)
 			o.Expect(err).NotTo(o.HaveOccurred())
 			if len(nodes) != scaleOut {
 				return false
@@ -215,7 +218,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		}, e2e.WaitLong, 5*time.Second).Should(o.BeTrue())
 
 		o.Eventually(func() bool {
-			nodes, err := getNodesFromMachineSet(client, machineSetList.Items[1])
+			nodes, err := getNodesFromMachineSet(client, machineSetWorker1)
 			o.Expect(err).NotTo(o.HaveOccurred())
 			if len(nodes) != scaleOut {
 				return false
@@ -223,12 +226,12 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 			return areNodesReady(nodes)
 		}, e2e.WaitLong, 5*time.Second).Should(o.BeTrue())
 
-		g.By(fmt.Sprintf("scaling %q from %d to %d", machineSetList.Items[0].Name, machineSetList.Items[0].Spec.Replicas, scaleIn))
-		err = scaleMachineSet(machineSetList.Items[0].Name, scaleIn)
+		g.By(fmt.Sprintf("scaling %q from %d to %d replicas", machineSetWorker0.Name, scaleOut, initialReplicasMachineSet0))
+		err = scaleMachineSet(machineSetWorker0.Name, initialReplicasMachineSet0)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		g.By(fmt.Sprintf("scaling %q from %d to %d", machineSetList.Items[1].Name, machineSetList.Items[1].Spec.Replicas, scaleIn))
-		err = scaleMachineSet(machineSetList.Items[1].Name, scaleIn)
+		g.By(fmt.Sprintf("scaling %q from %d to %d replicas", machineSetWorker1.Name, scaleOut, initialReplicasMachineSet1))
+		err = scaleMachineSet(machineSetWorker1.Name, initialReplicasMachineSet1)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By(fmt.Sprintf("waiting for cluster to get back to original size. Final size should be %d nodes", *initialClusterSize))
