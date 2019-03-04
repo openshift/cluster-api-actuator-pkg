@@ -118,6 +118,10 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		client, err := e2e.LoadClient()
 		o.Expect(err).NotTo(o.HaveOccurred())
 
+		// expect for cluster to cool down from previews tests
+		err = e2e.WaitUntilAllNodesAreReady(client)
+		o.Expect(err).NotTo(o.HaveOccurred())
+
 		// Initial cluster state
 		g.By("checking initial cluster state")
 		initialClusterSize, err := getClusterSize(client)
