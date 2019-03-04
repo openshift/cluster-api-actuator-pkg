@@ -29,6 +29,8 @@ const (
 	machineAPIGroup     = "machine.openshift.io"
 )
 
+// isOneMachinePerNode returns true if there's the same number of machines and nodes
+// and every node is backed by a machine
 func isOneMachinePerNode(client runtimeclient.Client) bool {
 	listOptions := runtimeclient.ListOptions{
 		Namespace: e2e.TestContext.MachineApiNamespace,
@@ -74,6 +76,54 @@ func isOneMachinePerNode(client runtimeclient.Client) bool {
 		return true, nil
 	}); err != nil {
 		glog.Errorf("Error checking isOneMachinePerNode: %v", err)
+		return false
+	}
+	return true
+}
+
+// everyMachineHasANode returns true if every machine is backing a node
+// and the number of machines <= nodes
+func everyMachineHasANode(client runtimeclient.Client) bool {
+	listOptions := runtimeclient.ListOptions{
+		Namespace: e2e.TestContext.MachineApiNamespace,
+	}
+	machineList := mapiv1beta1.MachineList{}
+	nodeList := corev1.NodeList{}
+
+	if err := wait.PollImmediate(5*time.Second, e2e.WaitMedium, func() (bool, error) {
+		if err := client.List(context.TODO(), &listOptions, &machineList); err != nil {
+			glog.Errorf("Error querying api for machineList object: %v, retrying...", err)
+			return false, nil
+		}
+		if err := client.List(context.TODO(), &listOptions, &nodeList); err != nil {
+			glog.Errorf("Error querying api for nodeList object: %v, retrying...", err)
+			return false, nil
+		}
+
+		glog.Infof("Expecting at most as many machines as nodes, have %v nodes and %v machines", len(nodeList.Items), len(machineList.Items))
+		if len(machineList.Items) > len(nodeList.Items) {
+			return false, nil
+		}
+
+		nodeNameToMachineAnnotation := make(map[string]string)
+		for _, node := range nodeList.Items {
+			nodeNameToMachineAnnotation[node.Name] = node.Annotations[controllernode.MachineAnnotationKey]
+		}
+		for _, machine := range machineList.Items {
+			if machine.Status.NodeRef == nil {
+				glog.Errorf("Machine %q has no NodeRef, retrying...", machine.Name)
+				return false, nil
+			}
+			nodeName := machine.Status.NodeRef.Name
+			if nodeNameToMachineAnnotation[nodeName] != fmt.Sprintf("%s/%s", e2e.TestContext.MachineApiNamespace, machine.Name) {
+				glog.Errorf("Node name %q does not match expected machine name %q, retrying...", nodeName, machine.Name)
+				return false, nil
+			}
+			glog.Infof("Machine %q is linked to node %q", machine.Name, nodeName)
+		}
+		return true, nil
+	}); err != nil {
+		glog.Errorf("Error checking everyMachineHasANode: %v", err)
 		return false
 	}
 	return true

@@ -25,7 +25,11 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		var err error
 		client, err := e2e.LoadClient()
 		o.Expect(err).NotTo(o.HaveOccurred())
-		o.Expect(isOneMachinePerNode(client)).To(o.BeTrue())
+		if e2e.TestContext.AllNodesHaveMachines {
+			o.Expect(isOneMachinePerNode(client)).To(o.BeTrue())
+		} else {
+			o.Expect(everyMachineHasANode(client)).To(o.BeTrue())
+		}
 	})
 
 	g.It("additively reconcile taints from machines to nodes", func() {
@@ -260,5 +264,9 @@ func waitForClusterSizeToBeHealthy(targetSize int) {
 	o.Expect(err).NotTo(o.HaveOccurred())
 
 	g.By(fmt.Sprintf("waiting for each node to be backed by a machine"))
-	o.Expect(isOneMachinePerNode(client)).To(o.BeTrue())
+	if e2e.TestContext.AllNodesHaveMachines {
+		o.Expect(isOneMachinePerNode(client)).To(o.BeTrue())
+	} else {
+		o.Expect(everyMachineHasANode(client)).To(o.BeTrue())
+	}
 }

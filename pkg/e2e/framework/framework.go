@@ -62,7 +62,9 @@ var libvirtPK string
 type TestContextType struct {
 	KubeConfig          string
 	MachineApiNamespace string
-	Host                string
+	// This is True for OpenShift IPI. False for vanilla kubernetes with Kubemark actuator
+	AllNodesHaveMachines bool
+	Host                 string
 }
 
 var TestContext TestContextType
@@ -70,6 +72,7 @@ var TestContext TestContextType
 func init() {
 	flag.StringVar(&TestContext.KubeConfig, "kubeconfig", "", "kubeconfig file")
 	flag.StringVar(&TestContext.MachineApiNamespace, "machine-api-namespace", "openshift-machine-api", "Default machine API namespace")
+	flag.BoolVar(&TestContext.AllNodesHaveMachines, "all-nodes-have-machines", true, "Nodes to machines expectation")
 	flag.StringVar(&ClusterID, "cluster-id", "", "cluster ID")
 	flag.StringVar(&sshkey, "ssh-key", "", "Path to private ssh to connect to instances (e.g. to download kubeconfig or copy docker images)")
 	flag.StringVar(&sshuser, "ssh-user", "ec2-user", "Ssh user to connect to instances")

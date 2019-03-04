@@ -54,8 +54,9 @@ k8s-e2e: ## Run k8s specific e2e test
 		-v github.com/openshift/cluster-api-actuator-pkg/pkg/e2e \
 		-kubeconfig $${KUBECONFIG:-~/.kube/config} \
 		-machine-api-namespace $${NAMESPACE:-kube-system} \
+		-all-nodes-have-machines=false \
 		-ginkgo.v \
-		-args -v 5 -logtostderr true
+		-args -v 5 -logtostderr
 
 
 .PHONY: help
