@@ -168,18 +168,71 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		clusterDecrease := scaleOut - scaleIn
 		intermediateClusterSize := *initialClusterSize + clusterGrowth
 		finalClusterSize := *initialClusterSize + clusterGrowth - clusterDecrease
-		err = scaleWorkers(client, scaleOut)
+		err = scaleAWorker(client, scaleOut)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By(fmt.Sprintf("waiting for cluster to grow %d nodes. Size should be %d", clusterGrowth, intermediateClusterSize))
 		waitForClusterSizeToBeHealthy(intermediateClusterSize)
 
 		g.By("scaling in workers")
-		err = scaleWorkers(client, scaleIn)
+		err = scaleAWorker(client, scaleIn)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By(fmt.Sprintf("waiting for cluster to decrease %d nodes. Final size should be %d nodes", clusterDecrease, finalClusterSize))
 		waitForClusterSizeToBeHealthy(finalClusterSize)
+	})
+
+	g.It("grow and decrease when scaling different machineSets simultaneously", func() {
+		client, err := e2e.LoadClient()
+		o.Expect(err).NotTo(o.HaveOccurred())
+		scaleOut := 3
+		scaleIn := 1
+
+		g.By("checking initial cluster size")
+		initialClusterSize, err := getClusterSize(client)
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By("getting worker machineSets")
+		machineSetList, err := getMachineSetListWorkers(client)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		o.Expect(len(machineSetList.Items)).To(o.BeNumerically(">", 2))
+
+		g.By(fmt.Sprintf("scaling %q from %d to %d", machineSetList.Items[0].Name, machineSetList.Items[0].Spec.Replicas, scaleOut))
+		err = scaleMachineSet(machineSetList.Items[0].Name, scaleOut)
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By(fmt.Sprintf("scaling %q from %d to %d", machineSetList.Items[1].Name, machineSetList.Items[1].Spec.Replicas, scaleOut))
+		err = scaleMachineSet(machineSetList.Items[1].Name, scaleOut)
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		o.Eventually(func() bool {
+			nodes, err := getNodesFromMachineSet(client, machineSetList.Items[0])
+			o.Expect(err).NotTo(o.HaveOccurred())
+			if len(nodes) != scaleOut {
+				return false
+			}
+			return areNodesReady(nodes)
+		}, e2e.WaitLong, 5*time.Second).Should(o.BeTrue())
+
+		o.Eventually(func() bool {
+			nodes, err := getNodesFromMachineSet(client, machineSetList.Items[1])
+			o.Expect(err).NotTo(o.HaveOccurred())
+			if len(nodes) != scaleOut {
+				return false
+			}
+			return areNodesReady(nodes)
+		}, e2e.WaitLong, 5*time.Second).Should(o.BeTrue())
+
+		g.By(fmt.Sprintf("scaling %q from %d to %d", machineSetList.Items[0].Name, machineSetList.Items[0].Spec.Replicas, scaleIn))
+		err = scaleMachineSet(machineSetList.Items[0].Name, scaleIn)
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By(fmt.Sprintf("scaling %q from %d to %d", machineSetList.Items[1].Name, machineSetList.Items[1].Spec.Replicas, scaleIn))
+		err = scaleMachineSet(machineSetList.Items[1].Name, scaleIn)
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By(fmt.Sprintf("waiting for cluster to get back to original size. Final size should be %d nodes", *initialClusterSize))
+		waitForClusterSizeToBeHealthy(*initialClusterSize)
 	})
 })
 
@@ -188,7 +241,8 @@ func waitForClusterSizeToBeHealthy(targetSize int) {
 	o.Expect(err).NotTo(o.HaveOccurred())
 
 	o.Eventually(func() int {
-		machineSetsSnapShot(client)
+		err := machineSetsSnapShot(client)
+		o.Expect(err).NotTo(o.HaveOccurred())
 		finalClusterSize, err := getClusterSize(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		return *finalClusterSize

@@ -18,11 +18,17 @@ import (
 	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	controllernode "github.com/openshift/cluster-api/pkg/controller/node"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const nodeWorkerRoleLabel = "node-role.kubernetes.io/worker"
+const (
+	nodeWorkerRoleLabel        = "node-role.kubernetes.io/worker"
+	deprecatedMachineRoleLabel = "sigs.k8s.io/cluster-api-machine-role"
+	machineRoleLabel           = "machine.openshift.io/cluster-api-machine-role"
+	machineAPIGroup            = "machine.openshift.io"
+)
 
 func isOneMachinePerNode(client runtimeclient.Client) bool {
 	listOptions := runtimeclient.ListOptions{
@@ -188,10 +194,47 @@ func getMachineSetList(client runtimeclient.Client) (*mapiv1beta1.MachineSetList
 		}
 		return true, nil
 	}); err != nil {
-		glog.Errorf("Error calling getAllMachineSetList: %v", err)
+		glog.Errorf("Error calling getMachineSetList: %v", err)
 		return nil, err
 	}
 	return &machineSetList, nil
+}
+
+func getMachineSetListWorkers(client runtimeclient.Client) (*mapiv1beta1.MachineSetList, error) {
+	machineSetList := mapiv1beta1.MachineSetList{}
+	listOptions := runtimeclient.ListOptions{
+		Namespace: e2e.TestContext.MachineApiNamespace,
+	}
+	listOptions.MatchingLabels(map[string]string{deprecatedMachineRoleLabel: "worker"})
+	if err := wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
+		if err := client.List(context.TODO(), &listOptions, &machineSetList); err != nil {
+			glog.Errorf("error querying api for machineSetList object: %v, retrying...", err)
+			return false, nil
+		}
+		return true, nil
+	}); err != nil {
+		glog.Errorf("Error calling getMachineSetListWorkers: %v", err)
+		return nil, err
+	}
+	return &machineSetList, nil
+}
+
+func getMachineList(client runtimeclient.Client) (*mapiv1beta1.MachineList, error) {
+	machineList := mapiv1beta1.MachineList{}
+	listOptions := runtimeclient.ListOptions{
+		Namespace: e2e.TestContext.MachineApiNamespace,
+	}
+	if err := wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
+		if err := client.List(context.TODO(), &listOptions, &machineList); err != nil {
+			glog.Errorf("error querying api for machineList object: %v, retrying...", err)
+			return false, nil
+		}
+		return true, nil
+	}); err != nil {
+		glog.Errorf("Error calling getMachineList: %v", err)
+		return nil, err
+	}
+	return &machineList, nil
 }
 
 func waitUntilAllNodesAreSchedulable(client runtimeclient.Client) error {
@@ -232,7 +275,8 @@ func getScaleClient() (scale.ScalesGetter, error) {
 	return scaleClient, nil
 }
 
-func scaleWorkers(client runtimeclient.Client, replicas int) error {
+// scaleAWorker finds a worker machineSet and scales it to the given number of replicas
+func scaleAWorker(client runtimeclient.Client, replicas int) error {
 	workerNode, err := getWorkerNode(client)
 	if err != nil {
 		return fmt.Errorf("error calling getWorkerNode %v", err)
@@ -256,20 +300,113 @@ func scaleWorkers(client runtimeclient.Client, replicas int) error {
 		return fmt.Errorf("error calling getScaleClient %v", err)
 	}
 
-	scale, err := scaleClient.Scales(e2e.TestContext.MachineApiNamespace).Get(schema.GroupResource{Group: "machine.openshift.io", Resource: "MachineSet"}, workerMachineSet.Name)
+	scale, err := scaleClient.Scales(e2e.TestContext.MachineApiNamespace).Get(schema.GroupResource{Group: machineAPIGroup, Resource: "MachineSet"}, workerMachineSet.Name)
 	if err != nil {
 		return fmt.Errorf("error calling scaleClient.Scales get: %v", err)
 	}
 
 	scaleUpdate := scale.DeepCopy()
 	scaleUpdate.Spec.Replicas = int32(replicas)
-	_, err = scaleClient.Scales(e2e.TestContext.MachineApiNamespace).Update(schema.GroupResource{Group: "machine.openshift.io", Resource: "MachineSet"}, scaleUpdate)
+	_, err = scaleClient.Scales(e2e.TestContext.MachineApiNamespace).Update(schema.GroupResource{Group: machineAPIGroup, Resource: "MachineSet"}, scaleUpdate)
 	if err != nil {
 		return fmt.Errorf("error calling scaleClient.Scales update: %v", err)
 	}
 
 	glog.Infof("%q original replicas: %d. Scaling to: %d", workerMachineSet.Name, *workerMachineSet.Spec.Replicas, replicas)
 	return nil
+}
+
+func getMachineSet(client runtimeclient.Client, name string) (*mapiv1beta1.MachineSet, error) {
+	machineSet := &mapiv1beta1.MachineSet{}
+	key := runtimeclient.ObjectKey{Namespace: e2e.TestContext.MachineApiNamespace, Name: name}
+	if err := wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
+		if err := client.Get(context.TODO(), key, machineSet); err != nil {
+			glog.Errorf("error querying api for machineSet %q: %v, retrying...", name, err)
+			return false, nil
+		}
+		return true, nil
+	}); err != nil {
+		return nil, fmt.Errorf("error calling getMachineSet: %v", err)
+	}
+	return machineSet, nil
+}
+
+func scaleMachineSet(name string, replicas int) error {
+	scaleClient, err := getScaleClient()
+	if err != nil {
+		return fmt.Errorf("error calling getScaleClient %v", err)
+	}
+
+	scale, err := scaleClient.Scales(e2e.TestContext.MachineApiNamespace).Get(schema.GroupResource{Group: machineAPIGroup, Resource: "MachineSet"}, name)
+	if err != nil {
+		return fmt.Errorf("error calling scaleClient.Scales get: %v", err)
+	}
+
+	scaleUpdate := scale.DeepCopy()
+	scaleUpdate.Spec.Replicas = int32(replicas)
+	_, err = scaleClient.Scales(e2e.TestContext.MachineApiNamespace).Update(schema.GroupResource{Group: machineAPIGroup, Resource: "MachineSet"}, scaleUpdate)
+	if err != nil {
+		return fmt.Errorf("error calling scaleClient.Scales update: %v", err)
+	}
+	return nil
+}
+
+// areNodesReady returns true if an array of nodes are all ready
+func areNodesReady(nodes []*corev1.Node) bool {
+	// All nodes needs to be ready
+	for key := range nodes {
+		if !e2e.IsNodeReady(nodes[key]) {
+			glog.Errorf("Node %q is not ready. Conditions are: %v", nodes[key].Name, nodes[key].Status.Conditions)
+			return false
+		}
+		glog.Infof("Node %q is ready. Conditions are: %v", nodes[key].Name, nodes[key].Status.Conditions)
+	}
+	return true
+}
+
+// getMachinesFromMachineSet returns an array of machines owned by a fiven machineSet
+func getMachinesFromMachineSet(client runtimeclient.Client, machineSet mapiv1beta1.MachineSet) ([]mapiv1beta1.Machine, error) {
+	machineList, err := getMachineList(client)
+	if err != nil {
+
+	}
+	var machinesForSet []mapiv1beta1.Machine
+	for key := range machineList.Items {
+		if metav1.IsControlledBy(&machineList.Items[key], &machineSet) {
+			machinesForSet = append(machinesForSet, machineList.Items[key])
+		}
+	}
+	return machinesForSet, nil
+}
+
+// getNodesFromMachineSet returns an array of nodes backed by machines owned by a given machineSet
+func getNodesFromMachineSet(client runtimeclient.Client, machineSet mapiv1beta1.MachineSet) ([]*corev1.Node, error) {
+	machines, err := getMachinesFromMachineSet(client, machineSet)
+	if err != nil {
+		return nil, fmt.Errorf("error calling getMachinesFromMachineSet %v", err)
+	}
+
+	var nodes []*corev1.Node
+	for key := range machines {
+		node, err := getNodeFromMachine(client, machines[key])
+		if err != nil {
+			return nil, fmt.Errorf("error getting node from machine %q: %v", machines[key].Name, err)
+		}
+		nodes = append(nodes, node)
+	}
+	return nodes, nil
+}
+
+// getNodeFromMachine returns the node object referenced by machine.Status.NodeRef
+func getNodeFromMachine(client runtimeclient.Client, machine mapiv1beta1.Machine) (*corev1.Node, error) {
+	var node corev1.Node
+	if machine.Status.NodeRef != nil {
+		key := runtimeclient.ObjectKey{Namespace: machine.Status.NodeRef.Namespace, Name: machine.Status.NodeRef.Name}
+		if err := client.Get(context.Background(), key, &node); err != nil {
+			return nil, fmt.Errorf("error getting node %q: %v", node.Name, err)
+		}
+	}
+	return &node, nil
 }
 
 func machineSetsSnapShot(client runtimeclient.Client) error {
