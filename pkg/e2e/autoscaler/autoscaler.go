@@ -306,7 +306,17 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 				nodeCounter++
 			}
 
-			glog.Infof("Expecting at least one new node to come up. Initial number of node group nodes: %d. Current number of nodes in the group: %d", nodeGroupInitialTotalNodes, nodeCounter)
+			msKey := types.NamespacedName{
+				Namespace: e2e.TestContext.MachineApiNamespace,
+				Name:      targetMachineSet.Name,
+			}
+			ms := &mapiv1beta1.MachineSet{}
+			if err := client.Get(context.TODO(), msKey, ms); err != nil {
+				glog.Errorf("error querying api for clusterAutoscaler object: %v, retrying...", err)
+				return false, nil
+			}
+
+			glog.Infof("Expecting at least one new node to come up. Initial number of node group nodes: %d. Current number of nodes in the group: %d. Target machineset replicas: %d\n", nodeGroupInitialTotalNodes, nodeCounter, *ms.Spec.Replicas)
 			return nodeCounter > nodeGroupInitialTotalNodes, nil
 		})
 		o.Expect(err).NotTo(o.HaveOccurred())
