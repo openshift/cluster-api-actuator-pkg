@@ -130,7 +130,7 @@ func everyMachineHasANode(client runtimeclient.Client) bool {
 }
 
 // getClusterSize returns the number of nodes of the cluster
-func getClusterSize(client runtimeclient.Client) (*int, error) {
+func getClusterSize(client runtimeclient.Client) (int, error) {
 	nodeList := corev1.NodeList{}
 	var size int
 	if err := wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
@@ -142,10 +142,10 @@ func getClusterSize(client runtimeclient.Client) (*int, error) {
 		return true, nil
 	}); err != nil {
 		glog.Errorf("Error calling getClusterSize: %v", err)
-		return nil, err
+		return 0, err
 	}
 	glog.Infof("Cluster size is %d nodes", size)
-	return &size, nil
+	return size, nil
 }
 
 // getAWorkerNode returns a node with the nodeWorkerRoleLabel label
@@ -238,7 +238,7 @@ func getMachineSetList(client runtimeclient.Client) (*mapiv1beta1.MachineSetList
 }
 
 // getMachineSetList returns a MachineSetList object filtered by machineRoleLabel
-func getMachineSetListWorkers(client runtimeclient.Client) (*mapiv1beta1.MachineSetList, error) {
+func getWorkerMachineSetList(client runtimeclient.Client) (*mapiv1beta1.MachineSetList, error) {
 	machineSetList := mapiv1beta1.MachineSetList{}
 	listOptions := runtimeclient.ListOptions{
 		Namespace: e2e.TestContext.MachineApiNamespace,
@@ -314,47 +314,6 @@ func getScaleClient() (scale.ScalesGetter, error) {
 		return nil, fmt.Errorf("error calling building scale client %v", err)
 	}
 	return scaleClient, nil
-}
-
-// scaleAWorker finds a worker machineSet and scales it to the given number of replicas
-func scaleAWorker(client runtimeclient.Client, replicas int) error {
-	workerNode, err := getAWorkerNode(client)
-	if err != nil {
-		return fmt.Errorf("error calling getWorkerNode %v", err)
-	}
-	glog.Infof("Got workerNode %q", workerNode.Name)
-
-	workerMachine, err := getMachineFromNode(client, workerNode)
-	if err != nil {
-		return fmt.Errorf("error calling getMachineFromNode %v", err)
-	}
-	glog.Infof("Got workerMachine %q", workerMachine.Name)
-
-	workerMachineSet, err := getMachineSetFromMachine(client, *workerMachine)
-	if err != nil {
-		return fmt.Errorf("error calling getMachineSetFromMachine %v", err)
-	}
-	glog.Infof("Got workerMachineSet %q", workerMachineSet.Name)
-
-	scaleClient, err := getScaleClient()
-	if err != nil {
-		return fmt.Errorf("error calling getScaleClient %v", err)
-	}
-
-	scale, err := scaleClient.Scales(e2e.TestContext.MachineApiNamespace).Get(schema.GroupResource{Group: machineAPIGroup, Resource: "MachineSet"}, workerMachineSet.Name)
-	if err != nil {
-		return fmt.Errorf("error calling scaleClient.Scales get: %v", err)
-	}
-
-	scaleUpdate := scale.DeepCopy()
-	scaleUpdate.Spec.Replicas = int32(replicas)
-	_, err = scaleClient.Scales(e2e.TestContext.MachineApiNamespace).Update(schema.GroupResource{Group: machineAPIGroup, Resource: "MachineSet"}, scaleUpdate)
-	if err != nil {
-		return fmt.Errorf("error calling scaleClient.Scales update: %v", err)
-	}
-
-	glog.Infof("%q original replicas: %d. Scaling to: %d", workerMachineSet.Name, *workerMachineSet.Spec.Replicas, replicas)
-	return nil
 }
 
 // getMachineSet returns a machineSet fetched by name

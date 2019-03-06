@@ -125,7 +125,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		// Initial cluster state
 		g.By("checking initial cluster state")
 		initialClusterSize, err := getClusterSize(client)
-		waitForClusterSizeToBeHealthy(*initialClusterSize)
+		waitForClusterSizeToBeHealthy(initialClusterSize)
 
 		workerNode, err := getAWorkerNode(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
@@ -157,7 +157,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		}, e2e.WaitLong, 5*time.Second).Should(o.BeTrue())
 
 		g.By(fmt.Sprintf("waiting for new node object to come up"))
-		waitForClusterSizeToBeHealthy(*initialClusterSize)
+		waitForClusterSizeToBeHealthy(initialClusterSize)
 	})
 
 	g.It("grow or decrease when scaling out or in", func() {
@@ -166,24 +166,29 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		initialClusterSize, err := getClusterSize(client)
-		waitForClusterSizeToBeHealthy(*initialClusterSize)
+		waitForClusterSizeToBeHealthy(initialClusterSize)
 
-		g.By("scaling out workers")
+		machineSetList, err := getWorkerMachineSetList(client)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		o.Expect(len(machineSetList.Items)).To(o.BeNumerically(">", 2))
+		machineSetWorker := machineSetList.Items[0]
+		initialReplicasMachineSet := int(*machineSetWorker.Spec.Replicas)
 		scaleOut := 3
-		scaleIn := 1
-		originalReplicas := 1
+		scaleIn := initialReplicasMachineSet
+		originalReplicas := initialReplicasMachineSet
 		clusterGrowth := scaleOut - originalReplicas
 		clusterDecrease := scaleOut - scaleIn
-		intermediateClusterSize := *initialClusterSize + clusterGrowth
-		finalClusterSize := *initialClusterSize + clusterGrowth - clusterDecrease
-		err = scaleAWorker(client, scaleOut)
+		intermediateClusterSize := initialClusterSize + clusterGrowth
+		finalClusterSize := initialClusterSize + clusterGrowth - clusterDecrease
+		g.By(fmt.Sprintf("scaling out a %q machineSet to %d replicas", machineSetWorker, scaleOut))
+		err = scaleMachineSet(machineSetWorker.Name, scaleOut)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By(fmt.Sprintf("waiting for cluster to grow %d nodes. Size should be %d", clusterGrowth, intermediateClusterSize))
 		waitForClusterSizeToBeHealthy(intermediateClusterSize)
 
-		g.By("scaling in workers")
-		err = scaleAWorker(client, scaleIn)
+		g.By(fmt.Sprintf("scaling in %q machineSet to %d replicas", machineSetWorker, scaleIn))
+		err = scaleMachineSet(machineSetWorker.Name, scaleIn)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By(fmt.Sprintf("waiting for cluster to decrease %d nodes. Final size should be %d nodes", clusterDecrease, finalClusterSize))
@@ -200,7 +205,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("getting worker machineSets")
-		machineSetList, err := getMachineSetListWorkers(client)
+		machineSetList, err := getWorkerMachineSetList(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(len(machineSetList.Items)).To(o.BeNumerically(">", 2))
 		machineSetWorker0 := machineSetList.Items[0]
@@ -242,8 +247,8 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		err = scaleMachineSet(machineSetWorker1.Name, initialReplicasMachineSet1)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		g.By(fmt.Sprintf("waiting for cluster to get back to original size. Final size should be %d nodes", *initialClusterSize))
-		waitForClusterSizeToBeHealthy(*initialClusterSize)
+		g.By(fmt.Sprintf("waiting for cluster to get back to original size. Final size should be %d nodes", initialClusterSize))
+		waitForClusterSizeToBeHealthy(initialClusterSize)
 	})
 })
 
@@ -256,7 +261,7 @@ func waitForClusterSizeToBeHealthy(targetSize int) {
 		o.Expect(err).NotTo(o.HaveOccurred())
 		finalClusterSize, err := getClusterSize(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
-		return *finalClusterSize
+		return finalClusterSize
 	}, e2e.WaitLong, 5*time.Second).Should(o.BeNumerically("==", targetSize))
 
 	g.By(fmt.Sprintf("waiting for all nodes to be ready"))
