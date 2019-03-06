@@ -11,7 +11,6 @@ import (
 	o "github.com/onsi/gomega"
 	e2e "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/framework"
 	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
-	controllernode "github.com/openshift/cluster-api/pkg/controller/node"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -28,45 +27,7 @@ var _ = g.Describe("[Feature:Machines] Machines should", func() {
 		client, err := e2e.LoadClient()
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		listOptions := runtimeclient.ListOptions{
-			Namespace: e2e.TestContext.MachineApiNamespace,
-		}
-		machineList := mapiv1beta1.MachineList{}
-		nodeList := corev1.NodeList{}
-
-		err = wait.PollImmediate(5*time.Second, e2e.WaitShort, func() (bool, error) {
-			if err := client.List(context.TODO(), &listOptions, &machineList); err != nil {
-				glog.Errorf("error querying api for machineList object: %v, retrying...", err)
-				return false, nil
-			}
-			if err := client.List(context.TODO(), &listOptions, &nodeList); err != nil {
-				glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
-				return false, nil
-			}
-
-			glog.Infof("Expecting the same number of machines and nodes, have %d nodes and %d machines", len(nodeList.Items), len(machineList.Items))
-			if len(machineList.Items) != len(nodeList.Items) {
-				return false, nil
-			}
-
-			nodeNameToMachineAnnotation := make(map[string]string)
-			for _, node := range nodeList.Items {
-				nodeNameToMachineAnnotation[node.Name] = node.Annotations[controllernode.MachineAnnotationKey]
-			}
-			for _, machine := range machineList.Items {
-				if machine.Status.NodeRef == nil {
-					glog.Errorf("machine %s has no NodeRef, retrying...", machine.Name)
-					return false, nil
-				}
-				nodeName := machine.Status.NodeRef.Name
-				if nodeNameToMachineAnnotation[nodeName] != fmt.Sprintf("%s/%s", e2e.TestContext.MachineApiNamespace, machine.Name) {
-					glog.Errorf("node name %s does not match expected machine name %s, retrying...", nodeName, machine.Name)
-					return false, nil
-				}
-				glog.Infof("Machine %q is linked to node %q", machine.Name, nodeName)
-			}
-			return true, nil
-		})
+		o.Expect(isOneMachinePerNode(client)).To(o.BeTrue())
 		o.Expect(err).NotTo(o.HaveOccurred())
 	})
 
