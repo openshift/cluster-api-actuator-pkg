@@ -44,9 +44,8 @@ var _ = g.Describe("[Feature:Machines] Machines should", func() {
 				return false, nil
 			}
 
-			// Every machine needs to be linked to a node, though some nodes do not have to linked to any machines
-			glog.Infof("Expecting at least the same number of machines as nodes, have %v nodes and %v machines", len(nodeList.Items), len(machineList.Items))
-			if len(machineList.Items) > len(nodeList.Items) {
+			glog.Infof("Expecting the same number of machines and nodes, have %d nodes and %d machines", len(nodeList.Items), len(machineList.Items))
+			if len(machineList.Items) != len(nodeList.Items) {
 				return false, nil
 			}
 
