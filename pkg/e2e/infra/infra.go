@@ -249,7 +249,11 @@ func waitForClusterSizeToBeHealthy(targetSize int) {
 	o.Expect(err).NotTo(o.HaveOccurred())
 
 	o.Eventually(func() int {
+		glog.Infof("Cluster size expected to be %d nodes", targetSize)
 		err := machineSetsSnapShot(client)
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		err = nodesSnapShotLogs(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		finalClusterSize, err := getClusterSize(client)
