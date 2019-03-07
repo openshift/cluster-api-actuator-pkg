@@ -157,6 +157,15 @@ func getMachineList(client runtimeclient.Client) (*mapiv1beta1.MachineList, erro
 	return &machineList, nil
 }
 
+// getMachines returns the list of machines or an error
+func getMachines(client runtimeclient.Client) ([]mapiv1beta1.Machine, error) {
+	machineList, err := getMachineList(client)
+	if err != nil {
+		return nil, fmt.Errorf("error getting machineList: %v", err)
+	}
+	return machineList.Items, nil
+}
+
 // getMachinesFromMachineSet returns an array of machines owned by a given machineSet
 func getMachinesFromMachineSet(client runtimeclient.Client, machineSet mapiv1beta1.MachineSet) ([]mapiv1beta1.Machine, error) {
 	machineList, err := getMachineList(client)
