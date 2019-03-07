@@ -18,10 +18,10 @@ import (
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = g.Describe("[Feature:Machines] Machines should", func() {
+var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 	defer g.GinkgoRecover()
 
-	g.It("be linked with nodes", func() {
+	g.It("have machines linked with nodes", func() {
 		var err error
 		client, err := e2e.LoadClient()
 		o.Expect(err).NotTo(o.HaveOccurred())
