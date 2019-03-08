@@ -95,8 +95,8 @@ func getClusterSize(client runtimeclient.Client) (int, error) {
 	return len(nodeList.Items), nil
 }
 
-// machineSetsSnapShot logs the state of all the machineSets in the cluster
-func machineSetsSnapShot(client runtimeclient.Client) error {
+// machineSetsSnapShotLogs logs the state of all the machineSets in the cluster
+func machineSetsSnapShotLogs(client runtimeclient.Client) error {
 	machineSetList, err := getMachineSetList(client)
 	if err != nil {
 		return fmt.Errorf("error calling getMachineSetList: %v", err)

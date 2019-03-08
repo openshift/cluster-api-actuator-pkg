@@ -233,7 +233,7 @@ func waitForClusterSizeToBeHealthy(targetSize int) {
 
 	o.Eventually(func() int {
 		glog.Infof("Cluster size expected to be %d nodes", targetSize)
-		err := machineSetsSnapShot(client)
+		err := machineSetsSnapShotLogs(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		err = nodesSnapShotLogs(client)
