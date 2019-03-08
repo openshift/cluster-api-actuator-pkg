@@ -9,9 +9,7 @@ import (
 	g "github.com/onsi/ginkgo"
 	o "github.com/onsi/gomega"
 	e2e "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/framework"
-	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -31,84 +29,69 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 	})
 
-	g.It("have ability to additively reconcile taints", func() {
+	g.It("have ability to additively reconcile taints from machine to nodes", func() {
 		var err error
 		client, err := e2e.LoadClient()
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		g.By("Verify machine taints are getting applied to node")
-		err = func() error {
-			listOptions := runtimeclient.ListOptions{
-				Namespace: e2e.TestContext.MachineApiNamespace,
-			}
-			machineList := mapiv1beta1.MachineList{}
+		machines, err := getMachines(client)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		o.Expect(len(machines)).To(o.BeNumerically(">", 0))
+		machine := machines[0]
+		originalMachineTaints := machine.Spec.Taints
+		g.By(fmt.Sprintf("getting machine %q", machine.Name))
 
-			if err := client.List(context.TODO(), &listOptions, &machineList); err != nil {
-				return fmt.Errorf("error querying api for machineList object: %v", err)
-			}
-			g.By("Got the machine list")
-			machine := machineList.Items[0]
-			if machine.Status.NodeRef == nil {
-				return fmt.Errorf("machine %s has no NodeRef", machine.Name)
-			}
-			g.By(fmt.Sprintf("Got the machine %s", machine.Name))
-			nodeName := machine.Status.NodeRef.Name
-			nodeKey := types.NamespacedName{
-				Namespace: e2e.TestContext.MachineApiNamespace,
-				Name:      nodeName,
-			}
-			node := &corev1.Node{}
+		node, err := getNodeFromMachine(client, machine)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		originalNodeTaints := node.Spec.Taints
+		g.By(fmt.Sprintf("getting the backed node %q", node.Name))
 
-			if err := client.Get(context.TODO(), nodeKey, node); err != nil {
-				return fmt.Errorf("error querying api for node object: %v", err)
-			}
-			g.By(fmt.Sprintf("Got the node %s from machine, %s", node.Name, machine.Name))
-			nodeTaint := corev1.Taint{
-				Key:    "not-from-machine",
-				Value:  "true",
-				Effect: corev1.TaintEffectNoSchedule,
-			}
-			// Do not remove any taint, just extend the list
-			// The test removes the nodes anyway, so the list will not grow over time much
-			node.Spec.Taints = append(node.Spec.Taints, nodeTaint)
-			if err := client.Update(context.TODO(), node); err != nil {
-				return fmt.Errorf("error updating node object with non-machine taint: %v", err)
-			}
-			g.By("Updated node object with taint")
-			machineTaint := corev1.Taint{
-				Key:    fmt.Sprintf("from-machine-%v", string(uuid.NewUUID())),
-				Value:  "true",
-				Effect: corev1.TaintEffectNoSchedule,
-			}
+		nodeTaint := corev1.Taint{
+			Key:    "not-from-machine",
+			Value:  "true",
+			Effect: corev1.TaintEffectNoSchedule,
+		}
+		g.By(fmt.Sprintf("updating node %q with taint: %v", node.Name, nodeTaint))
+		node.Spec.Taints = append(node.Spec.Taints, nodeTaint)
+		err = client.Update(context.TODO(), node)
+		o.Expect(err).NotTo(o.HaveOccurred())
 
-			// Do not remove any taint, just extend the list
-			// The test removes the machine anyway, so the list will not grow over time much
-			machine.Spec.Taints = append(machine.Spec.Taints, machineTaint)
-			if err := client.Update(context.TODO(), &machine); err != nil {
-				return fmt.Errorf("error updating machine object with taint: %v", err)
-			}
+		machineTaint := corev1.Taint{
+			Key:    fmt.Sprintf("from-machine-%v", string(uuid.NewUUID())),
+			Value:  "true",
+			Effect: corev1.TaintEffectNoSchedule,
+		}
+		g.By(fmt.Sprintf("updating machine %q with taint: %v", machine.Name, machineTaint))
+		machine.Spec.Taints = append(machine.Spec.Taints, machineTaint)
+		err = client.Update(context.TODO(), &machine)
+		o.Expect(err).NotTo(o.HaveOccurred())
 
-			g.By("Updated machine object with taint")
-			var expectedTaints = sets.NewString("not-from-machine", machineTaint.Key)
-			err := wait.PollImmediate(1*time.Second, e2e.WaitLong, func() (bool, error) {
-				if err := client.Get(context.TODO(), nodeKey, node); err != nil {
-					glog.Errorf("error querying api for node object: %v", err)
-					return false, nil
-				}
-				glog.Info("Got the node again for verification of taints")
-				var observedTaints = sets.NewString()
-				for _, taint := range node.Spec.Taints {
-					observedTaints.Insert(taint.Key)
-				}
-				if expectedTaints.Difference(observedTaints).HasAny("not-from-machine", machineTaint.Key) == false {
-					glog.Infof("expected : %v, observed %v , difference %v, ", expectedTaints, observedTaints, expectedTaints.Difference(observedTaints))
-					return true, nil
-				}
-				glog.Infof("Did not find all expected taints on the node. Missing: %v", expectedTaints.Difference(observedTaints))
-				return false, nil
-			})
-			return err
-		}()
+		var expectedTaints = sets.NewString("not-from-machine", machineTaint.Key)
+		o.Eventually(func() bool {
+			glog.Info("Getting node from machine again for verification of taints")
+			node, err := getNodeFromMachine(client, machine)
+			if err != nil {
+				return false
+			}
+			var observedTaints = sets.NewString()
+			for _, taint := range node.Spec.Taints {
+				observedTaints.Insert(taint.Key)
+			}
+			if expectedTaints.Difference(observedTaints).HasAny("not-from-machine", machineTaint.Key) == false {
+				glog.Infof("Expected : %v, observed %v , difference %v, ", expectedTaints, observedTaints, expectedTaints.Difference(observedTaints))
+				return true
+			}
+			glog.Infof("Did not find all expected taints on the node. Missing: %v", expectedTaints.Difference(observedTaints))
+			return false
+		}, e2e.WaitMedium, 5*time.Second).Should(o.BeTrue())
+		// set back original taints
+		machine.Spec.Taints = originalMachineTaints
+		err = client.Update(context.TODO(), &machine)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		node, err = getNodeFromMachine(client, machine)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		node.Spec.Taints = originalNodeTaints
+		err = client.Update(context.TODO(), node)
 		o.Expect(err).NotTo(o.HaveOccurred())
 	})
 
@@ -249,7 +232,11 @@ func waitForClusterSizeToBeHealthy(targetSize int) {
 	o.Expect(err).NotTo(o.HaveOccurred())
 
 	o.Eventually(func() int {
-		err := machineSetsSnapShot(client)
+		glog.Infof("Cluster size expected to be %d nodes", targetSize)
+		err := machineSetsSnapShotLogs(client)
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		err = nodesSnapShotLogs(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		finalClusterSize, err := getClusterSize(client)

@@ -95,8 +95,8 @@ func getClusterSize(client runtimeclient.Client) (int, error) {
 	return len(nodeList.Items), nil
 }
 
-// machineSetsSnapShot logs the state of all the machineSets in the cluster
-func machineSetsSnapShot(client runtimeclient.Client) error {
+// machineSetsSnapShotLogs logs the state of all the machineSets in the cluster
+func machineSetsSnapShotLogs(client runtimeclient.Client) error {
 	machineSetList, err := getMachineSetList(client)
 	if err != nil {
 		return fmt.Errorf("error calling getMachineSetList: %v", err)
@@ -155,6 +155,15 @@ func getMachineList(client runtimeclient.Client) (*mapiv1beta1.MachineList, erro
 		return nil, err
 	}
 	return &machineList, nil
+}
+
+// getMachines returns the list of machines or an error
+func getMachines(client runtimeclient.Client) ([]mapiv1beta1.Machine, error) {
+	machineList, err := getMachineList(client)
+	if err != nil {
+		return nil, fmt.Errorf("error getting machineList: %v", err)
+	}
+	return machineList.Items, nil
 }
 
 // getMachinesFromMachineSet returns an array of machines owned by a given machineSet
@@ -318,4 +327,42 @@ func getScaleClient() (scale.ScalesGetter, error) {
 		return nil, fmt.Errorf("error calling building scale client %v", err)
 	}
 	return scaleClient, nil
+}
+
+// nodesSnapShotLogs logs the state of all the nodes in the cluster
+func nodesSnapShotLogs(client runtimeclient.Client) error {
+	nodes, err := getNodes(client)
+	if err != nil {
+		return fmt.Errorf("error calling getNodes: %v", err)
+	}
+	for key := range nodes {
+		glog.Infof("Node %q. Ready: %t. Unschedulable: %t", nodes[key].Name, e2e.IsNodeReady(&nodes[key]), nodes[key].Spec.Unschedulable)
+	}
+	return nil
+}
+
+// getNodeList returns a nodeList object
+func getNodeList(client runtimeclient.Client) (*corev1.NodeList, error) {
+	nodeList := corev1.NodeList{}
+	listOptions := runtimeclient.ListOptions{}
+	if err := wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
+		if err := client.List(context.TODO(), &listOptions, &nodeList); err != nil {
+			glog.Errorf("error querying api for machineSetList object: %v, retrying...", err)
+			return false, nil
+		}
+		return true, nil
+	}); err != nil {
+		glog.Errorf("Error calling getMachineSetList: %v", err)
+		return nil, err
+	}
+	return &nodeList, nil
+}
+
+// getNodes returns the list of nodes or an error
+func getNodes(client runtimeclient.Client) ([]corev1.Node, error) {
+	nodeList, err := getNodeList(client)
+	if err != nil {
+		return nil, fmt.Errorf("error getting nodeList: %v", err)
+	}
+	return nodeList.Items, nil
 }
