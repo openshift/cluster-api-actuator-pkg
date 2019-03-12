@@ -78,30 +78,13 @@ func isOneMachinePerNode(client runtimeclient.Client) bool {
 	return true
 }
 
-// getNodes returns the list of nodes or an error
-func getNodes(client runtimeclient.Client) ([]corev1.Node, error) {
-	nodeList := corev1.NodeList{}
-	listOptions := runtimeclient.ListOptions{}
-	if err := wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
-		if err := client.List(context.TODO(), &listOptions, &nodeList); err != nil {
-			glog.Errorf("error querying api for machineSetList object: %v, retrying...", err)
-			return false, nil
-		}
-		return true, nil
-	}); err != nil {
-		glog.Errorf("Error getting nodes: %v", err)
-		return nil, err
-	}
-
-	return nodeList.Items, nil
-}
-
 // getClusterSize returns the number of nodes of the cluster
 func getClusterSize(client runtimeclient.Client) (int, error) {
-	nodes, err := getNodes(client)
+	nodes, err := e2e.GetNodes(client)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("error getting nodes: %v", err)
 	}
+
 	glog.Infof("Cluster size is %d nodes", len(nodes))
 	return len(nodes), nil
 }
@@ -332,12 +315,13 @@ func getScaleClient() (scale.ScalesGetter, error) {
 
 // nodesSnapShotLogs logs the state of all the nodes in the cluster
 func nodesSnapShotLogs(client runtimeclient.Client) error {
-	nodes, err := getNodes(client)
+	nodes, err := e2e.GetNodes(client)
 	if err != nil {
-		return fmt.Errorf("error calling getNodes: %v", err)
+		return fmt.Errorf("error getting nodes: %v", err)
 	}
-	for key := range nodes {
-		glog.Infof("Node %q. Ready: %t. Unschedulable: %t", nodes[key].Name, e2e.IsNodeReady(&nodes[key]), nodes[key].Spec.Unschedulable)
+
+	for key, node := range nodes {
+		glog.Infof("Node %q. Ready: %t. Unschedulable: %t", node.Name, e2e.IsNodeReady(&nodes[key]), node.Spec.Unschedulable)
 	}
 	return nil
 }
