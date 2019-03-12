@@ -91,43 +91,19 @@ func getClusterSize(client runtimeclient.Client) (int, error) {
 
 // machineSetsSnapShotLogs logs the state of all the machineSets in the cluster
 func machineSetsSnapShotLogs(client runtimeclient.Client) error {
-	machineSets, err := getMachineSets(client)
+	machineSets, err := e2e.GetMachineSets(context.TODO(), client)
 	if err != nil {
-		return err
+		return fmt.Errorf("error getting machines: %v", err)
 	}
-	for key := range machineSets {
+
+	for _, machineset := range machineSets {
 		glog.Infof("MachineSet %q replicas %d. Ready: %d, available %d",
-			machineSets[key].Name,
-			pointer.Int32PtrDerefOr(machineSets[key].Spec.Replicas, 0),
-			machineSets[key].Status.ReadyReplicas,
-			machineSets[key].Status.AvailableReplicas)
+			machineset.Name,
+			pointer.Int32PtrDerefOr(machineset.Spec.Replicas, 0),
+			machineset.Status.ReadyReplicas,
+			machineset.Status.AvailableReplicas)
 	}
 	return nil
-}
-
-// getMachineSets returns the list of machineSets or an error
-func getMachineSets(client runtimeclient.Client) ([]mapiv1beta1.MachineSet, error) {
-	machineSetList := mapiv1beta1.MachineSetList{}
-	listOptions := runtimeclient.ListOptions{
-		Namespace: e2e.TestContext.MachineApiNamespace,
-	}
-	if err := wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
-		if err := client.List(context.TODO(), &listOptions, &machineSetList); err != nil {
-			glog.Errorf("error querying api for machineSetList object: %v, retrying...", err)
-			return false, nil
-		}
-		return true, nil
-	}); err != nil {
-		glog.Errorf("Error getting machinesets: %v", err)
-		return nil, err
-	}
-
-	// TODO(jchaloup): move this code out of the function, it's up to caller to decide
-	// if empty list of machinesets if valid or invalid
-	if len(machineSetList.Items) == 0 {
-		return nil, fmt.Errorf("error getting machineSets, machineSetList is empty")
-	}
-	return machineSetList.Items, nil
 }
 
 // getMachines returns the list of machines or an error

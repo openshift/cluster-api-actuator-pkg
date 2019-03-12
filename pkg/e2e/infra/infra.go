@@ -144,7 +144,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		initialClusterSize, err := getClusterSize(client)
 		waitForClusterSizeToBeHealthy(initialClusterSize)
 
-		machineSets, err := getMachineSets(client)
+		machineSets, err := e2e.GetMachineSets(context.TODO(), client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(len(machineSets)).To(o.BeNumerically(">", 2))
 		machineSet := machineSets[0]
@@ -182,7 +182,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("getting worker machineSets")
-		machineSets, err := getMachineSets(client)
+		machineSets, err := e2e.GetMachineSets(context.TODO(), client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(len(machineSets)).To(o.BeNumerically(">", 2))
 		machineSet0 := machineSets[0]
