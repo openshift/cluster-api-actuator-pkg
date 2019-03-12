@@ -78,21 +78,32 @@ func isOneMachinePerNode(client runtimeclient.Client) bool {
 	return true
 }
 
-// getClusterSize returns the number of nodes of the cluster
-func getClusterSize(client runtimeclient.Client) (int, error) {
+// getNodes returns the list of nodes or an error
+func getNodes(client runtimeclient.Client) ([]corev1.Node, error) {
 	nodeList := corev1.NodeList{}
+	listOptions := runtimeclient.ListOptions{}
 	if err := wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
-		if err := client.List(context.TODO(), &runtimeclient.ListOptions{}, &nodeList); err != nil {
-			glog.Errorf("Error querying api for nodeList object: %v, retrying...", err)
+		if err := client.List(context.TODO(), &listOptions, &nodeList); err != nil {
+			glog.Errorf("error querying api for machineSetList object: %v, retrying...", err)
 			return false, nil
 		}
 		return true, nil
 	}); err != nil {
-		glog.Errorf("Error calling getClusterSize: %v", err)
+		glog.Errorf("Error getting nodes: %v", err)
+		return nil, err
+	}
+
+	return nodeList.Items, nil
+}
+
+// getClusterSize returns the number of nodes of the cluster
+func getClusterSize(client runtimeclient.Client) (int, error) {
+	nodes, err := getNodes(client)
+	if err != nil {
 		return 0, err
 	}
-	glog.Infof("Cluster size is %d nodes", len(nodeList.Items))
-	return len(nodeList.Items), nil
+	glog.Infof("Cluster size is %d nodes", len(nodes))
+	return len(nodes), nil
 }
 
 // machineSetsSnapShotLogs logs the state of all the machineSets in the cluster
@@ -331,22 +342,4 @@ func nodesSnapShotLogs(client runtimeclient.Client) error {
 		glog.Infof("Node %q. Ready: %t. Unschedulable: %t", nodes[key].Name, e2e.IsNodeReady(&nodes[key]), nodes[key].Spec.Unschedulable)
 	}
 	return nil
-}
-
-// getNodes returns the list of nodes or an error
-func getNodes(client runtimeclient.Client) ([]corev1.Node, error) {
-	nodeList := corev1.NodeList{}
-	listOptions := runtimeclient.ListOptions{}
-	if err := wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
-		if err := client.List(context.TODO(), &listOptions, &nodeList); err != nil {
-			glog.Errorf("error querying api for machineSetList object: %v, retrying...", err)
-			return false, nil
-		}
-		return true, nil
-	}); err != nil {
-		glog.Errorf("Error getting nodes: %v", err)
-		return nil, err
-	}
-
-	return nodeList.Items, nil
 }
