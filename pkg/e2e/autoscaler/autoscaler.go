@@ -44,7 +44,7 @@ func newWorkLoad() *batchv1.Job {
 							Image: "busybox",
 							Command: []string{
 								"sleep",
-								"300",
+								"86400", // 1 day
 							},
 							Resources: corev1.ResourceRequirements{
 								Requests: corev1.ResourceList{
