@@ -333,8 +333,8 @@ func nodesSnapShotLogs(client runtimeclient.Client) error {
 	return nil
 }
 
-// getNodeList returns a nodeList object
-func getNodeList(client runtimeclient.Client) (*corev1.NodeList, error) {
+// getNodes returns the list of nodes or an error
+func getNodes(client runtimeclient.Client) ([]corev1.Node, error) {
 	nodeList := corev1.NodeList{}
 	listOptions := runtimeclient.ListOptions{}
 	if err := wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
@@ -344,17 +344,9 @@ func getNodeList(client runtimeclient.Client) (*corev1.NodeList, error) {
 		}
 		return true, nil
 	}); err != nil {
-		glog.Errorf("Error calling getMachineSetList: %v", err)
+		glog.Errorf("Error getting nodes: %v", err)
 		return nil, err
 	}
-	return &nodeList, nil
-}
 
-// getNodes returns the list of nodes or an error
-func getNodes(client runtimeclient.Client) ([]corev1.Node, error) {
-	nodeList, err := getNodeList(client)
-	if err != nil {
-		return nil, fmt.Errorf("error getting nodeList: %v", err)
-	}
 	return nodeList.Items, nil
 }
