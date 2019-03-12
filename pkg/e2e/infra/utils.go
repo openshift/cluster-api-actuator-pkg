@@ -106,36 +106,16 @@ func machineSetsSnapShotLogs(client runtimeclient.Client) error {
 	return nil
 }
 
-// getMachines returns the list of machines or an error
-func getMachines(client runtimeclient.Client) ([]mapiv1beta1.Machine, error) {
-	machineList := mapiv1beta1.MachineList{}
-	listOptions := runtimeclient.ListOptions{
-		Namespace: e2e.TestContext.MachineApiNamespace,
-	}
-	if err := wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
-		if err := client.List(context.TODO(), &listOptions, &machineList); err != nil {
-			glog.Errorf("error querying api for machineList object: %v, retrying...", err)
-			return false, nil
-		}
-		return true, nil
-	}); err != nil {
-		glog.Errorf("Error getting machines: %v", err)
-		return nil, err
-	}
-
-	return machineList.Items, nil
-}
-
 // getMachinesFromMachineSet returns an array of machines owned by a given machineSet
 func getMachinesFromMachineSet(client runtimeclient.Client, machineSet mapiv1beta1.MachineSet) ([]mapiv1beta1.Machine, error) {
-	machineList, err := getMachines(client)
+	machines, err := e2e.GetMachines(context.TODO(), client)
 	if err != nil {
-		return nil, fmt.Errorf("error getting machineList: %v", err)
+		return nil, fmt.Errorf("error getting machines: %v", err)
 	}
 	var machinesForSet []mapiv1beta1.Machine
-	for key := range machineList {
-		if metav1.IsControlledBy(&machineList[key], &machineSet) {
-			machinesForSet = append(machinesForSet, machineList[key])
+	for key := range machines {
+		if metav1.IsControlledBy(&machines[key], &machineSet) {
+			machinesForSet = append(machinesForSet, machines[key])
 		}
 	}
 	return machinesForSet, nil

@@ -34,7 +34,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		client, err := e2e.LoadClient()
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		machines, err := getMachines(client)
+		machines, err := e2e.GetMachines(context.TODO(), client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(len(machines)).To(o.BeNumerically(">", 0))
 		machine := machines[0]

@@ -45,3 +45,17 @@ func GetMachineSets(ctx context.Context, client runtimeclient.Client, labels ...
 	}
 	return machineSetList.Items, nil
 }
+
+// GetMachines gets a list of machinesets from the default machine API namespace.
+// Optionaly, labels may be used to constrain listed machinesets.
+func GetMachines(ctx context.Context, client runtimeclient.Client, labels ...map[string]string) ([]mapiv1beta1.Machine, error) {
+	machineList := &mapiv1beta1.MachineList{}
+	listOptions := runtimeclient.InNamespace(TestContext.MachineApiNamespace)
+	if len(labels) > 0 && len(labels[0]) > 0 {
+		listOptions.MatchingLabels(labels[0])
+	}
+	if err := client.List(ctx, listOptions, machineList); err != nil {
+		return nil, fmt.Errorf("error querying api for machineList object: %v", err)
+	}
+	return machineList.Items, nil
+}
