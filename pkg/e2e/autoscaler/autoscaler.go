@@ -237,13 +237,7 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 
 		glog.Info("Get nodeList")
 		nodeList := corev1.NodeList{}
-		err = wait.PollImmediate(1*time.Second, e2e.WaitMedium, func() (bool, error) {
-			if err := client.List(context.TODO(), runtimeclient.MatchingLabels(map[string]string{nodeTestLabel: ""}), &nodeList); err != nil {
-				glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
-				return false, err
-			}
-			return true, nil
-		})
+		err = client.List(context.TODO(), runtimeclient.MatchingLabels(map[string]string{nodeTestLabel: ""}), &nodeList)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		nodeGroupInitialTotalNodes := len(nodeList.Items)
