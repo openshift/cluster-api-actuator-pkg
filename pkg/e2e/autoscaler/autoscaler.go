@@ -268,7 +268,7 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 			}
 			ms := &mapiv1beta1.MachineSet{}
 			if err := client.Get(context.TODO(), msKey, ms); err != nil {
-				glog.Errorf("error querying api for clusterAutoscaler object: %v, retrying...", err)
+				glog.Errorf("error querying api for machineset object: %v, retrying...", err)
 				return false, nil
 			}
 			glog.Infof("MachineSet %s. Initial number of replicas: %d. Current number of replicas: %d", targetMachineSet.Name, initialNumberOfReplicas, pointer.Int32PtrDerefOr(ms.Spec.Replicas, 0))
