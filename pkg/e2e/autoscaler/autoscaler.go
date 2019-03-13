@@ -173,18 +173,13 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("Get a machineSet")
-		machineSetList := mapiv1beta1.MachineSetList{}
-		err = wait.PollImmediate(1*time.Second, e2e.WaitMedium, func() (bool, error) {
-			if err := client.List(context.TODO(), runtimeclient.InNamespace(e2e.TestContext.MachineApiNamespace), &machineSetList); err != nil {
-				glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
-				return false, err
-			}
-			return len(machineSetList.Items) > 0, nil
-		})
+		machinesets, err := e2e.GetMachineSets(context.TODO(), client)
 		o.Expect(err).NotTo(o.HaveOccurred())
+		o.Expect(len(machinesets)).To(o.BeNumerically(">", 0))
+
 		// When we add support for machineDeployments on the installer, cluster-autoscaler and cluster-autoscaler-operator
 		// we need to test against deployments instead so we skip this test.
-		targetMachineSet := machineSetList.Items[0]
+		targetMachineSet := machinesets[0]
 		if ownerReferences := targetMachineSet.GetOwnerReferences(); len(ownerReferences) > 0 {
 			// glog.Infof("MachineSet %s is owned by a machineDeployment. Please run tests against machineDeployment instead", targetMachineSet.Name)
 			g.Skip(fmt.Sprintf("MachineSet %s is owned by a machineDeployment. Please run tests against machineDeployment instead", targetMachineSet.Name))
