@@ -251,13 +251,7 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 
 		glog.Info("Create workload")
 		workLoad := newWorkLoad()
-		err = wait.PollImmediate(1*time.Second, e2e.WaitMedium, func() (bool, error) {
-			if err := client.Create(context.TODO(), workLoad); err != nil {
-				glog.Errorf("error querying api for workLoad object: %v, retrying...", err)
-				return false, err
-			}
-			return true, nil
-		})
+		err = client.Create(context.TODO(), workLoad)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		glog.Info("Waiting for cluster to scale out number of replicas")
