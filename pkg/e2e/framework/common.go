@@ -6,7 +6,11 @@ import (
 	"time"
 
 	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
+	caov1alpha1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1alpha1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -67,4 +71,46 @@ func GetMachine(ctx context.Context, client runtimeclient.Client, machineName st
 		return nil, fmt.Errorf("error querying api for machine object: %v", err)
 	}
 	return machine, nil
+}
+
+// DeleteObjectsByLabels list all objects of a given kind by labels and deletes them.
+// Currently supported kinds:
+// - caov1alpha1.MachineAutoscalerList
+// - caov1alpha1.ClusterAutoscalerList
+// - batchv1.JobList
+func DeleteObjectsByLabels(ctx context.Context, client runtimeclient.Client, labels map[string]string, list runtime.Object) error {
+	if err := client.List(ctx, runtimeclient.MatchingLabels(labels), list); err != nil {
+		return fmt.Errorf("Unable to list objects: %v", err)
+	}
+
+	// TODO(jchaloup): find a way how to list the items independent of a kind
+	var objs []runtime.Object
+	switch d := list.(type) {
+	case *caov1alpha1.MachineAutoscalerList:
+		for _, item := range d.Items {
+			objs = append(objs, runtime.Object(&item))
+		}
+	case *caov1alpha1.ClusterAutoscalerList:
+		for _, item := range d.Items {
+			objs = append(objs, runtime.Object(&item))
+		}
+	case *batchv1.JobList:
+		for _, item := range d.Items {
+			objs = append(objs, runtime.Object(&item))
+		}
+
+	default:
+		return fmt.Errorf("List type %#v not recognized", list)
+	}
+
+	cascadeDelete := metav1.DeletePropagationForeground
+	for _, obj := range objs {
+		if err := client.Delete(ctx, obj, func(opt *runtimeclient.DeleteOptions) {
+			opt.PropagationPolicy = &cascadeDelete
+		}); err != nil {
+			return fmt.Errorf("error deleting object: %v", err)
+		}
+	}
+
+	return nil
 }

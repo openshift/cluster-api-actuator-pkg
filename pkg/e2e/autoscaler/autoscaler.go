@@ -23,6 +23,10 @@ import (
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const (
+	autoscalingTestLabel = "test.autoscaling.label"
+)
+
 func newWorkLoad() *batchv1.Job {
 	backoffLimit := int32(4)
 	completions := int32(50)
@@ -31,6 +35,7 @@ func newWorkLoad() *batchv1.Job {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "workload",
 			Namespace: "default",
+			Labels:    map[string]string{autoscalingTestLabel: ""},
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Job",
@@ -125,6 +130,9 @@ func clusterAutoscalerResource() *caov1alpha1.ClusterAutoscaler {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "default",
 			Namespace: e2e.TestContext.MachineApiNamespace,
+			Labels: map[string]string{
+				autoscalingTestLabel: "",
+			},
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ClusterAutoscaler",
@@ -148,6 +156,9 @@ func machineAutoscalerResource(targetMachineSet *mapiv1beta1.MachineSet, minRepl
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: fmt.Sprintf("autoscale-%s", targetMachineSet.Name),
 			Namespace:    e2e.TestContext.MachineApiNamespace,
+			Labels: map[string]string{
+				autoscalingTestLabel: "",
+			},
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "MachineAutoscaler",
@@ -207,40 +218,24 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 		})
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		workLoad := newWorkLoad()
-
 		// We want to clean up these objects on any subsequent error.
 		defer func() {
-			if workLoad != nil {
-				cascadeDelete := metav1.DeletePropagationForeground
-				wait.PollImmediate(1*time.Second, e2e.WaitShort, func() (bool, error) {
-					if err := client.Delete(context.TODO(), workLoad, func(opt *runtimeclient.DeleteOptions) {
-						opt.PropagationPolicy = &cascadeDelete
-					}); err != nil {
-						glog.Errorf("error querying api for workLoad object: %v, retrying...", err)
-						return false, nil
-					}
-					return true, nil
-				})
-				glog.Info("Deleted workload object")
+			err = e2e.DeleteObjectsByLabels(context.TODO(), client, map[string]string{autoscalingTestLabel: ""}, &batchv1.JobList{})
+			if err != nil {
+				glog.Warning(err)
 			}
+			glog.Info("Deleted workload object")
 
-			wait.PollImmediate(1*time.Second, e2e.WaitShort, func() (bool, error) {
-				if err := client.Delete(context.TODO(), machineAutoscaler); err != nil {
-					glog.Errorf("error querying api for machineAutoscaler object: %v, retrying...", err)
-					return false, nil
-				}
-				return true, nil
-			})
+			err = e2e.DeleteObjectsByLabels(context.TODO(), client, map[string]string{autoscalingTestLabel: ""}, &caov1alpha1.MachineAutoscalerList{})
+			if err != nil {
+				glog.Warning(err)
+			}
 			glog.Info("Deleted machineAutoscaler object")
 
-			wait.PollImmediate(1*time.Second, e2e.WaitShort, func() (bool, error) {
-				if err := client.Delete(context.TODO(), clusterAutoscaler); err != nil {
-					glog.Errorf("error querying api for clusterAutoscaler object: %v, retrying...", err)
-					return false, nil
-				}
-				return true, nil
-			})
+			err = e2e.DeleteObjectsByLabels(context.TODO(), client, map[string]string{autoscalingTestLabel: ""}, &caov1alpha1.ClusterAutoscalerList{})
+			if err != nil {
+				glog.Warning(err)
+			}
 			glog.Info("Deleted clusterAutoscaler object")
 		}()
 
@@ -265,7 +260,7 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 		glog.Infof("Cluster initial number of nodes in node group %v is %d", targetMachineSet.Name, nodeGroupInitialTotalNodes)
 
 		glog.Info("Create workload")
-
+		workLoad := newWorkLoad()
 		err = wait.PollImmediate(1*time.Second, e2e.WaitMedium, func() (bool, error) {
 			if err := client.Create(context.TODO(), workLoad); err != nil {
 				glog.Errorf("error querying api for workLoad object: %v, retrying...", err)
@@ -319,19 +314,12 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 		err = labelMachineSetNodes(client, &targetMachineSet, nodeTestLabel)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		glog.Info("Delete workload")
-		err = wait.PollImmediate(5*time.Second, e2e.WaitMedium, func() (bool, error) {
-			cascadeDelete := metav1.DeletePropagationForeground
-			if err := client.Delete(context.TODO(), workLoad, func(opt *runtimeclient.DeleteOptions) {
-				opt.PropagationPolicy = &cascadeDelete
-			}); err != nil {
-				glog.Errorf("error querying api for workLoad object: %v, retrying...", err)
-				return false, nil
-			}
-			workLoad = nil
-			return true, nil
-		})
+		err = e2e.DeleteObjectsByLabels(context.TODO(), client, map[string]string{autoscalingTestLabel: ""}, &batchv1.JobList{})
+		if err != nil {
+			glog.Warning(err)
+		}
 		o.Expect(err).NotTo(o.HaveOccurred())
+		glog.Info("Deleted workload object")
 
 		// As we have just deleted the workload the autoscaler will
 		// start to scale down the unneeded nodes. We wait for that
