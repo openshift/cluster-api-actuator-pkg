@@ -400,26 +400,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		delObjects["pdb"] = pdb
 
 		g.By("Wait until all replicas are ready")
-		err = wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
-			rcObj := corev1.ReplicationController{}
-			key := types.NamespacedName{
-				Namespace: rc.Namespace,
-				Name:      rc.Name,
-			}
-			if err := client.Get(context.TODO(), key, &rcObj); err != nil {
-				glog.Errorf("Error querying api RC %q object: %v, retrying...", rc.Name, err)
-				return false, nil
-			}
-			if rcObj.Status.ReadyReplicas == 0 {
-				glog.Infof("Waiting for at least one RC ready replica (%v/%v)", rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
-				return false, nil
-			}
-			glog.Infof("Waiting for RC ready replicas (%v/%v)", rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
-			if rcObj.Status.Replicas != rcObj.Status.ReadyReplicas {
-				return false, nil
-			}
-			return true, nil
-		})
+		err = waitUntilAllRCPodsAreReady(client, rc)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		// TODO(jchaloup): delete machine that has at least half of the RC pods
@@ -433,90 +414,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 
 		// We still should be able to list the machine as until rc.replicas-1 are running on the other node
 		g.By("Observing and verifying node draining")
-		var drainedNodeName string
-		err = wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
-			machine := mapiv1beta1.Machine{}
-
-			key := types.NamespacedName{
-				Namespace: machine1.Namespace,
-				Name:      machine1.Name,
-			}
-			if err := client.Get(context.TODO(), key, &machine); err != nil {
-				glog.Errorf("Error querying api machine %q object: %v, retrying...", machine1.Name, err)
-				return false, nil
-			}
-			if machine.Status.NodeRef == nil || machine.Status.NodeRef.Kind != "Node" {
-				glog.Error("Machine %q not linked to a node", machine.Name)
-			}
-
-			drainedNodeName = machine.Status.NodeRef.Name
-			node := corev1.Node{}
-
-			if err := client.Get(context.TODO(), types.NamespacedName{Name: drainedNodeName}, &node); err != nil {
-				glog.Errorf("Error querying api node %q object: %v, retrying...", drainedNodeName, err)
-				return false, nil
-			}
-
-			if !node.Spec.Unschedulable {
-				glog.Errorf("Node %q is expected to be marked as unschedulable, it is not", node.Name)
-				return false, nil
-			}
-
-			glog.Infof("Node %q is mark unschedulable as expected", node.Name)
-
-			pods := corev1.PodList{}
-			listOpt := &runtimeclient.ListOptions{}
-			listOpt.MatchingLabels(rc.Spec.Selector)
-			if err := client.List(context.TODO(), listOpt, &pods); err != nil {
-				glog.Errorf("Error querying api for Pods object: %v, retrying...", err)
-				return false, nil
-			}
-
-			// expecting nodeGroupSize nodes
-			podCounter := 0
-			for _, pod := range pods.Items {
-				if pod.Spec.NodeName != machine.Status.NodeRef.Name {
-					continue
-				}
-				if !pod.DeletionTimestamp.IsZero() {
-					continue
-				}
-				podCounter++
-			}
-
-			glog.Infof("Have %v pods scheduled to node %q", podCounter, machine.Status.NodeRef.Name)
-
-			// Verify we have enough pods running as well
-			rcObj := corev1.ReplicationController{}
-			key = types.NamespacedName{
-				Namespace: rc.Namespace,
-				Name:      rc.Name,
-			}
-			if err := client.Get(context.TODO(), key, &rcObj); err != nil {
-				glog.Errorf("Error querying api RC %q object: %v, retrying...", rc.Name, err)
-				return false, nil
-			}
-
-			// The point of the test is to make sure majority of the pods is rescheduled
-			// to other nodes. Pod disruption budget makes sure at most one pod
-			// owned by the RC is not Ready. So no need to test it. Though, usefull to have it printed.
-			glog.Infof("RC ReadyReplicas/Replicas: %v/%v", rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
-
-			// This makes sure at most one replica is not ready
-			if rcObj.Status.Replicas-rcObj.Status.ReadyReplicas > 1 {
-				return false, fmt.Errorf("pod disruption budget not respected, node was not properly drained")
-			}
-
-			// Depends on timing though a machine can be deleted even before there is only
-			// one pod left on the node (that is being evicted).
-			if podCounter > 2 {
-				glog.Infof("Expecting at most 2 pods to be scheduled to drained node %q, got %v", machine.Status.NodeRef.Name, podCounter)
-				return false, nil
-			}
-
-			glog.Info("Expected result: all pods from the RC up to last one or two got scheduled to a different node while respecting PDB")
-			return true, nil
-		})
+		drainedNodeName, err := verifyNodeDraining(client, machine1, rc)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("Validating the machine is deleted")
@@ -543,27 +441,8 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		})
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		// Validate underlying node is removed as well
-		err = wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
-			node := corev1.Node{}
-
-			key := types.NamespacedName{
-				Name: drainedNodeName,
-			}
-			err := client.Get(context.TODO(), key, &node)
-			if err == nil {
-				glog.Errorf("Node %q not yet deleted", drainedNodeName)
-				return false, nil
-			}
-
-			if !strings.Contains(err.Error(), "not found") {
-				glog.Errorf("Error querying api node %q object: %v, retrying...", drainedNodeName, err)
-				return false, nil
-			}
-
-			glog.Infof("Node %q successfully deleted", drainedNodeName)
-			return true, nil
-		})
+		g.By("Validate underlying node is removed as well")
+		err = waitUntilNodeDoesNotExists(client, drainedNodeName)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 	})

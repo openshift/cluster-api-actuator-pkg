@@ -3,6 +3,7 @@ package infra
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/golang/glog"
@@ -12,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
@@ -419,6 +421,141 @@ func waitUntilNodesAreDeleted(client runtimeclient.Client, listOpt *runtimeclien
 		}
 
 		glog.Infof("Found 0 number of nodes with %v label as expected", nodeDrainLabels)
+		return true, nil
+	})
+}
+
+func waitUntilAllRCPodsAreReady(client runtimeclient.Client, rc *corev1.ReplicationController) error {
+	return wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
+		rcObj := corev1.ReplicationController{}
+		key := types.NamespacedName{
+			Namespace: rc.Namespace,
+			Name:      rc.Name,
+		}
+		if err := client.Get(context.TODO(), key, &rcObj); err != nil {
+			glog.Errorf("Error querying api RC %q object: %v, retrying...", rc.Name, err)
+			return false, nil
+		}
+		if rcObj.Status.ReadyReplicas == 0 {
+			glog.Infof("Waiting for at least one RC ready replica (%v/%v)", rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
+			return false, nil
+		}
+		glog.Infof("Waiting for RC ready replicas (%v/%v)", rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
+		if rcObj.Status.Replicas != rcObj.Status.ReadyReplicas {
+			return false, nil
+		}
+		return true, nil
+	})
+}
+
+func verifyNodeDraining(client runtimeclient.Client, targetMachine *mapiv1beta1.Machine, rc *corev1.ReplicationController) (string, error) {
+	var drainedNodeName string
+	err := wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
+		machine := mapiv1beta1.Machine{}
+
+		key := types.NamespacedName{
+			Namespace: targetMachine.Namespace,
+			Name:      targetMachine.Name,
+		}
+		if err := client.Get(context.TODO(), key, &machine); err != nil {
+			glog.Errorf("Error querying api machine %q object: %v, retrying...", targetMachine.Name, err)
+			return false, nil
+		}
+		if machine.Status.NodeRef == nil || machine.Status.NodeRef.Kind != "Node" {
+			glog.Error("Machine %q not linked to a node", machine.Name)
+		}
+
+		drainedNodeName = machine.Status.NodeRef.Name
+		node := corev1.Node{}
+
+		if err := client.Get(context.TODO(), types.NamespacedName{Name: drainedNodeName}, &node); err != nil {
+			glog.Errorf("Error querying api node %q object: %v, retrying...", drainedNodeName, err)
+			return false, nil
+		}
+
+		if !node.Spec.Unschedulable {
+			glog.Errorf("Node %q is expected to be marked as unschedulable, it is not", node.Name)
+			return false, nil
+		}
+
+		glog.Infof("Node %q is mark unschedulable as expected", node.Name)
+
+		pods := corev1.PodList{}
+		listOpt := &runtimeclient.ListOptions{}
+		listOpt.MatchingLabels(rc.Spec.Selector)
+		if err := client.List(context.TODO(), listOpt, &pods); err != nil {
+			glog.Errorf("Error querying api for Pods object: %v, retrying...", err)
+			return false, nil
+		}
+
+		// expecting nodeGroupSize nodes
+		podCounter := 0
+		for _, pod := range pods.Items {
+			if pod.Spec.NodeName != machine.Status.NodeRef.Name {
+				continue
+			}
+			if !pod.DeletionTimestamp.IsZero() {
+				continue
+			}
+			podCounter++
+		}
+
+		glog.Infof("Have %v pods scheduled to node %q", podCounter, machine.Status.NodeRef.Name)
+
+		// Verify we have enough pods running as well
+		rcObj := corev1.ReplicationController{}
+		key = types.NamespacedName{
+			Namespace: rc.Namespace,
+			Name:      rc.Name,
+		}
+		if err := client.Get(context.TODO(), key, &rcObj); err != nil {
+			glog.Errorf("Error querying api RC %q object: %v, retrying...", rc.Name, err)
+			return false, nil
+		}
+
+		// The point of the test is to make sure majority of the pods is rescheduled
+		// to other nodes. Pod disruption budget makes sure at most one pod
+		// owned by the RC is not Ready. So no need to test it. Though, usefull to have it printed.
+		glog.Infof("RC ReadyReplicas/Replicas: %v/%v", rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
+
+		// This makes sure at most one replica is not ready
+		if rcObj.Status.Replicas-rcObj.Status.ReadyReplicas > 1 {
+			return false, fmt.Errorf("pod disruption budget not respected, node was not properly drained")
+		}
+
+		// Depends on timing though a machine can be deleted even before there is only
+		// one pod left on the node (that is being evicted).
+		if podCounter > 2 {
+			glog.Infof("Expecting at most 2 pods to be scheduled to drained node %q, got %v", machine.Status.NodeRef.Name, podCounter)
+			return false, nil
+		}
+
+		glog.Info("Expected result: all pods from the RC up to last one or two got scheduled to a different node while respecting PDB")
+		return true, nil
+	})
+
+	return drainedNodeName, err
+}
+
+func waitUntilNodeDoesNotExists(client runtimeclient.Client, nodeName string) error {
+	return wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
+		node := corev1.Node{}
+
+		key := types.NamespacedName{
+			Name: nodeName,
+		}
+		err := client.Get(context.TODO(), key, &node)
+		if err == nil {
+			glog.Errorf("Node %q not yet deleted", nodeName)
+			return false, nil
+		}
+
+		if !strings.Contains(err.Error(), "not found") {
+			glog.Errorf("Error querying api node %q object: %v, retrying...", nodeName, err)
+			return false, nil
+		}
+
+		glog.Infof("Node %q successfully deleted", nodeName)
 		return true, nil
 	})
 }
