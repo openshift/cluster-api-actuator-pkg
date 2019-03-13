@@ -117,6 +117,53 @@ func labelMachineSetNodes(client runtimeclient.Client, ms *mapiv1beta1.MachineSe
 	})
 }
 
+// Build default CA resource to allow fast scaling up and down
+func clusterAutoscalerResource() *caov1alpha1.ClusterAutoscaler {
+	tenSecondString := "10s"
+	return &caov1alpha1.ClusterAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "default",
+			Namespace: e2e.TestContext.MachineApiNamespace,
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ClusterAutoscaler",
+			APIVersion: "autoscaling.openshift.io/v1alpha1",
+		},
+		Spec: caov1alpha1.ClusterAutoscalerSpec{
+			ScaleDown: &caov1alpha1.ScaleDownConfig{
+				Enabled:           true,
+				DelayAfterAdd:     &tenSecondString,
+				DelayAfterDelete:  &tenSecondString,
+				DelayAfterFailure: &tenSecondString,
+				UnneededTime:      &tenSecondString,
+			},
+		},
+	}
+}
+
+// Build MA resource from targeted machineset
+func machineAutoscalerResource(targetMachineSet *mapiv1beta1.MachineSet, minReplicas, maxReplicas int32) *caov1alpha1.MachineAutoscaler {
+	return &caov1alpha1.MachineAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: fmt.Sprintf("autoscale-%s", targetMachineSet.Name),
+			Namespace:    e2e.TestContext.MachineApiNamespace,
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "MachineAutoscaler",
+			APIVersion: "autoscaling.openshift.io/v1alpha1",
+		},
+		Spec: caov1alpha1.MachineAutoscalerSpec{
+			MaxReplicas: maxReplicas,
+			MinReplicas: minReplicas,
+			ScaleTargetRef: caov1alpha1.CrossVersionObjectReference{
+				Name:       targetMachineSet.Name,
+				Kind:       "MachineSet",
+				APIVersion: "machine.openshift.io/v1beta1",
+			},
+		},
+	}
+}
+
 var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 	defer g.GinkgoRecover()
 
@@ -124,7 +171,8 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 		var err error
 		client, err := e2e.LoadClient()
 		o.Expect(err).NotTo(o.HaveOccurred())
-		glog.Info("Get one machineSet")
+
+		g.By("Get a machineSet")
 		machineSetList := mapiv1beta1.MachineSetList{}
 		err = wait.PollImmediate(1*time.Second, e2e.WaitMedium, func() (bool, error) {
 			if err := client.List(context.TODO(), runtimeclient.InNamespace(e2e.TestContext.MachineApiNamespace), &machineSetList); err != nil {
@@ -134,7 +182,6 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 			return len(machineSetList.Items) > 0, nil
 		})
 		o.Expect(err).NotTo(o.HaveOccurred())
-
 		// When we add support for machineDeployments on the installer, cluster-autoscaler and cluster-autoscaler-operator
 		// we need to test against deployments instead so we skip this test.
 		targetMachineSet := machineSetList.Items[0]
@@ -143,55 +190,18 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 			g.Skip(fmt.Sprintf("MachineSet %s is owned by a machineDeployment. Please run tests against machineDeployment instead", targetMachineSet.Name))
 		}
 
-		glog.Infof("Create ClusterAutoscaler and MachineAutoscaler objects. Targeting machineSet %s", targetMachineSet.Name)
+		g.By(fmt.Sprintf("Create ClusterAutoscaler and MachineAutoscaler objects. Targeting machineSet %s", targetMachineSet.Name))
 		initialNumberOfReplicas := targetMachineSet.Spec.Replicas
-		tenSecondString := "10s"
-		clusterAutoscaler := caov1alpha1.ClusterAutoscaler{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "default",
-				Namespace: e2e.TestContext.MachineApiNamespace,
-			},
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "ClusterAutoscaler",
-				APIVersion: "autoscaling.openshift.io/v1alpha1",
-			},
-			Spec: caov1alpha1.ClusterAutoscalerSpec{
-				ScaleDown: &caov1alpha1.ScaleDownConfig{
-					Enabled:           true,
-					DelayAfterAdd:     &tenSecondString,
-					DelayAfterDelete:  &tenSecondString,
-					DelayAfterFailure: &tenSecondString,
-					UnneededTime:      &tenSecondString,
-				},
-			},
-		}
-		machineAutoscaler := caov1alpha1.MachineAutoscaler{
-			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: fmt.Sprintf("autoscale-%s", targetMachineSet.Name),
-				Namespace:    e2e.TestContext.MachineApiNamespace,
-			},
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "MachineAutoscaler",
-				APIVersion: "autoscaling.openshift.io/v1alpha1",
-			},
-			Spec: caov1alpha1.MachineAutoscalerSpec{
-				MaxReplicas: *initialNumberOfReplicas + 1,
-				MinReplicas: 1,
-				ScaleTargetRef: caov1alpha1.CrossVersionObjectReference{
-					Name:       targetMachineSet.Name,
-					Kind:       "MachineSet",
-					APIVersion: "machine.openshift.io/v1beta1",
-				},
-			},
-		}
+		clusterAutoscaler := clusterAutoscalerResource()
+		machineAutoscaler := machineAutoscalerResource(&targetMachineSet, 1, *initialNumberOfReplicas+1)
 		err = wait.PollImmediate(1*time.Second, e2e.WaitMedium, func() (bool, error) {
-			if err := client.Create(context.TODO(), &clusterAutoscaler); err != nil {
+			if err := client.Create(context.TODO(), clusterAutoscaler); err != nil {
 				if !strings.Contains(err.Error(), "already exists") {
 					glog.Errorf("error querying api for clusterAutoscaler object: %v, retrying...", err)
 					return false, err
 				}
 			}
-			if err := client.Create(context.TODO(), &machineAutoscaler); err != nil {
+			if err := client.Create(context.TODO(), machineAutoscaler); err != nil {
 				if !strings.Contains(err.Error(), "already exists") {
 					glog.Errorf("error querying api for machineAutoscaler object: %v, retrying...", err)
 					return false, err
@@ -220,7 +230,7 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 			}
 
 			wait.PollImmediate(1*time.Second, e2e.WaitShort, func() (bool, error) {
-				if err := client.Delete(context.TODO(), &machineAutoscaler); err != nil {
+				if err := client.Delete(context.TODO(), machineAutoscaler); err != nil {
 					glog.Errorf("error querying api for machineAutoscaler object: %v, retrying...", err)
 					return false, nil
 				}
@@ -229,7 +239,7 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 			glog.Info("Deleted machineAutoscaler object")
 
 			wait.PollImmediate(1*time.Second, e2e.WaitShort, func() (bool, error) {
-				if err := client.Delete(context.TODO(), &clusterAutoscaler); err != nil {
+				if err := client.Delete(context.TODO(), clusterAutoscaler); err != nil {
 					glog.Errorf("error querying api for clusterAutoscaler object: %v, retrying...", err)
 					return false, nil
 				}
