@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/utils/pointer"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -186,9 +187,9 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 		}
 
 		g.By(fmt.Sprintf("Create ClusterAutoscaler and MachineAutoscaler objects. Targeting machineSet %s", targetMachineSet.Name))
-		initialNumberOfReplicas := targetMachineSet.Spec.Replicas
+		initialNumberOfReplicas := pointer.Int32PtrDerefOr(targetMachineSet.Spec.Replicas, 0)
 		clusterAutoscaler := clusterAutoscalerResource()
-		machineAutoscaler := machineAutoscalerResource(&targetMachineSet, 1, *initialNumberOfReplicas+1)
+		machineAutoscaler := machineAutoscalerResource(&targetMachineSet, 1, initialNumberOfReplicas+1)
 		err = wait.PollImmediate(1*time.Second, e2e.WaitMedium, func() (bool, error) {
 			if err := client.Create(context.TODO(), clusterAutoscaler); err != nil {
 				if !strings.Contains(err.Error(), "already exists") {
@@ -285,8 +286,8 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 				glog.Errorf("error querying api for clusterAutoscaler object: %v, retrying...", err)
 				return false, nil
 			}
-			glog.Infof("MachineSet %s. Initial number of replicas: %d. Current number of replicas: %d", targetMachineSet.Name, *initialNumberOfReplicas, *ms.Spec.Replicas)
-			return *ms.Spec.Replicas > *initialNumberOfReplicas, nil
+			glog.Infof("MachineSet %s. Initial number of replicas: %d. Current number of replicas: %d", targetMachineSet.Name, initialNumberOfReplicas, pointer.Int32PtrDerefOr(ms.Spec.Replicas, 0))
+			return pointer.Int32PtrDerefOr(ms.Spec.Replicas, 0) > initialNumberOfReplicas, nil
 		})
 		o.Expect(err).NotTo(o.HaveOccurred())
 
@@ -347,8 +348,9 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 				glog.Errorf("error querying api for machineSet object: %v, retrying...", err)
 				return false, nil
 			}
-			glog.Infof("Initial number of replicas: %d. Current number of replicas: %d", *initialNumberOfReplicas, *ms.Spec.Replicas)
-			if *ms.Spec.Replicas > *initialNumberOfReplicas {
+			msReplicas := pointer.Int32PtrDerefOr(ms.Spec.Replicas, 0)
+			glog.Infof("Initial number of replicas: %d. Current number of replicas: %d", initialNumberOfReplicas, msReplicas)
+			if msReplicas > initialNumberOfReplicas {
 				return false, nil
 			}
 
@@ -359,9 +361,9 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 				return false, nil
 			}
 			scaledNodesLen := int32(len(scaledNodes.Items))
-			glog.Infof("Current number of replicas: %d. Current number of nodes: %d", *ms.Spec.Replicas, scaledNodesLen)
+			glog.Infof("Current number of replicas: %d. Current number of nodes: %d", msReplicas, scaledNodesLen)
 			// get all linked nodes (so we can wait later on their deletion)
-			return scaledNodesLen <= *ms.Spec.Replicas && scaledNodesLen <= *initialNumberOfReplicas, nil
+			return scaledNodesLen <= msReplicas && scaledNodesLen <= initialNumberOfReplicas, nil
 		})
 		o.Expect(err).NotTo(o.HaveOccurred())
 	})
