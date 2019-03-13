@@ -12,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -333,6 +334,91 @@ func waitUntilAllNodesAreSchedulable(client runtimeclient.Client) error {
 			}
 			glog.Infof("Node %q is schedulable", node.Name)
 		}
+		return true, nil
+	})
+}
+
+func machineFromMachineset(machineset *mapiv1beta1.MachineSet) *mapiv1beta1.Machine {
+	randomUUID := string(uuid.NewUUID())
+
+	machine := &mapiv1beta1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: machineset.Namespace,
+			Name:      "machine-" + randomUUID[:6],
+			Labels:    machineset.Labels,
+		},
+		Spec: machineset.Spec.Template.Spec,
+	}
+	if machine.Spec.ObjectMeta.Labels == nil {
+		machine.Spec.ObjectMeta.Labels = map[string]string{}
+	}
+	for key := range nodeDrainLabels {
+		if _, exists := machine.Spec.ObjectMeta.Labels[key]; exists {
+			continue
+		}
+		machine.Spec.ObjectMeta.Labels[key] = nodeDrainLabels[key]
+	}
+	return machine
+}
+
+func waitUntilNodesAreReady(client runtimeclient.Client, listOpt *runtimeclient.ListOptions, nodeCount int) error {
+	return wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
+		nodes := corev1.NodeList{}
+		if err := client.List(context.TODO(), listOpt, &nodes); err != nil {
+			glog.Errorf("Error querying api for Node object: %v, retrying...", err)
+			return false, nil
+		}
+		// expecting nodeGroupSize nodes
+		readyNodes := 0
+		for _, node := range nodes.Items {
+			if _, exists := node.Labels[e2e.WorkerRoleLabel]; !exists {
+				continue
+			}
+
+			if !e2e.IsNodeReady(&node) {
+				continue
+			}
+
+			readyNodes++
+		}
+
+		if readyNodes < nodeCount {
+			glog.Errorf("Expecting %v nodes with %#v labels in Ready state, got %v", nodeCount, nodeDrainLabels, readyNodes)
+			return false, nil
+		}
+
+		glog.Infof("Expected number (%v) of nodes with %v label in Ready state found", nodeCount, nodeDrainLabels)
+		return true, nil
+	})
+}
+
+func waitUntilNodesAreDeleted(client runtimeclient.Client, listOpt *runtimeclient.ListOptions) error {
+	return wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
+		nodes := corev1.NodeList{}
+		if err := client.List(context.TODO(), listOpt, &nodes); err != nil {
+			glog.Errorf("Error querying api for Node object: %v, retrying...", err)
+			return false, nil
+		}
+		// expecting nodeGroupSize nodes
+		nodeCounter := 0
+		for _, node := range nodes.Items {
+			if _, exists := node.Labels[e2e.WorkerRoleLabel]; !exists {
+				continue
+			}
+
+			if !e2e.IsNodeReady(&node) {
+				continue
+			}
+
+			nodeCounter++
+		}
+
+		if nodeCounter > 0 {
+			glog.Errorf("Expecting to found 0 nodes with %#v labels , got %v", nodeDrainLabels, nodeCounter)
+			return false, nil
+		}
+
+		glog.Infof("Found 0 number of nodes with %v label as expected", nodeDrainLabels)
 		return true, nil
 	})
 }
