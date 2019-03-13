@@ -3,7 +3,6 @@ package autoscaler
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/golang/glog"
@@ -197,25 +196,16 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 			g.Skip(fmt.Sprintf("MachineSet %s is owned by a machineDeployment. Please run tests against machineDeployment instead", targetMachineSet.Name))
 		}
 
-		g.By(fmt.Sprintf("Create ClusterAutoscaler and MachineAutoscaler objects. Targeting machineSet %s", targetMachineSet.Name))
-		initialNumberOfReplicas := pointer.Int32PtrDerefOr(targetMachineSet.Spec.Replicas, 0)
+		g.By("Create ClusterAutoscaler object")
 		clusterAutoscaler := clusterAutoscalerResource()
+		err = client.Create(context.TODO(), clusterAutoscaler)
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		initialNumberOfReplicas := pointer.Int32PtrDerefOr(targetMachineSet.Spec.Replicas, 0)
+
+		g.By(fmt.Sprintf("Create MachineAutoscaler objects. Targeting machineSet %s", targetMachineSet.Name))
 		machineAutoscaler := machineAutoscalerResource(&targetMachineSet, 1, initialNumberOfReplicas+1)
-		err = wait.PollImmediate(1*time.Second, e2e.WaitMedium, func() (bool, error) {
-			if err := client.Create(context.TODO(), clusterAutoscaler); err != nil {
-				if !strings.Contains(err.Error(), "already exists") {
-					glog.Errorf("error querying api for clusterAutoscaler object: %v, retrying...", err)
-					return false, err
-				}
-			}
-			if err := client.Create(context.TODO(), machineAutoscaler); err != nil {
-				if !strings.Contains(err.Error(), "already exists") {
-					glog.Errorf("error querying api for machineAutoscaler object: %v, retrying...", err)
-					return false, err
-				}
-			}
-			return true, nil
-		})
+		err = client.Create(context.TODO(), machineAutoscaler)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		// We want to clean up these objects on any subsequent error.
