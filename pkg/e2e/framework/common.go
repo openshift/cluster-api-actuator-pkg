@@ -59,3 +59,12 @@ func GetMachines(ctx context.Context, client runtimeclient.Client, labels ...map
 	}
 	return machineList.Items, nil
 }
+
+// GetMachine get a machine by its name from the default machine API namespace.
+func GetMachine(ctx context.Context, client runtimeclient.Client, machineName string) (*mapiv1beta1.Machine, error) {
+	machine := &mapiv1beta1.Machine{}
+	if err := client.Get(ctx, runtimeclient.ObjectKey{Namespace: TestContext.MachineApiNamespace, Name: machineName}, machine); err != nil {
+		return nil, fmt.Errorf("error querying api for machine object: %v", err)
+	}
+	return machine, nil
+}

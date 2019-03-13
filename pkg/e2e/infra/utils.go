@@ -132,19 +132,16 @@ func getMachineFromNode(client runtimeclient.Client, node *corev1.Node) (*mapiv1
 		return nil, fmt.Errorf("machine annotation format is incorrect %v: %v", machineNamespaceKey, err)
 	}
 
-	key := runtimeclient.ObjectKey{Namespace: namespace, Name: machineName}
-	machine := mapiv1beta1.Machine{}
-	if err := wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
-		if err := client.Get(context.TODO(), key, &machine); err != nil {
-			glog.Errorf("Error querying api for nodeList object: %v, retrying...", err)
-			return false, nil
-		}
-		return true, nil
-	}); err != nil {
-		glog.Errorf("Error calling getMachineFromNode: %v", err)
-		return nil, err
+	if namespace != e2e.TestContext.MachineApiNamespace {
+		return nil, fmt.Errorf("Machine %q is forbidden to live outside of default %v namespace", machineNamespaceKey, e2e.TestContext.MachineApiNamespace)
 	}
-	return &machine, nil
+
+	machine, err := e2e.GetMachine(context.TODO(), client, machineName)
+	if err != nil {
+		return nil, fmt.Errorf("error querying api for machine object: %v", err)
+	}
+
+	return machine, nil
 }
 
 // deleteMachine deletes a specific machine and returns an error otherwise
