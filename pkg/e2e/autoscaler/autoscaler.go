@@ -189,21 +189,27 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 		defer func() {
 			err = e2e.DeleteObjectsByLabels(context.TODO(), client, map[string]string{autoscalingTestLabel: ""}, &batchv1.JobList{})
 			if err != nil {
+				// if this one fails, there are still other resources to be deleted.
 				glog.Warning(err)
+			} else {
+				glog.Info("Deleted workload object")
 			}
-			glog.Info("Deleted workload object")
 
 			err = e2e.DeleteObjectsByLabels(context.TODO(), client, map[string]string{autoscalingTestLabel: ""}, &caov1alpha1.MachineAutoscalerList{})
 			if err != nil {
+				// if this one fails, there are still other resources to be deleted.
 				glog.Warning(err)
+			} else {
+				glog.Info("Deleted machineAutoscaler object")
 			}
-			glog.Info("Deleted machineAutoscaler object")
 
 			err = e2e.DeleteObjectsByLabels(context.TODO(), client, map[string]string{autoscalingTestLabel: ""}, &caov1alpha1.ClusterAutoscalerList{})
 			if err != nil {
+				// if this one fails, there is no point of returning an error as this is the last resource deletion action
 				glog.Warning(err)
+			} else {
+				glog.Info("Deleted clusterAutoscaler object")
 			}
-			glog.Info("Deleted clusterAutoscaler object")
 		}()
 
 		g.By("Getint target machineSet")
