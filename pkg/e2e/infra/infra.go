@@ -12,9 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/uuid"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/pointer"
-	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
@@ -232,61 +230,3 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 	})
 })
-
-func waitForClusterSizeToBeHealthy(client runtimeclient.Client, targetSize int) error {
-	if err := wait.PollImmediate(5*time.Second, e2e.WaitLong, func() (bool, error) {
-		glog.Infof("Cluster size expected to be %d nodes", targetSize)
-		if err := machineSetsSnapShotLogs(client); err != nil {
-			return false, err
-		}
-
-		if err := nodesSnapShotLogs(client); err != nil {
-			return false, err
-		}
-
-		finalClusterSize, err := getClusterSize(client)
-		if err != nil {
-			return false, err
-		}
-		return finalClusterSize == targetSize, nil
-	}); err != nil {
-		return fmt.Errorf("Did not reach expected number of nodes: %v", err)
-	}
-
-	glog.Infof("waiting for all nodes to be ready")
-	if err := e2e.WaitUntilAllNodesAreReady(client); err != nil {
-		return err
-	}
-
-	glog.Infof("waiting for all nodes to be schedulable")
-	if err := waitUntilAllNodesAreSchedulable(client); err != nil {
-		return err
-	}
-
-	glog.Infof("waiting for each node to be backed by a machine")
-	if !isOneMachinePerNode(client) {
-		return fmt.Errorf("One machine per node condition violated")
-	}
-
-	return nil
-}
-
-// waitUntilAllNodesAreSchedulable waits for all cluster nodes to be schedulable and returns an error otherwise
-func waitUntilAllNodesAreSchedulable(client runtimeclient.Client) error {
-	return wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
-		nodeList := corev1.NodeList{}
-		if err := client.List(context.TODO(), &runtimeclient.ListOptions{}, &nodeList); err != nil {
-			glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
-			return false, nil
-		}
-		// All nodes needs to be schedulable
-		for _, node := range nodeList.Items {
-			if node.Spec.Unschedulable == true {
-				glog.Errorf("Node %q is unschedulable", node.Name)
-				return false, nil
-			}
-			glog.Infof("Node %q is schedulable", node.Name)
-		}
-		return true, nil
-	})
-}
