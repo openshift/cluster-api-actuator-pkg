@@ -236,7 +236,7 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 		err = client.Create(context.TODO(), clusterAutoscaler)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		initialNumberOfReplicas := pointer.Int32PtrDerefOr(targetMachineSet.Spec.Replicas, 0)
+		initialNumberOfReplicas := pointer.Int32PtrDerefOr(targetMachineSet.Spec.Replicas, e2e.DefaultMachineSetReplicas)
 
 		g.By("Creating MachineAutoscaler objects")
 		machineAutoscaler := machineAutoscalerResource(&targetMachineSet, 1, initialNumberOfReplicas+1)
@@ -266,8 +266,8 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 				glog.Errorf("error querying api for machineset object: %v, retrying...", err)
 				return false, nil
 			}
-			glog.Infof("MachineSet %s. Initial number of replicas: %d. Current number of replicas: %d", targetMachineSet.Name, initialNumberOfReplicas, pointer.Int32PtrDerefOr(ms.Spec.Replicas, 0))
-			return pointer.Int32PtrDerefOr(ms.Spec.Replicas, 0) > initialNumberOfReplicas, nil
+			glog.Infof("MachineSet %s. Initial number of replicas: %d. Current number of replicas: %d", targetMachineSet.Name, initialNumberOfReplicas, pointer.Int32PtrDerefOr(ms.Spec.Replicas, e2e.DefaultMachineSetReplicas))
+			return pointer.Int32PtrDerefOr(ms.Spec.Replicas, e2e.DefaultMachineSetReplicas) > initialNumberOfReplicas, nil
 		})
 		o.Expect(err).NotTo(o.HaveOccurred())
 
@@ -315,7 +315,7 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 				glog.Errorf("error querying api for machineSet object: %v, retrying...", err)
 				return false, nil
 			}
-			msReplicas := pointer.Int32PtrDerefOr(ms.Spec.Replicas, 0)
+			msReplicas := pointer.Int32PtrDerefOr(ms.Spec.Replicas, e2e.DefaultMachineSetReplicas)
 			glog.Infof("Initial number of replicas: %d. Current number of replicas: %d", initialNumberOfReplicas, msReplicas)
 			if msReplicas > initialNumberOfReplicas {
 				return false, nil

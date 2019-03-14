@@ -99,7 +99,7 @@ func machineSetsSnapShotLogs(client runtimeclient.Client) error {
 	for _, machineset := range machineSets {
 		glog.Infof("MachineSet %q replicas %d. Ready: %d, available %d",
 			machineset.Name,
-			pointer.Int32PtrDerefOr(machineset.Spec.Replicas, 0),
+			pointer.Int32PtrDerefOr(machineset.Spec.Replicas, e2e.DefaultMachineSetReplicas),
 			machineset.Status.ReadyReplicas,
 			machineset.Status.AvailableReplicas)
 	}

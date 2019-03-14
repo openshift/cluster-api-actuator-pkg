@@ -149,7 +149,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(len(machineSets)).To(o.BeNumerically(">", 2))
 		machineSet := machineSets[0]
-		initialReplicasMachineSet := int(pointer.Int32PtrDerefOr(machineSet.Spec.Replicas, 0))
+		initialReplicasMachineSet := int(pointer.Int32PtrDerefOr(machineSet.Spec.Replicas, e2e.DefaultMachineSetReplicas))
 		scaleOut := 3
 		scaleIn := initialReplicasMachineSet
 		originalReplicas := initialReplicasMachineSet
@@ -189,9 +189,9 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(len(machineSets)).To(o.BeNumerically(">", 2))
 		machineSet0 := machineSets[0]
-		initialReplicasMachineSet0 := int(pointer.Int32PtrDerefOr(machineSet0.Spec.Replicas, 0))
+		initialReplicasMachineSet0 := int(pointer.Int32PtrDerefOr(machineSet0.Spec.Replicas, e2e.DefaultMachineSetReplicas))
 		machineSet1 := machineSets[1]
-		initialReplicasMachineSet1 := int(pointer.Int32PtrDerefOr(machineSet1.Spec.Replicas, 0))
+		initialReplicasMachineSet1 := int(pointer.Int32PtrDerefOr(machineSet1.Spec.Replicas, e2e.DefaultMachineSetReplicas))
 
 		g.By(fmt.Sprintf("scaling %q from %d to %d replicas", machineSet0.Name, initialReplicasMachineSet0, scaleOut))
 		err = scaleMachineSet(machineSet0.Name, scaleOut)
