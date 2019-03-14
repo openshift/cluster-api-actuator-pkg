@@ -219,10 +219,6 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 
 		targetMachineSet := machinesets[0]
 		glog.Infof("Target machineSet %s", targetMachineSet.Name)
-		targetMachineSetKey := types.NamespacedName{
-			Namespace: e2e.TestContext.MachineApiNamespace,
-			Name:      targetMachineSet.Name,
-		}
 
 		// When we add support for machineDeployments on the installer, cluster-autoscaler and cluster-autoscaler-operator
 		// we need to test against deployments instead so we skip this test.
@@ -261,9 +257,9 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 
 		g.By("Waiting for cluster to scale out number of replicas")
 		err = wait.PollImmediate(5*time.Second, e2e.WaitLong, func() (bool, error) {
-			ms := &mapiv1beta1.MachineSet{}
-			if err := client.Get(context.TODO(), targetMachineSetKey, ms); err != nil {
-				glog.Errorf("error querying api for machineset object: %v, retrying...", err)
+			ms, err := e2e.GetMachineSet(context.TODO(), client, targetMachineSet.Name)
+			if err != nil {
+				glog.Errorf("error getting machineset object: %v, retrying...", err)
 				return false, nil
 			}
 			glog.Infof("MachineSet %s. Initial number of replicas: %d. Current number of replicas: %d", targetMachineSet.Name, initialNumberOfReplicas, pointer.Int32PtrDerefOr(ms.Spec.Replicas, e2e.DefaultMachineSetReplicas))
@@ -310,9 +306,9 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 		// scale down is functional.
 		g.By("Waiting for cluster to have at most initial number of replicas")
 		err = wait.PollImmediate(5*time.Second, e2e.WaitLong, func() (bool, error) {
-			ms := &mapiv1beta1.MachineSet{}
-			if err := client.Get(context.TODO(), targetMachineSetKey, ms); err != nil {
-				glog.Errorf("error querying api for machineSet object: %v, retrying...", err)
+			ms, err := e2e.GetMachineSet(context.TODO(), client, targetMachineSet.Name)
+			if err != nil {
+				glog.Errorf("error getting machineset object: %v, retrying...", err)
 				return false, nil
 			}
 			msReplicas := pointer.Int32PtrDerefOr(ms.Spec.Replicas, e2e.DefaultMachineSetReplicas)
