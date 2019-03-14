@@ -35,7 +35,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		machines, err := e2e.GetMachines(context.TODO(), client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(len(machines)).To(o.BeNumerically(">", 0))
-		machine := machines[0]
+		machine := &machines[0]
 		originalMachineTaints := machine.Spec.Taints
 		g.By(fmt.Sprintf("getting machine %q", machine.Name))
 
@@ -61,7 +61,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		}
 		g.By(fmt.Sprintf("updating machine %q with taint: %v", machine.Name, machineTaint))
 		machine.Spec.Taints = append(machine.Spec.Taints, machineTaint)
-		err = client.Update(context.TODO(), &machine)
+		err = client.Update(context.TODO(), machine)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		var expectedTaints = sets.NewString("not-from-machine", machineTaint.Key)
@@ -82,12 +82,21 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 			glog.Infof("Did not find all expected taints on the node. Missing: %v", expectedTaints.Difference(observedTaints))
 			return false
 		}, e2e.WaitMedium, 5*time.Second).Should(o.BeTrue())
-		// set back original taints
-		machine.Spec.Taints = originalMachineTaints
-		err = client.Update(context.TODO(), &machine)
+
+		g.By("Getting the latest version of the original machine")
+		machine, err = e2e.GetMachine(context.TODO(), client, machine.Name)
 		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By("Setting back the original machine taints")
+		machine.Spec.Taints = originalMachineTaints
+		err = client.Update(context.TODO(), machine)
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By("Getting the latest version of the node")
 		node, err = getNodeFromMachine(client, machine)
 		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By("Setting back the original node taints")
 		node.Spec.Taints = originalNodeTaints
 		err = client.Update(context.TODO(), node)
 		o.Expect(err).NotTo(o.HaveOccurred())

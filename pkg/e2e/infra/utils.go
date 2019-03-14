@@ -164,7 +164,7 @@ func getNodesFromMachineSet(client runtimeclient.Client, machineSet mapiv1beta1.
 
 	var nodes []*corev1.Node
 	for key := range machines {
-		node, err := getNodeFromMachine(client, machines[key])
+		node, err := getNodeFromMachine(client, &machines[key])
 		if err != nil {
 			return nil, fmt.Errorf("error getting node from machine %q: %v", machines[key].Name, err)
 		}
@@ -175,7 +175,7 @@ func getNodesFromMachineSet(client runtimeclient.Client, machineSet mapiv1beta1.
 }
 
 // getNodeFromMachine returns the node object referenced by machine.Status.NodeRef
-func getNodeFromMachine(client runtimeclient.Client, machine mapiv1beta1.Machine) (*corev1.Node, error) {
+func getNodeFromMachine(client runtimeclient.Client, machine *mapiv1beta1.Machine) (*corev1.Node, error) {
 	var node corev1.Node
 	if machine.Status.NodeRef == nil {
 		glog.Errorf("Machine %q has no NodeRef", machine.Name)
