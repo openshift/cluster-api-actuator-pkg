@@ -12,9 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/uuid"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/pointer"
-	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
@@ -34,10 +32,10 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		client, err := e2e.LoadClient()
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		machines, err := getMachines(client)
+		machines, err := e2e.GetMachines(context.TODO(), client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(len(machines)).To(o.BeNumerically(">", 0))
-		machine := machines[0]
+		machine := &machines[0]
 		originalMachineTaints := machine.Spec.Taints
 		g.By(fmt.Sprintf("getting machine %q", machine.Name))
 
@@ -63,7 +61,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		}
 		g.By(fmt.Sprintf("updating machine %q with taint: %v", machine.Name, machineTaint))
 		machine.Spec.Taints = append(machine.Spec.Taints, machineTaint)
-		err = client.Update(context.TODO(), &machine)
+		err = client.Update(context.TODO(), machine)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		var expectedTaints = sets.NewString("not-from-machine", machineTaint.Key)
@@ -84,12 +82,21 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 			glog.Infof("Did not find all expected taints on the node. Missing: %v", expectedTaints.Difference(observedTaints))
 			return false
 		}, e2e.WaitMedium, 5*time.Second).Should(o.BeTrue())
-		// set back original taints
-		machine.Spec.Taints = originalMachineTaints
-		err = client.Update(context.TODO(), &machine)
+
+		g.By("Getting the latest version of the original machine")
+		machine, err = e2e.GetMachine(context.TODO(), client, machine.Name)
 		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By("Setting back the original machine taints")
+		machine.Spec.Taints = originalMachineTaints
+		err = client.Update(context.TODO(), machine)
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By("Getting the latest version of the node")
 		node, err = getNodeFromMachine(client, machine)
 		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By("Setting back the original node taints")
 		node.Spec.Taints = originalNodeTaints
 		err = client.Update(context.TODO(), node)
 		o.Expect(err).NotTo(o.HaveOccurred())
@@ -106,7 +113,8 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 
 		g.By("checking initial cluster state")
 		initialClusterSize, err := getClusterSize(client)
-		waitForClusterSizeToBeHealthy(initialClusterSize)
+		err = waitForClusterSizeToBeHealthy(client, initialClusterSize)
+		o.Expect(err).NotTo(o.HaveOccurred())
 
 		workerNode, err := getWorkerNode(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
@@ -133,7 +141,8 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		}, e2e.WaitLong, 5*time.Second).Should(o.BeTrue())
 
 		g.By(fmt.Sprintf("waiting for new node object to come up"))
-		waitForClusterSizeToBeHealthy(initialClusterSize)
+		err = waitForClusterSizeToBeHealthy(client, initialClusterSize)
+		o.Expect(err).NotTo(o.HaveOccurred())
 	})
 
 	g.It("grow or decrease when scaling out or in", func() {
@@ -142,13 +151,14 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		initialClusterSize, err := getClusterSize(client)
-		waitForClusterSizeToBeHealthy(initialClusterSize)
+		err = waitForClusterSizeToBeHealthy(client, initialClusterSize)
+		o.Expect(err).NotTo(o.HaveOccurred())
 
-		machineSets, err := getMachineSets(client)
+		machineSets, err := e2e.GetMachineSets(context.TODO(), client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(len(machineSets)).To(o.BeNumerically(">", 2))
 		machineSet := machineSets[0]
-		initialReplicasMachineSet := int(pointer.Int32PtrDerefOr(machineSet.Spec.Replicas, 0))
+		initialReplicasMachineSet := int(pointer.Int32PtrDerefOr(machineSet.Spec.Replicas, e2e.DefaultMachineSetReplicas))
 		scaleOut := 3
 		scaleIn := initialReplicasMachineSet
 		originalReplicas := initialReplicasMachineSet
@@ -162,14 +172,16 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By(fmt.Sprintf("waiting for cluster to grow %d nodes. Size should be %d", clusterGrowth, intermediateClusterSize))
-		waitForClusterSizeToBeHealthy(intermediateClusterSize)
+		err = waitForClusterSizeToBeHealthy(client, intermediateClusterSize)
+		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By(fmt.Sprintf("scaling in %q machineSet to %d replicas", machineSet.Name, scaleIn))
 		err = scaleMachineSet(machineSet.Name, scaleIn)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By(fmt.Sprintf("waiting for cluster to decrease %d nodes. Final size should be %d nodes", clusterDecrease, finalClusterSize))
-		waitForClusterSizeToBeHealthy(finalClusterSize)
+		err = waitForClusterSizeToBeHealthy(client, finalClusterSize)
+		o.Expect(err).NotTo(o.HaveOccurred())
 	})
 
 	g.It("grow and decrease when scaling different machineSets simultaneously", func() {
@@ -182,13 +194,13 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("getting worker machineSets")
-		machineSets, err := getMachineSets(client)
+		machineSets, err := e2e.GetMachineSets(context.TODO(), client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(len(machineSets)).To(o.BeNumerically(">", 2))
 		machineSet0 := machineSets[0]
-		initialReplicasMachineSet0 := int(pointer.Int32PtrDerefOr(machineSet0.Spec.Replicas, 0))
+		initialReplicasMachineSet0 := int(pointer.Int32PtrDerefOr(machineSet0.Spec.Replicas, e2e.DefaultMachineSetReplicas))
 		machineSet1 := machineSets[1]
-		initialReplicasMachineSet1 := int(pointer.Int32PtrDerefOr(machineSet1.Spec.Replicas, 0))
+		initialReplicasMachineSet1 := int(pointer.Int32PtrDerefOr(machineSet1.Spec.Replicas, e2e.DefaultMachineSetReplicas))
 
 		g.By(fmt.Sprintf("scaling %q from %d to %d replicas", machineSet0.Name, initialReplicasMachineSet0, scaleOut))
 		err = scaleMachineSet(machineSet0.Name, scaleOut)
@@ -223,55 +235,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By(fmt.Sprintf("waiting for cluster to get back to original size. Final size should be %d nodes", initialClusterSize))
-		waitForClusterSizeToBeHealthy(initialClusterSize)
+		err = waitForClusterSizeToBeHealthy(client, initialClusterSize)
+		o.Expect(err).NotTo(o.HaveOccurred())
 	})
 })
-
-func waitForClusterSizeToBeHealthy(targetSize int) {
-	client, err := e2e.LoadClient()
-	o.Expect(err).NotTo(o.HaveOccurred())
-
-	o.Eventually(func() int {
-		glog.Infof("Cluster size expected to be %d nodes", targetSize)
-		err := machineSetsSnapShotLogs(client)
-		o.Expect(err).NotTo(o.HaveOccurred())
-
-		err = nodesSnapShotLogs(client)
-		o.Expect(err).NotTo(o.HaveOccurred())
-
-		finalClusterSize, err := getClusterSize(client)
-		o.Expect(err).NotTo(o.HaveOccurred())
-		return finalClusterSize
-	}, e2e.WaitLong, 5*time.Second).Should(o.BeNumerically("==", targetSize))
-
-	g.By(fmt.Sprintf("waiting for all nodes to be ready"))
-	err = e2e.WaitUntilAllNodesAreReady(client)
-	o.Expect(err).NotTo(o.HaveOccurred())
-
-	g.By(fmt.Sprintf("waiting for all nodes to be schedulable"))
-	err = waitUntilAllNodesAreSchedulable(client)
-	o.Expect(err).NotTo(o.HaveOccurred())
-
-	g.By(fmt.Sprintf("waiting for each node to be backed by a machine"))
-	o.Expect(isOneMachinePerNode(client)).To(o.BeTrue())
-}
-
-// waitUntilAllNodesAreSchedulable waits for all cluster nodes to be schedulable and returns an error otherwise
-func waitUntilAllNodesAreSchedulable(client runtimeclient.Client) error {
-	return wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
-		nodeList := corev1.NodeList{}
-		if err := client.List(context.TODO(), &runtimeclient.ListOptions{}, &nodeList); err != nil {
-			glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
-			return false, nil
-		}
-		// All nodes needs to be schedulable
-		for _, node := range nodeList.Items {
-			if node.Spec.Unschedulable == true {
-				glog.Errorf("Node %q is unschedulable", node.Name)
-				return false, nil
-			}
-			glog.Infof("Node %q is schedulable", node.Name)
-		}
-		return true, nil
-	})
-}

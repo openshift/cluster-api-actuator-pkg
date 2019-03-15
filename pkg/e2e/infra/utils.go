@@ -80,102 +80,42 @@ func isOneMachinePerNode(client runtimeclient.Client) bool {
 
 // getClusterSize returns the number of nodes of the cluster
 func getClusterSize(client runtimeclient.Client) (int, error) {
-	nodeList := corev1.NodeList{}
-	if err := wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
-		if err := client.List(context.TODO(), &runtimeclient.ListOptions{}, &nodeList); err != nil {
-			glog.Errorf("Error querying api for nodeList object: %v, retrying...", err)
-			return false, nil
-		}
-		return true, nil
-	}); err != nil {
-		glog.Errorf("Error calling getClusterSize: %v", err)
-		return 0, err
+	nodes, err := e2e.GetNodes(client)
+	if err != nil {
+		return 0, fmt.Errorf("error getting nodes: %v", err)
 	}
-	glog.Infof("Cluster size is %d nodes", len(nodeList.Items))
-	return len(nodeList.Items), nil
+
+	glog.Infof("Cluster size is %d nodes", len(nodes))
+	return len(nodes), nil
 }
 
 // machineSetsSnapShotLogs logs the state of all the machineSets in the cluster
 func machineSetsSnapShotLogs(client runtimeclient.Client) error {
-	machineSetList, err := getMachineSetList(client)
+	machineSets, err := e2e.GetMachineSets(context.TODO(), client)
 	if err != nil {
-		return fmt.Errorf("error calling getMachineSetList: %v", err)
+		return fmt.Errorf("error getting machines: %v", err)
 	}
-	for key := range machineSetList.Items {
-		glog.Infof("MachineSet %q replicas %d. Ready: %d, available %d", machineSetList.Items[key].Name, pointer.Int32PtrDerefOr(machineSetList.Items[key].Spec.Replicas, 0), machineSetList.Items[key].Status.ReadyReplicas, machineSetList.Items[key].Status.AvailableReplicas)
+
+	for _, machineset := range machineSets {
+		glog.Infof("MachineSet %q replicas %d. Ready: %d, available %d",
+			machineset.Name,
+			pointer.Int32PtrDerefOr(machineset.Spec.Replicas, e2e.DefaultMachineSetReplicas),
+			machineset.Status.ReadyReplicas,
+			machineset.Status.AvailableReplicas)
 	}
 	return nil
 }
 
-// getMachineSetList returns a MachineSetList object
-func getMachineSetList(client runtimeclient.Client) (*mapiv1beta1.MachineSetList, error) {
-	machineSetList := mapiv1beta1.MachineSetList{}
-	listOptions := runtimeclient.ListOptions{
-		Namespace: e2e.TestContext.MachineApiNamespace,
-	}
-	if err := wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
-		if err := client.List(context.TODO(), &listOptions, &machineSetList); err != nil {
-			glog.Errorf("error querying api for machineSetList object: %v, retrying...", err)
-			return false, nil
-		}
-		return true, nil
-	}); err != nil {
-		glog.Errorf("Error calling getMachineSetList: %v", err)
-		return nil, err
-	}
-	return &machineSetList, nil
-}
-
-// getMachineSets returns the list of machineSets or an error
-func getMachineSets(client runtimeclient.Client) ([]mapiv1beta1.MachineSet, error) {
-	machineSetList, err := getMachineSetList(client)
-	if err != nil {
-		return nil, fmt.Errorf("error getting machineSetList: %v", err)
-	}
-	if len(machineSetList.Items) == 0 {
-		return nil, fmt.Errorf("error getting machineSets, machineSetList is empty")
-	}
-	return machineSetList.Items, nil
-}
-
-// getMachineList returns a MachineList object
-func getMachineList(client runtimeclient.Client) (*mapiv1beta1.MachineList, error) {
-	machineList := mapiv1beta1.MachineList{}
-	listOptions := runtimeclient.ListOptions{
-		Namespace: e2e.TestContext.MachineApiNamespace,
-	}
-	if err := wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
-		if err := client.List(context.TODO(), &listOptions, &machineList); err != nil {
-			glog.Errorf("error querying api for machineList object: %v, retrying...", err)
-			return false, nil
-		}
-		return true, nil
-	}); err != nil {
-		glog.Errorf("Error calling getMachineList: %v", err)
-		return nil, err
-	}
-	return &machineList, nil
-}
-
-// getMachines returns the list of machines or an error
-func getMachines(client runtimeclient.Client) ([]mapiv1beta1.Machine, error) {
-	machineList, err := getMachineList(client)
-	if err != nil {
-		return nil, fmt.Errorf("error getting machineList: %v", err)
-	}
-	return machineList.Items, nil
-}
-
 // getMachinesFromMachineSet returns an array of machines owned by a given machineSet
 func getMachinesFromMachineSet(client runtimeclient.Client, machineSet mapiv1beta1.MachineSet) ([]mapiv1beta1.Machine, error) {
-	machineList, err := getMachineList(client)
+	machines, err := e2e.GetMachines(context.TODO(), client)
 	if err != nil {
-		return nil, fmt.Errorf("error getting machineList: %v", err)
+		return nil, fmt.Errorf("error getting machines: %v", err)
 	}
 	var machinesForSet []mapiv1beta1.Machine
-	for key := range machineList.Items {
-		if metav1.IsControlledBy(&machineList.Items[key], &machineSet) {
-			machinesForSet = append(machinesForSet, machineList.Items[key])
+	for key := range machines {
+		if metav1.IsControlledBy(&machines[key], &machineSet) {
+			machinesForSet = append(machinesForSet, machines[key])
 		}
 	}
 	return machinesForSet, nil
@@ -192,19 +132,16 @@ func getMachineFromNode(client runtimeclient.Client, node *corev1.Node) (*mapiv1
 		return nil, fmt.Errorf("machine annotation format is incorrect %v: %v", machineNamespaceKey, err)
 	}
 
-	key := runtimeclient.ObjectKey{Namespace: namespace, Name: machineName}
-	machine := mapiv1beta1.Machine{}
-	if err := wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
-		if err := client.Get(context.TODO(), key, &machine); err != nil {
-			glog.Errorf("Error querying api for nodeList object: %v, retrying...", err)
-			return false, nil
-		}
-		return true, nil
-	}); err != nil {
-		glog.Errorf("Error calling getMachineFromNode: %v", err)
-		return nil, err
+	if namespace != e2e.TestContext.MachineApiNamespace {
+		return nil, fmt.Errorf("Machine %q is forbidden to live outside of default %v namespace", machineNamespaceKey, e2e.TestContext.MachineApiNamespace)
 	}
-	return &machine, nil
+
+	machine, err := e2e.GetMachine(context.TODO(), client, machineName)
+	if err != nil {
+		return nil, fmt.Errorf("error querying api for machine object: %v", err)
+	}
+
+	return machine, nil
 }
 
 // deleteMachine deletes a specific machine and returns an error otherwise
@@ -227,7 +164,7 @@ func getNodesFromMachineSet(client runtimeclient.Client, machineSet mapiv1beta1.
 
 	var nodes []*corev1.Node
 	for key := range machines {
-		node, err := getNodeFromMachine(client, machines[key])
+		node, err := getNodeFromMachine(client, &machines[key])
 		if err != nil {
 			return nil, fmt.Errorf("error getting node from machine %q: %v", machines[key].Name, err)
 		}
@@ -238,7 +175,7 @@ func getNodesFromMachineSet(client runtimeclient.Client, machineSet mapiv1beta1.
 }
 
 // getNodeFromMachine returns the node object referenced by machine.Status.NodeRef
-func getNodeFromMachine(client runtimeclient.Client, machine mapiv1beta1.Machine) (*corev1.Node, error) {
+func getNodeFromMachine(client runtimeclient.Client, machine *mapiv1beta1.Machine) (*corev1.Node, error) {
 	var node corev1.Node
 	if machine.Status.NodeRef == nil {
 		glog.Errorf("Machine %q has no NodeRef", machine.Name)
@@ -331,38 +268,71 @@ func getScaleClient() (scale.ScalesGetter, error) {
 
 // nodesSnapShotLogs logs the state of all the nodes in the cluster
 func nodesSnapShotLogs(client runtimeclient.Client) error {
-	nodes, err := getNodes(client)
+	nodes, err := e2e.GetNodes(client)
 	if err != nil {
-		return fmt.Errorf("error calling getNodes: %v", err)
+		return fmt.Errorf("error getting nodes: %v", err)
 	}
-	for key := range nodes {
-		glog.Infof("Node %q. Ready: %t. Unschedulable: %t", nodes[key].Name, e2e.IsNodeReady(&nodes[key]), nodes[key].Spec.Unschedulable)
+
+	for key, node := range nodes {
+		glog.Infof("Node %q. Ready: %t. Unschedulable: %t", node.Name, e2e.IsNodeReady(&nodes[key]), node.Spec.Unschedulable)
 	}
 	return nil
 }
 
-// getNodeList returns a nodeList object
-func getNodeList(client runtimeclient.Client) (*corev1.NodeList, error) {
-	nodeList := corev1.NodeList{}
-	listOptions := runtimeclient.ListOptions{}
-	if err := wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
-		if err := client.List(context.TODO(), &listOptions, &nodeList); err != nil {
-			glog.Errorf("error querying api for machineSetList object: %v, retrying...", err)
-			return false, nil
+func waitForClusterSizeToBeHealthy(client runtimeclient.Client, targetSize int) error {
+	if err := wait.PollImmediate(5*time.Second, e2e.WaitLong, func() (bool, error) {
+		glog.Infof("Cluster size expected to be %d nodes", targetSize)
+		if err := machineSetsSnapShotLogs(client); err != nil {
+			return false, err
 		}
-		return true, nil
+
+		if err := nodesSnapShotLogs(client); err != nil {
+			return false, err
+		}
+
+		finalClusterSize, err := getClusterSize(client)
+		if err != nil {
+			return false, err
+		}
+		return finalClusterSize == targetSize, nil
 	}); err != nil {
-		glog.Errorf("Error calling getMachineSetList: %v", err)
-		return nil, err
+		return fmt.Errorf("Did not reach expected number of nodes: %v", err)
 	}
-	return &nodeList, nil
+
+	glog.Infof("waiting for all nodes to be ready")
+	if err := e2e.WaitUntilAllNodesAreReady(client); err != nil {
+		return err
+	}
+
+	glog.Infof("waiting for all nodes to be schedulable")
+	if err := waitUntilAllNodesAreSchedulable(client); err != nil {
+		return err
+	}
+
+	glog.Infof("waiting for each node to be backed by a machine")
+	if !isOneMachinePerNode(client) {
+		return fmt.Errorf("One machine per node condition violated")
+	}
+
+	return nil
 }
 
-// getNodes returns the list of nodes or an error
-func getNodes(client runtimeclient.Client) ([]corev1.Node, error) {
-	nodeList, err := getNodeList(client)
-	if err != nil {
-		return nil, fmt.Errorf("error getting nodeList: %v", err)
-	}
-	return nodeList.Items, nil
+// waitUntilAllNodesAreSchedulable waits for all cluster nodes to be schedulable and returns an error otherwise
+func waitUntilAllNodesAreSchedulable(client runtimeclient.Client) error {
+	return wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
+		nodeList := corev1.NodeList{}
+		if err := client.List(context.TODO(), &runtimeclient.ListOptions{}, &nodeList); err != nil {
+			glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
+			return false, nil
+		}
+		// All nodes needs to be schedulable
+		for _, node := range nodeList.Items {
+			if node.Spec.Unschedulable == true {
+				glog.Errorf("Node %q is unschedulable", node.Name)
+				return false, nil
+			}
+			glog.Infof("Node %q is schedulable", node.Name)
+		}
+		return true, nil
+	})
 }
