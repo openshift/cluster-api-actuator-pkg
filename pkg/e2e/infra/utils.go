@@ -437,14 +437,11 @@ func waitUntilAllRCPodsAreReady(client runtimeclient.Client, rc *corev1.Replicat
 			return false, nil
 		}
 		if rcObj.Status.ReadyReplicas == 0 {
-			glog.Infof("Waiting for at least one RC ready replica (%v/%v)", rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
+			glog.Infof("Waiting for at least one RC ready replica, ReadyReplicas: %v, Replicas: %v", rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
 			return false, nil
 		}
-		glog.Infof("Waiting for RC ready replicas (%v/%v)", rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
-		if rcObj.Status.Replicas != rcObj.Status.ReadyReplicas {
-			return false, nil
-		}
-		return true, nil
+		glog.Infof("Waiting for RC ready replicas, ReadyReplicas: %v, Replicas: %v", rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
+		return rcObj.Status.Replicas == rcObj.Status.ReadyReplicas, nil
 	})
 }
 
@@ -463,6 +460,7 @@ func verifyNodeDraining(client runtimeclient.Client, targetMachine *mapiv1beta1.
 		}
 		if machine.Status.NodeRef == nil || machine.Status.NodeRef.Kind != "Node" {
 			glog.Error("Machine %q not linked to a node", machine.Name)
+			return false, nil
 		}
 
 		drainedNodeName = machine.Status.NodeRef.Name
@@ -488,7 +486,6 @@ func verifyNodeDraining(client runtimeclient.Client, targetMachine *mapiv1beta1.
 			return false, nil
 		}
 
-		// expecting nodeGroupSize nodes
 		podCounter := 0
 		for _, pod := range pods.Items {
 			if pod.Spec.NodeName != machine.Status.NodeRef.Name {
@@ -513,10 +510,10 @@ func verifyNodeDraining(client runtimeclient.Client, targetMachine *mapiv1beta1.
 			return false, nil
 		}
 
-		// The point of the test is to make sure majority of the pods is rescheduled
+		// The point of the test is to make sure majority of the pods are rescheduled
 		// to other nodes. Pod disruption budget makes sure at most one pod
-		// owned by the RC is not Ready. So no need to test it. Though, usefull to have it printed.
-		glog.Infof("RC ReadyReplicas/Replicas: %v/%v", rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
+		// owned by the RC is not Ready. So no need to test it. Though, useful to have it printed.
+		glog.Infof("RC ReadyReplicas: %v, Replicas: %v", rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
 
 		// This makes sure at most one replica is not ready
 		if rcObj.Status.Replicas-rcObj.Status.ReadyReplicas > 1 {
