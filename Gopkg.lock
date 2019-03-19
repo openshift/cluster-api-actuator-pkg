@@ -372,7 +372,7 @@
   revision = "af79befc50a8223c8122e9e654f65763dd17a87e"
 
 [[projects]]
-  digest = "1:1a6c1522af42be78c04c706ebeb86148536ebaae1e320ca0fa4781d2e38a0de5"
+  digest = "1:6299a67dc836b7645d1e207f4764fd8bdcb11b1d614fc2c32435925ffdc7997a"
   name = "github.com/openshift/cluster-api"
   packages = [
     "pkg/apis/cluster/common",
@@ -388,7 +388,7 @@
     "pkg/util",
   ]
   pruneopts = ""
-  revision = "0c3e884db79556cf786aa8436f5be977ef10c211"
+  revision = "8b6a416a1830212712a6b03c5431afbd4f586d62"
 
 [[projects]]
   branch = "master"
@@ -978,7 +978,7 @@
   revision = "c2654d5206da6b7b6ace12841e8f359bb89b443c"
 
 [[projects]]
-  digest = "1:6ce9939983cd47f4c21c1eeaf9a187ab01ca9e036364946eb60ce45286ab2191"
+  digest = "0:"
   name = "sigs.k8s.io/controller-runtime"
   packages = [
     "pkg/cache",
