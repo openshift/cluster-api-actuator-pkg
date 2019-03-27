@@ -20,15 +20,17 @@ import (
 	"reflect"
 	"testing"
 
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
+	"github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+)
 
-	"github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
+var (
+	_ reconcile.Reconciler = &ReconcileMachineDeployment{}
 )
 
 func TestMachineSetToDeployments(t *testing.T) {
@@ -41,6 +43,7 @@ func TestMachineSetToDeployments(t *testing.T) {
 			Selector: metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"foo": "bar",
+					v1beta1.MachineClusterLabelName: "test-cluster",
 				},
 			},
 		},
@@ -63,6 +66,9 @@ func TestMachineSetToDeployments(t *testing.T) {
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(&machineDeployment, controllerKind),
 			},
+			Labels: map[string]string{
+				v1beta1.MachineClusterLabelName: "test-cluster",
+			},
 		},
 	}
 	ms2 := v1beta1.MachineSet{
@@ -72,6 +78,9 @@ func TestMachineSetToDeployments(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "noOwnerRefNoLabels",
 			Namespace: "test",
+			Labels: map[string]string{
+				v1beta1.MachineClusterLabelName: "test-cluster",
+			},
 		},
 	}
 	ms3 := v1beta1.MachineSet{
@@ -83,6 +92,7 @@ func TestMachineSetToDeployments(t *testing.T) {
 			Namespace: "test",
 			Labels: map[string]string{
 				"foo": "bar",
+				v1beta1.MachineClusterLabelName: "test-cluster",
 			},
 		},
 	}
@@ -232,7 +242,7 @@ func TestGetMachineSetsForDeployment(t *testing.T) {
 		Spec: v1beta1.MachineDeploymentSpec{
 			Selector: metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"foo": "bar",
+					"foo": "bar2",
 				},
 			},
 		},
@@ -243,10 +253,10 @@ func TestGetMachineSetsForDeployment(t *testing.T) {
 			Kind: "MachineSet",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "withNoOwnerRef",
+			Name:      "withNoOwnerRefShouldBeAdopted2",
 			Namespace: "test",
 			Labels: map[string]string{
-				"foo": "bar",
+				"foo": "bar2",
 			},
 		},
 	}
@@ -265,6 +275,30 @@ func TestGetMachineSetsForDeployment(t *testing.T) {
 			},
 		},
 	}
+	ms3 := v1beta1.MachineSet{
+		TypeMeta: metav1.TypeMeta{
+			Kind: "MachineSet",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "withNoOwnerRefShouldBeAdopted1",
+			Namespace: "test",
+			Labels: map[string]string{
+				"foo": "bar",
+			},
+		},
+	}
+	ms4 := v1beta1.MachineSet{
+		TypeMeta: metav1.TypeMeta{
+			Kind: "MachineSet",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "withNoOwnerRefNoMatch",
+			Namespace: "test",
+			Labels: map[string]string{
+				"foo": "nomatch",
+			},
+		},
+	}
 	machineSetList := &v1beta1.MachineSetList{
 		TypeMeta: metav1.TypeMeta{
 			Kind: "MachineSetList",
@@ -272,6 +306,8 @@ func TestGetMachineSetsForDeployment(t *testing.T) {
 		Items: []v1beta1.MachineSet{
 			ms1,
 			ms2,
+			ms3,
+			ms4,
 		},
 	}
 
@@ -281,11 +317,11 @@ func TestGetMachineSetsForDeployment(t *testing.T) {
 	}{
 		{
 			machineDeployment: machineDeployment1,
-			expected:          []*v1beta1.MachineSet{&ms2},
+			expected:          []*v1beta1.MachineSet{&ms2, &ms3},
 		},
 		{
 			machineDeployment: machineDeployment2,
-			expected:          nil,
+			expected:          []*v1beta1.MachineSet{&ms1},
 		},
 	}
 
@@ -299,8 +335,15 @@ func TestGetMachineSetsForDeployment(t *testing.T) {
 		if err != nil {
 			t.Errorf("Failed running getMachineSetsForDeployment: %v", err)
 		}
-		if !reflect.DeepEqual(got, tc.expected) {
-			t.Errorf("Case %s. Got: %v, expected %v", tc.machineDeployment.Name, got, tc.expected)
+
+		if len(tc.expected) != len(got) {
+			t.Errorf("Case %s. Expected to get %d MachineSets but got %d", tc.machineDeployment.Name, len(tc.expected), len(got))
+		}
+
+		for idx, res := range got {
+			if res.Name != tc.expected[idx].Name || res.Namespace != tc.expected[idx].Namespace {
+				t.Errorf("Case %s. Expected %q found %q", tc.machineDeployment.Name, res.Name, tc.expected[idx].Name)
+			}
 		}
 	}
 }

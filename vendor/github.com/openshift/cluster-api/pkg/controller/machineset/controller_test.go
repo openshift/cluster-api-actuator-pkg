@@ -30,6 +30,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
+var _ reconcile.Reconciler = &ReconcileMachineSet{}
+
 func TestMachineSetToMachines(t *testing.T) {
 	machineSetList := &v1beta1.MachineSetList{
 		TypeMeta: metav1.TypeMeta{
@@ -45,6 +47,7 @@ func TestMachineSetToMachines(t *testing.T) {
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{
 							"foo": "bar",
+							v1beta1.MachineClusterLabelName: "test-cluster",
 						},
 					},
 				},
@@ -59,6 +62,9 @@ func TestMachineSetToMachines(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "withOwnerRef",
 			Namespace: "test",
+			Labels: map[string]string{
+				v1beta1.MachineClusterLabelName: "test-cluster",
+			},
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					Name:       "Owner",
@@ -75,6 +81,9 @@ func TestMachineSetToMachines(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "noOwnerRefNoLabels",
 			Namespace: "test",
+			Labels: map[string]string{
+				v1beta1.MachineClusterLabelName: "test-cluster",
+			},
 		},
 	}
 	m3 := v1beta1.Machine{
@@ -86,6 +95,7 @@ func TestMachineSetToMachines(t *testing.T) {
 			Namespace: "test",
 			Labels: map[string]string{
 				"foo": "bar",
+				v1beta1.MachineClusterLabelName: "test-cluster",
 			},
 		},
 	}

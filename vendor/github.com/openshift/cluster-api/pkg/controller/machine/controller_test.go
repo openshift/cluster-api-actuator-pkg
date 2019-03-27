@@ -20,12 +20,17 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/openshift/cluster-api/pkg/apis/cluster/v1alpha1"
 	"github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+)
+
+var (
+	_ reconcile.Reconciler = &ReconcileMachine{}
 )
 
 func TestReconcileRequest(t *testing.T) {
@@ -36,7 +41,10 @@ func TestReconcileRequest(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "create",
 			Namespace:  "default",
-			Finalizers: []string{v1beta1.MachineFinalizer},
+			Finalizers: []string{v1beta1.MachineFinalizer, metav1.FinalizerDeleteDependents},
+			Labels: map[string]string{
+				v1beta1.MachineClusterLabelName: "testcluster",
+			},
 		},
 	}
 	machine2 := v1beta1.Machine{
@@ -46,7 +54,10 @@ func TestReconcileRequest(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "update",
 			Namespace:  "default",
-			Finalizers: []string{v1beta1.MachineFinalizer},
+			Finalizers: []string{v1beta1.MachineFinalizer, metav1.FinalizerDeleteDependents},
+			Labels: map[string]string{
+				v1beta1.MachineClusterLabelName: "testcluster",
+			},
 		},
 	}
 	time := metav1.Now()
@@ -57,8 +68,11 @@ func TestReconcileRequest(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:              "delete",
 			Namespace:         "default",
-			Finalizers:        []string{v1beta1.MachineFinalizer},
+			Finalizers:        []string{v1beta1.MachineFinalizer, metav1.FinalizerDeleteDependents},
 			DeletionTimestamp: &time,
+			Labels: map[string]string{
+				v1alpha1.MachineClusterLabelName: "testcluster",
+			},
 		},
 	}
 	clusterList := v1beta1.ClusterList{
@@ -71,8 +85,17 @@ func TestReconcileRequest(t *testing.T) {
 					Kind: "Cluster",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "cluster",
+					Name:      "testcluster",
 					Namespace: "default",
+				},
+			},
+			{
+				TypeMeta: metav1.TypeMeta{
+					Kind: "Cluster",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "rainbow",
+					Namespace: "foo",
 				},
 			},
 		},
