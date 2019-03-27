@@ -368,7 +368,7 @@ func TestFindOldMachineSets(t *testing.T) {
 			Name:            "Get empty old MachineSets",
 			deployment:      deployment,
 			msList:          []*v1beta1.MachineSet{&newMS},
-			expected:        nil,
+			expected:        []*v1beta1.MachineSet{},
 			expectedRequire: nil,
 		},
 	}
@@ -698,7 +698,6 @@ func TestMaxUnavailable(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		t.Log(test.name)
 		t.Run(test.name, func(t *testing.T) {
 			maxUnavailable := MaxUnavailable(test.deployment)
 			if test.expected != maxUnavailable {
