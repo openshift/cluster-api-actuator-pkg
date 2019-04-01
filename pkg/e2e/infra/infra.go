@@ -94,6 +94,36 @@ func podDisruptionBudget(namespace string) *kpolicyapi.PodDisruptionBudget {
 	}
 }
 
+func invalidMachinesetWithEmptyProviderConfig() *mapiv1beta1.MachineSet {
+	var oneReplicas int32 = 1
+	return &mapiv1beta1.MachineSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "invalid-machineset",
+			Namespace: e2e.TestContext.MachineApiNamespace,
+		},
+		Spec: mapiv1beta1.MachineSetSpec{
+			Replicas: &oneReplicas,
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"little-kitty": "i-am-little-kitty",
+				},
+			},
+			Template: mapiv1beta1.MachineTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"big-kitty": "i-am-bit-kitty",
+					},
+				},
+				Spec: mapiv1beta1.MachineSpec{
+					// Empty providerSpec!!! we don't want to provision real instances.
+					// Just to observe how many machine replicas get created.
+					ProviderSpec: mapiv1beta1.ProviderSpec{},
+				},
+			},
+		},
+	}
+}
+
 var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 	defer g.GinkgoRecover()
 
@@ -449,5 +479,54 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		err = waitUntilNodeDoesNotExists(client, drainedNodeName)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
+	})
+
+	g.It("reject invalid machinesets", func() {
+		var err error
+		client, err := e2e.LoadClient()
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By("Creating invalid machineset")
+		invalidMachineSet := invalidMachinesetWithEmptyProviderConfig()
+
+		err = client.Create(context.TODO(), invalidMachineSet)
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By("Waiting for ReconcileError MachineSet event")
+		err = wait.PollImmediate(e2e.RetryMedium, e2e.WaitShort, func() (bool, error) {
+			eventList := corev1.EventList{}
+			if err := client.List(context.TODO(), nil, &eventList); err != nil {
+				glog.Errorf("error querying api for eventList object: %v, retrying...", err)
+				return false, nil
+			}
+
+			glog.Infof("Fetching ReconcileError MachineSet invalid-machineset event")
+			for _, event := range eventList.Items {
+				if event.Reason != "ReconcileError" || event.InvolvedObject.Kind != "MachineSet" || event.InvolvedObject.Name != invalidMachineSet.Name {
+					continue
+				}
+
+				glog.Infof("Found ReconcileError event for %q machine set with the following message: %v", event.InvolvedObject.Name, event.Message)
+				return true, nil
+			}
+
+			return false, nil
+		})
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		// Verify the number of machines does not grow over time.
+		// The assumption is once the ReconcileError event is recorded and caught,
+		// the machineset is not reconciled again until it's updated.
+		machineList := &mapiv1beta1.MachineList{}
+		err = client.List(context.TODO(), runtimeclient.MatchingLabels(invalidMachineSet.Spec.Template.Labels), machineList)
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By(fmt.Sprintf("Verify no machine from %q machineset were created", invalidMachineSet.Name))
+		glog.Infof("Have %v machines generated from %q machineset", len(machineList.Items), invalidMachineSet.Name)
+		o.Expect(len(machineList.Items)).To(o.BeNumerically("==", 0))
+
+		g.By("Deleting invalid machineset")
+		err = client.Delete(context.TODO(), invalidMachineSet)
+		o.Expect(err).NotTo(o.HaveOccurred())
 	})
 })
