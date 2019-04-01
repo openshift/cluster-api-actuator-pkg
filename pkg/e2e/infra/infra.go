@@ -26,8 +26,8 @@ import (
 )
 
 var nodeDrainLabels = map[string]string{
-	e2e.WorkerRoleLabel:  "",
-	"node-draining-test": string(uuid.NewUUID()),
+	e2e.WorkerNodeRoleLabel: "",
+	"node-draining-test":    string(uuid.NewUUID()),
 }
 
 func replicationControllerWorkload(namespace string) *corev1.ReplicationController {
@@ -195,9 +195,13 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		err = waitForClusterSizeToBeHealthy(client, initialClusterSize)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		workerNode, err := getWorkerNode(client)
+		g.By("getting worker node")
+		workerNodes, err := e2e.GetWorkerNodes(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
-		workerMachine, err := getMachineFromNode(client, workerNode)
+		o.Expect(workerNodes).ToNot(o.BeEmpty())
+
+		workerNode := &workerNodes[0]
+		workerMachine, err := e2e.GetMachineFromNode(client, workerNode)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		g.By(fmt.Sprintf("deleting machine object %q", workerMachine.Name))
 		err = deleteMachine(client, workerMachine)
