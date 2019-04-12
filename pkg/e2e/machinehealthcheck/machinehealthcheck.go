@@ -113,8 +113,10 @@ var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck controller", f
 		})
 	})
 
-	It("should delete unhealthy machine", func() {
-		stopKubeletAndValidateMachineDeletion(workerNode, workerMachine, 6*time.Minute)
+	Context("without node-unhealthy-conditions configmap", func() {
+		It("should delete unhealthy machine", func() {
+			stopKubeletAndValidateMachineDeletion(workerNode, workerMachine, 7*time.Minute)
+		})
 	})
 
 	AfterEach(func() {
