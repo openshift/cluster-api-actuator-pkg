@@ -12,11 +12,14 @@ import (
 	machinev1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	controllernode "github.com/openshift/cluster-api/pkg/controller/node"
+	"github.com/openshift/cluster-api/pkg/util"
 
 	apiv1 "k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	apitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
@@ -386,4 +389,37 @@ func (m *MachinesToDelete) Delete() {
 	}
 
 	m.machines = make([]machineToDelete, 0)
+}
+
+// RemoveMachineFinalizer removes machine finalizer if machine still exists, but deletion timestamp does not equal to 0
+func RemoveMachineFinalizer(machine *mapiv1beta1.Machine) error {
+	client, err := LoadClient()
+	if err != nil {
+		return err
+	}
+
+	m := &mapiv1beta1.Machine{}
+	key := apitypes.NamespacedName{
+		Namespace: machine.Namespace,
+		Name:      machine.Name,
+	}
+	err = client.Get(context.TODO(), key, m)
+	if err != nil {
+		// machine already does not exist
+		if apierrors.IsNotFound(err) {
+			glog.Infof("Machines %s does not exist", machine.Name)
+			return nil
+		}
+		return err
+	}
+
+	if !machine.DeletionTimestamp.IsZero() {
+		// Remove finalizer
+		machine.ObjectMeta.Finalizers = util.Filter(m.ObjectMeta.Finalizers, mapiv1beta1.MachineFinalizer)
+		if err := client.Update(context.TODO(), m); err != nil {
+			glog.Errorf("Failed to remove finalizer from machine %q: %v", machine.Name, err)
+			return err
+		}
+	}
+	return nil
 }

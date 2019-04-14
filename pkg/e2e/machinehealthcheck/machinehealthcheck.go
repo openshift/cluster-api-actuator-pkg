@@ -44,9 +44,14 @@ var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck controller", f
 		Eventually(func() bool {
 			err := client.Get(context.TODO(), key, machine)
 			if err != nil {
+				// machine already does not exist
 				if apierrors.IsNotFound(err) {
 					return true
 				}
+			}
+			// machine exists, but deletion timestamp does not equal to 0
+			if !machine.DeletionTimestamp.IsZero() {
+				return true
 			}
 			return false
 		}, timeout, 5*time.Second).Should(BeTrue())
@@ -124,6 +129,10 @@ var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck controller", f
 			glog.V(2).Info("Can not run this tests with the 'KubeMark' provider")
 			Skip("Can not run this tests with the 'KubeMark' provider")
 		}
+
+		Eventually(func() error {
+			return e2e.RemoveMachineFinalizer(workerMachine)
+		}, time.Minute, time.Second).Should(BeNil())
 
 		waitForWorkersToGetReady(numberOfReadyWorkers)
 		deleteMachineHealthCheck(e2e.MachineHealthCheckName)
