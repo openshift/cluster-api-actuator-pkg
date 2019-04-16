@@ -45,8 +45,18 @@ build-e2e:
 
 .PHONY: test-e2e
 test-e2e: ## Run openshift specific e2e test
+	# Run operator tests first to preserve logs for troubleshooting test
+	# failures and flakes.
+	# Feature:Operator tests remove deployments. Thus loosing all the logs
+	# previously acquired.
 	go test -timeout 90m \
-		-v github.com/openshift/cluster-api-actuator-pkg/pkg/e2e \
+		-v github.com/openshift/cluster-api-actuator-pkg/pkg/e2e-operators \
+		-kubeconfig $${KUBECONFIG:-~/.kube/config} \
+		-machine-api-namespace $${NAMESPACE:-openshift-machine-api} \
+		-ginkgo.v \
+		-args -v 5 -logtostderr true
+	go test -timeout 90m \
+		-v github.com/openshift/cluster-api-actuator-pkg/pkg/e2e-functional \
 		-kubeconfig $${KUBECONFIG:-~/.kube/config} \
 		-machine-api-namespace $${NAMESPACE:-openshift-machine-api} \
 		-ginkgo.v \
@@ -54,13 +64,22 @@ test-e2e: ## Run openshift specific e2e test
 
 .PHONY: k8s-e2e
 k8s-e2e: ## Run k8s specific e2e test
+	# Run operator tests first to preserve logs for troubleshooting test
+	# failures and flakes.
+	# Feature:Operator tests remove deployments. Thus loosing all the logs
+	# previously acquired.	
 	go test -timeout 30m \
-		-v github.com/openshift/cluster-api-actuator-pkg/pkg/e2e \
+		-v github.com/openshift/cluster-api-actuator-pkg/pkg/e2e-operators \
 		-kubeconfig $${KUBECONFIG:-~/.kube/config} \
 		-machine-api-namespace $${NAMESPACE:-kube-system} \
 		-ginkgo.v \
 		-args -v 5 -logtostderr true
-
+	go test -timeout 30m \
+		-v github.com/openshift/cluster-api-actuator-pkg/pkg/e2e-functional \
+		-kubeconfig $${KUBECONFIG:-~/.kube/config} \
+		-machine-api-namespace $${NAMESPACE:-kube-system} \
+		-ginkgo.v \
+		-args -v 5 -logtostderr true
 
 .PHONY: help
 help:

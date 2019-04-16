@@ -13,10 +13,9 @@ import (
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
 	"k8s.io/client-go/kubernetes/scheme"
 
-	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/autoscaler"
+	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e-functional/tests/autoscaler"
+	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e-functional/tests/machinehealthcheck"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/infra"
-	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/machinehealthcheck"
-	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/operators"
 )
 
 func init() {
@@ -39,5 +38,5 @@ func init() {
 
 func TestE2E(t *testing.T) {
 	o.RegisterFailHandler(g.Fail)
-	g.RunSpecs(t, "Machine Suite")
+	g.RunSpecs(t, "Machine Functional Suite")
 }

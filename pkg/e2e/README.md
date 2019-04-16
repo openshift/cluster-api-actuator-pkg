@@ -2,7 +2,7 @@
 
 This e2e tests provide a mechanism to validate OpenShift/machine-API conformance user stories regardless of the implementation details.
 
-Different testing suites with different primary purposes can be run here, e.g UX expectations, performance expectations, etc. 
+Different testing suites with different primary purposes can be run here, e.g UX expectations, performance expectations, etc.
 
 This e2e suites **must** run against any repo which **might** break the e2e holistic expected behaviour of the system related in any manner to the machine API domain:
 
@@ -45,7 +45,7 @@ The API Group used for this to happen and the implementation details might vary.
 
 - Product expectations should be simple, easy to read and avoid details. To this end:
   - They must leverage the common library for manipulating machine API resources so this is done in a consistent manner across all e2e, e.g https://github.com/openshift/cluster-api-actuator-pkg/blob/a086b6d5db86e7e48a6ebce24343e461be233440/pkg/e2e/infra/utils.go#L113
-  - Polling logic should be expressed at the Ginkgo level leveraging the common library. E.g https://github.com/openshift/cluster-api-actuator-pkg/blob/a086b6d5db86e7e48a6ebce24343e461be233440/pkg/e2e/infra/infra.go#L184 
+  - Polling logic should be expressed at the Ginkgo level leveraging the common library. E.g https://github.com/openshift/cluster-api-actuator-pkg/blob/a086b6d5db86e7e48a6ebce24343e461be233440/pkg/e2e/infra/infra.go#L184
 
 ## Run it
 
@@ -59,10 +59,10 @@ And force dep to vendor the required deps as it's just used at dev/CI time, e.g:
 
 ```
 required = [
-  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/actuators",
-  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/autoscaler",
-  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/infra",
-  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/operators",
+  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e-functional/tests/actuators",
+  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e-functional/tests/autoscaler",
+  "github.com/openshift/cluster-api-actuator-pkg/e2e/infra",
+  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e-operators/tests",
   "github.com/openshift/cluster-autoscaler-operator/pkg/apis",
   "github.com/onsi/ginkgo",
   "github.com/onsi/gomega",
