@@ -54,7 +54,7 @@ test-e2e: ## Run openshift specific e2e test
 
 .PHONY: k8s-e2e
 k8s-e2e: ## Run k8s specific e2e test
-	go test -timeout 30m \
+	echo go test -timeout 30m \
 		-v github.com/openshift/cluster-api-actuator-pkg/pkg/e2e \
 		-kubeconfig $${KUBECONFIG:-~/.kube/config} \
 		-machine-api-namespace $${NAMESPACE:-kube-system} \
