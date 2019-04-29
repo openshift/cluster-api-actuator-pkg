@@ -20,6 +20,8 @@ import (
 	"reflect"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/runtime"
+
 	"github.com/openshift/cluster-api/pkg/apis/cluster/v1alpha1"
 	"github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,6 +46,14 @@ func TestReconcileRequest(t *testing.T) {
 			Finalizers: []string{v1beta1.MachineFinalizer, metav1.FinalizerDeleteDependents},
 			Labels: map[string]string{
 				v1beta1.MachineClusterLabelName: "testcluster",
+				v1beta1.MachineClusterIDLabel:   "testcluster",
+			},
+		},
+		Spec: v1beta1.MachineSpec{
+			ProviderSpec: v1beta1.ProviderSpec{
+				Value: &runtime.RawExtension{
+					Raw: []byte("{}"),
+				},
 			},
 		},
 	}
@@ -57,6 +67,14 @@ func TestReconcileRequest(t *testing.T) {
 			Finalizers: []string{v1beta1.MachineFinalizer, metav1.FinalizerDeleteDependents},
 			Labels: map[string]string{
 				v1beta1.MachineClusterLabelName: "testcluster",
+				v1beta1.MachineClusterIDLabel:   "testcluster",
+			},
+		},
+		Spec: v1beta1.MachineSpec{
+			ProviderSpec: v1beta1.ProviderSpec{
+				Value: &runtime.RawExtension{
+					Raw: []byte("{}"),
+				},
 			},
 		},
 	}
@@ -72,6 +90,14 @@ func TestReconcileRequest(t *testing.T) {
 			DeletionTimestamp: &time,
 			Labels: map[string]string{
 				v1alpha1.MachineClusterLabelName: "testcluster",
+				v1beta1.MachineClusterIDLabel:    "testcluster",
+			},
+		},
+		Spec: v1beta1.MachineSpec{
+			ProviderSpec: v1beta1.ProviderSpec{
+				Value: &runtime.RawExtension{
+					Raw: []byte("{}"),
+				},
 			},
 		},
 	}
