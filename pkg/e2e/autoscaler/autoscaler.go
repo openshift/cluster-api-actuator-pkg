@@ -28,9 +28,6 @@ const (
 )
 
 func newWorkLoad() *batchv1.Job {
-	backoffLimit := int32(4)
-	completions := int32(50)
-	parallelism := int32(50)
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "workload",
@@ -72,9 +69,9 @@ func newWorkLoad() *batchv1.Job {
 					},
 				},
 			},
-			BackoffLimit: &backoffLimit,
-			Completions:  &completions,
-			Parallelism:  &parallelism,
+			BackoffLimit: pointer.Int32Ptr(4),
+			Completions:  pointer.Int32Ptr(50),
+			Parallelism:  pointer.Int32Ptr(50),
 		},
 	}
 }
