@@ -19,8 +19,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/pointer"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -82,50 +80,6 @@ func newWorkLoad() *batchv1.Job {
 			Parallelism:  pointer.Int32Ptr(50),
 		},
 	}
-}
-
-func labelMachineSetNodes(client runtimeclient.Client, ms *mapiv1beta1.MachineSet, nodeTestLabel string) error {
-	return wait.PollImmediate(e2e.RetryMedium, e2e.WaitShort, func() (bool, error) {
-		scaledMachines := mapiv1beta1.MachineList{}
-		if err := client.List(context.TODO(), runtimeclient.MatchingLabels(ms.Spec.Selector.MatchLabels), &scaledMachines); err != nil {
-			glog.Errorf("Error querying api for machineset object: %v, retrying...", err)
-			return false, nil
-		}
-
-		// get all linked nodes and label them
-		for _, machine := range scaledMachines.Items {
-			if machine.Status.NodeRef == nil {
-				glog.Errorf("Machine %q does not have node reference set", machine.Name)
-				return false, nil
-			}
-			node := corev1.Node{}
-			if err := client.Get(context.TODO(), types.NamespacedName{Name: machine.Status.NodeRef.Name}, &node); err != nil {
-				glog.Errorf("error querying api for node object: %v, retrying...", err)
-				return false, nil
-			}
-
-			labelNode := false
-			if node.Labels == nil {
-				labelNode = true
-			} else if _, exists := node.Labels[nodeTestLabel]; !exists {
-				labelNode = true
-			}
-
-			if labelNode {
-				nodeCopy := node.DeepCopy()
-				if nodeCopy.Labels == nil {
-					nodeCopy.Labels = make(map[string]string)
-				}
-				nodeCopy.Labels[nodeTestLabel] = ""
-				if err := client.Update(context.TODO(), nodeCopy); err != nil {
-					glog.Errorf("error updating api for node object: %v, retrying...", err)
-					return false, nil
-				}
-				glog.Infof("Labeling node %q with %q label", nodeCopy.Name, nodeTestLabel)
-			}
-		}
-		return true, nil
-	})
 }
 
 // Build default CA resource to allow fast scaling up and down
