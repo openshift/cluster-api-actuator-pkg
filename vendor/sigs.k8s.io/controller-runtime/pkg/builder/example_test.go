@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"os"
 
-	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -29,8 +29,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
 )
 
 // This example creates a simple application ControllerManagedBy that is configured for ReplicaSets and Pods.
@@ -48,11 +48,11 @@ func ExampleBuilder() {
 		os.Exit(1)
 	}
 
-	_, err = builder.
+	err = builder.
 		ControllerManagedBy(mgr).  // Create the ControllerManagedBy
 		For(&appsv1.ReplicaSet{}). // ReplicaSet is the Application API
 		Owns(&corev1.Pod{}).       // ReplicaSet owns Pods created by it
-		Build(&ReplicaSetReconciler{})
+		Complete(&ReplicaSetReconciler{})
 	if err != nil {
 		log.Error(err, "could not create controller")
 		os.Exit(1)
@@ -86,7 +86,8 @@ func (a *ReplicaSetReconciler) Reconcile(req reconcile.Request) (reconcile.Resul
 
 	// List the Pods matching the PodTemplate Labels
 	pods := &corev1.PodList{}
-	err = a.List(context.TODO(), client.InNamespace(req.Namespace).MatchingLabels(rs.Spec.Template.Labels), pods)
+	err = a.List(context.TODO(), pods, client.InNamespace(req.Namespace),
+		client.MatchingLabels(rs.Spec.Template.Labels))
 	if err != nil {
 		return reconcile.Result{}, err
 	}

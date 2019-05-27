@@ -24,7 +24,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
-	"k8s.io/api/apps/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
@@ -62,11 +62,11 @@ var _ = Describe("controller", func() {
 		informers = &informertest.FakeInformers{}
 		ctrl = &Controller{
 			MaxConcurrentReconciles: 1,
-			Do:    fakeReconcile,
-			Queue: queue,
-			Cache: informers,
+			Do:                      fakeReconcile,
+			Queue:                   queue,
+			Cache:                   informers,
 		}
-		ctrl.InjectFunc(func(interface{}) error { return nil })
+		Expect(ctrl.InjectFunc(func(interface{}) error { return nil })).To(Succeed())
 	})
 
 	AfterEach(func() {
@@ -103,8 +103,10 @@ var _ = Describe("controller", func() {
 
 			c, err := cache.New(cfg, cache.Options{})
 			Expect(err).NotTo(HaveOccurred())
-			c.GetInformer(&v1.Deployment{})
-			c.GetInformer(&v1.ReplicaSet{})
+			_, err = c.GetInformer(&appsv1.Deployment{})
+			Expect(err).NotTo(HaveOccurred())
+			_, err = c.GetInformer(&appsv1.ReplicaSet{})
+			Expect(err).NotTo(HaveOccurred())
 			ctrl.Cache = c
 			ctrl.WaitForCacheSync = func(<-chan struct{}) bool { return true }
 
@@ -117,7 +119,7 @@ var _ = Describe("controller", func() {
 	Describe("Watch", func() {
 		It("should inject dependencies into the Source", func() {
 			src := &source.Kind{Type: &corev1.Pod{}}
-			src.InjectCache(ctrl.Cache)
+			Expect(src.InjectCache(ctrl.Cache)).To(Succeed())
 			evthdl := &handler.EnqueueRequestForObject{}
 			found := false
 			ctrl.SetFields = func(i interface{}) error {
@@ -133,7 +135,7 @@ var _ = Describe("controller", func() {
 
 		It("should return an error if there is an error injecting into the Source", func() {
 			src := &source.Kind{Type: &corev1.Pod{}}
-			src.InjectCache(ctrl.Cache)
+			Expect(src.InjectCache(ctrl.Cache)).To(Succeed())
 			evthdl := &handler.EnqueueRequestForObject{}
 			expected := fmt.Errorf("expect fail source")
 			ctrl.SetFields = func(i interface{}) error {
@@ -148,7 +150,7 @@ var _ = Describe("controller", func() {
 
 		It("should inject dependencies into the EventHandler", func() {
 			src := &source.Kind{Type: &corev1.Pod{}}
-			src.InjectCache(ctrl.Cache)
+			Expect(src.InjectCache(ctrl.Cache)).To(Succeed())
 			evthdl := &handler.EnqueueRequestForObject{}
 			found := false
 			ctrl.SetFields = func(i interface{}) error {
@@ -186,7 +188,7 @@ var _ = Describe("controller", func() {
 
 		It("should inject dependencies into all of the Predicates", func() {
 			src := &source.Kind{Type: &corev1.Pod{}}
-			src.InjectCache(ctrl.Cache)
+			Expect(src.InjectCache(ctrl.Cache)).To(Succeed())
 			evthdl := &handler.EnqueueRequestForObject{}
 			pr1 := &predicate.Funcs{}
 			pr2 := &predicate.Funcs{}
@@ -209,7 +211,7 @@ var _ = Describe("controller", func() {
 
 		It("should return an error if there is an error injecting into any of the Predicates", func() {
 			src := &source.Kind{Type: &corev1.Pod{}}
-			src.InjectCache(ctrl.Cache)
+			Expect(src.InjectCache(ctrl.Cache)).To(Succeed())
 			evthdl := &handler.EnqueueRequestForObject{}
 			pr1 := &predicate.Funcs{}
 			pr2 := &predicate.Funcs{}
@@ -360,7 +362,7 @@ var _ = Describe("controller", func() {
 		})
 
 		It("should requeue a Request after a duration if the Result sets Requeue:true and "+
-			"RequeueAfter is set", func() {
+			"RequeueAfter is set and forget the item", func() {
 			fakeReconcile.Result.RequeueAfter = time.Millisecond * 100
 			go func() {
 				defer GinkgoRecover()
@@ -375,16 +377,52 @@ var _ = Describe("controller", func() {
 
 			By("Invoking Reconciler which will ask for requeue")
 			Expect(<-reconciled).To(Equal(request))
-			Expect(dq.countAdd).To(Equal(1))
+			Expect(dq.countAdd).To(Equal(0))
 			Expect(dq.countAddAfter).To(Equal(1))
 			Expect(dq.countAddRateLimited).To(Equal(0))
 
 			By("Invoking Reconciler a second time without asking for requeue")
 			fakeReconcile.Result.Requeue = false
 			Expect(<-reconciled).To(Equal(request))
-			Expect(dq.countAdd).To(Equal(1))
+			Expect(dq.countAdd).To(Equal(0))
 			Expect(dq.countAddAfter).To(Equal(1))
 			Expect(dq.countAddRateLimited).To(Equal(0))
+
+			By("Removing the item from the queue")
+			Eventually(ctrl.Queue.Len).Should(Equal(0))
+			Eventually(func() int { return ctrl.Queue.NumRequeues(request) }).Should(Equal(0))
+		})
+
+		PIt("should not requeue a Request after a duration if the Result sets Requeue:true and "+
+			"RequeueAfter is set and err is not nil", func() {
+
+			fakeReconcile.Result.RequeueAfter = time.Millisecond * 100
+			fakeReconcile.Err = fmt.Errorf("expected error: reconcile")
+			go func() {
+				defer GinkgoRecover()
+				Expect(ctrl.Start(stop)).NotTo(HaveOccurred())
+			}()
+			dq := &DelegatingQueue{RateLimitingInterface: ctrl.Queue}
+			ctrl.Queue = dq
+			ctrl.JitterPeriod = time.Millisecond
+			ctrl.Queue.Add(request)
+			Expect(dq.countAdd).To(Equal(1))
+			Expect(dq.countAddAfter).To(Equal(0))
+			Expect(dq.countAddRateLimited).To(Equal(0))
+
+			By("Invoking Reconciler which will ask for requeue with an error")
+			Expect(<-reconciled).To(Equal(request))
+			Expect(dq.countAdd).To(Equal(1))
+			Expect(dq.countAddAfter).To(Equal(0))
+			Expect(dq.countAddRateLimited).To(Equal(1))
+
+			fakeReconcile.Result.RequeueAfter = time.Millisecond * 100
+			fakeReconcile.Err = nil
+			By("Invoking Reconciler a second time asking for requeue without errors")
+			Expect(<-reconciled).To(Equal(request))
+			Expect(dq.countAdd).To(Equal(0))
+			Expect(dq.countAddAfter).To(Equal(1))
+			Expect(dq.countAddRateLimited).To(Equal(1))
 
 			By("Removing the item from the queue")
 			Eventually(ctrl.Queue.Len).Should(Equal(0))
@@ -417,7 +455,7 @@ var _ = Describe("controller", func() {
 
 			It("should get updated on successful reconciliation", func(done Done) {
 				Expect(func() error {
-					ctrlmetrics.ReconcileTotal.WithLabelValues(ctrl.Name, "success").Write(&reconcileTotal)
+					Expect(ctrlmetrics.ReconcileTotal.WithLabelValues(ctrl.Name, "success").Write(&reconcileTotal)).To(Succeed())
 					if reconcileTotal.GetCounter().GetValue() != 0.0 {
 						return fmt.Errorf("metric reconcile total not reset")
 					}
@@ -433,7 +471,7 @@ var _ = Describe("controller", func() {
 
 				Expect(<-reconciled).To(Equal(request))
 				Eventually(func() error {
-					ctrlmetrics.ReconcileTotal.WithLabelValues(ctrl.Name, "success").Write(&reconcileTotal)
+					Expect(ctrlmetrics.ReconcileTotal.WithLabelValues(ctrl.Name, "success").Write(&reconcileTotal)).To(Succeed())
 					if actual := reconcileTotal.GetCounter().GetValue(); actual != 1.0 {
 						return fmt.Errorf("metric reconcile total expected: %v and got: %v", 1.0, actual)
 					}
@@ -445,7 +483,7 @@ var _ = Describe("controller", func() {
 
 			It("should get updated on reconcile errors", func(done Done) {
 				Expect(func() error {
-					ctrlmetrics.ReconcileTotal.WithLabelValues(ctrl.Name, "error").Write(&reconcileTotal)
+					Expect(ctrlmetrics.ReconcileTotal.WithLabelValues(ctrl.Name, "error").Write(&reconcileTotal)).To(Succeed())
 					if reconcileTotal.GetCounter().GetValue() != 0.0 {
 						return fmt.Errorf("metric reconcile total not reset")
 					}
@@ -462,7 +500,7 @@ var _ = Describe("controller", func() {
 
 				Expect(<-reconciled).To(Equal(request))
 				Eventually(func() error {
-					ctrlmetrics.ReconcileTotal.WithLabelValues(ctrl.Name, "error").Write(&reconcileTotal)
+					Expect(ctrlmetrics.ReconcileTotal.WithLabelValues(ctrl.Name, "error").Write(&reconcileTotal)).To(Succeed())
 					if actual := reconcileTotal.GetCounter().GetValue(); actual != 1.0 {
 						return fmt.Errorf("metric reconcile total expected: %v and got: %v", 1.0, actual)
 					}
@@ -474,7 +512,7 @@ var _ = Describe("controller", func() {
 
 			It("should get updated when reconcile returns with retry enabled", func(done Done) {
 				Expect(func() error {
-					ctrlmetrics.ReconcileTotal.WithLabelValues(ctrl.Name, "retry").Write(&reconcileTotal)
+					Expect(ctrlmetrics.ReconcileTotal.WithLabelValues(ctrl.Name, "retry").Write(&reconcileTotal)).To(Succeed())
 					if reconcileTotal.GetCounter().GetValue() != 0.0 {
 						return fmt.Errorf("metric reconcile total not reset")
 					}
@@ -491,7 +529,7 @@ var _ = Describe("controller", func() {
 
 				Expect(<-reconciled).To(Equal(request))
 				Eventually(func() error {
-					ctrlmetrics.ReconcileTotal.WithLabelValues(ctrl.Name, "requeue").Write(&reconcileTotal)
+					Expect(ctrlmetrics.ReconcileTotal.WithLabelValues(ctrl.Name, "requeue").Write(&reconcileTotal)).To(Succeed())
 					if actual := reconcileTotal.GetCounter().GetValue(); actual != 1.0 {
 						return fmt.Errorf("metric reconcile total expected: %v and got: %v", 1.0, actual)
 					}
@@ -503,7 +541,7 @@ var _ = Describe("controller", func() {
 
 			It("should get updated when reconcile returns with retryAfter enabled", func(done Done) {
 				Expect(func() error {
-					ctrlmetrics.ReconcileTotal.WithLabelValues(ctrl.Name, "retry_after").Write(&reconcileTotal)
+					Expect(ctrlmetrics.ReconcileTotal.WithLabelValues(ctrl.Name, "retry_after").Write(&reconcileTotal)).To(Succeed())
 					if reconcileTotal.GetCounter().GetValue() != 0.0 {
 						return fmt.Errorf("metric reconcile total not reset")
 					}
@@ -520,7 +558,7 @@ var _ = Describe("controller", func() {
 
 				Expect(<-reconciled).To(Equal(request))
 				Eventually(func() error {
-					ctrlmetrics.ReconcileTotal.WithLabelValues(ctrl.Name, "requeue_after").Write(&reconcileTotal)
+					Expect(ctrlmetrics.ReconcileTotal.WithLabelValues(ctrl.Name, "requeue_after").Write(&reconcileTotal)).To(Succeed())
 					if actual := reconcileTotal.GetCounter().GetValue(); actual != 1.0 {
 						return fmt.Errorf("metric reconcile total expected: %v and got: %v", 1.0, actual)
 					}
@@ -536,7 +574,7 @@ var _ = Describe("controller", func() {
 				var reconcileErrs dto.Metric
 				ctrlmetrics.ReconcileErrors.Reset()
 				Expect(func() error {
-					ctrlmetrics.ReconcileErrors.WithLabelValues(ctrl.Name).Write(&reconcileErrs)
+					Expect(ctrlmetrics.ReconcileErrors.WithLabelValues(ctrl.Name).Write(&reconcileErrs)).To(Succeed())
 					if reconcileErrs.GetCounter().GetValue() != 0.0 {
 						return fmt.Errorf("metric reconcile errors not reset")
 					}
@@ -556,7 +594,7 @@ var _ = Describe("controller", func() {
 				By("Invoking Reconciler which will give an error")
 				Expect(<-reconciled).To(Equal(request))
 				Eventually(func() error {
-					ctrlmetrics.ReconcileErrors.WithLabelValues(ctrl.Name).Write(&reconcileErrs)
+					Expect(ctrlmetrics.ReconcileErrors.WithLabelValues(ctrl.Name).Write(&reconcileErrs)).To(Succeed())
 					if reconcileErrs.GetCounter().GetValue() != 1.0 {
 						return fmt.Errorf("metrics not updated")
 					}
@@ -581,7 +619,7 @@ var _ = Describe("controller", func() {
 				Expect(func() error {
 					histObserver := ctrlmetrics.ReconcileTime.WithLabelValues(ctrl.Name)
 					hist := histObserver.(prometheus.Histogram)
-					hist.Write(&reconcileTime)
+					Expect(hist.Write(&reconcileTime)).To(Succeed())
 					if reconcileTime.GetHistogram().GetSampleCount() != uint64(0) {
 						return fmt.Errorf("metrics not reset")
 					}
@@ -604,7 +642,7 @@ var _ = Describe("controller", func() {
 				Eventually(func() error {
 					histObserver := ctrlmetrics.ReconcileTime.WithLabelValues(ctrl.Name)
 					hist := histObserver.(prometheus.Histogram)
-					hist.Write(&reconcileTime)
+					Expect(hist.Write(&reconcileTime)).To(Succeed())
 					if reconcileTime.GetHistogram().GetSampleCount() == uint64(0) {
 						return fmt.Errorf("metrics not updated")
 					}
@@ -638,4 +676,9 @@ func (q *DelegatingQueue) AddAfter(item interface{}, d time.Duration) {
 func (q *DelegatingQueue) Add(item interface{}) {
 	q.countAdd++
 	q.RateLimitingInterface.Add(item)
+}
+
+func (q *DelegatingQueue) Forget(item interface{}) {
+	q.countAdd--
+	q.RateLimitingInterface.Forget(item)
 }
