@@ -293,11 +293,20 @@ func waitUntilAllNodesAreSchedulable(client runtimeclient.Client) error {
 func machineFromMachineset(machineset *mapiv1beta1.MachineSet) *mapiv1beta1.Machine {
 	randomUUID := string(uuid.NewUUID())
 
+	// disassociate machine labels from machineset
+	labels := make(map[string]string, 0)
+	for key, value := range machineset.Spec.Template.Labels {
+		if _, ok := machineset.Spec.Selector.MatchLabels[key]; ok {
+			continue
+		}
+		labels[key] = value
+	}
+
 	machine := &mapiv1beta1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: machineset.Namespace,
 			Name:      "machine-" + randomUUID[:6],
-			Labels:    machineset.Labels,
+			Labels:    labels,
 		},
 		Spec: machineset.Spec.Template.Spec,
 	}
