@@ -63,12 +63,18 @@ func (f *Framework) DeleteMachineAndWait(machine *machinev1beta1.Machine, client
 	}
 }
 
-func (f *Framework) waitForMachineToRun(machine *machinev1beta1.Machine, client types.CloudProviderClient) {
+func (f *Framework) waitForMachineToRun(machine *machinev1beta1.Machine, client types.CloudProviderClient) *machinev1beta1.Machine {
 	f.By(fmt.Sprintf("Waiting for %q machine", machine.Name))
+	var updatedMachine *machinev1beta1.Machine
 	// Verify machine has been deployed
 	err := wait.Poll(PollInterval, TimeoutPoolMachineRunningInterval, func() (bool, error) {
-		if _, err := f.CAPIClient.MachineV1beta1().Machines(machine.Namespace).Get(machine.Name, metav1.GetOptions{}); err != nil {
+		var err error
+		if updatedMachine, err = f.CAPIClient.MachineV1beta1().Machines(machine.Namespace).Get(machine.Name, metav1.GetOptions{}); err != nil {
 			glog.V(2).Infof("Waiting for '%v/%v' machine to be created", machine.Namespace, machine.Name)
+			return false, nil
+		}
+		if updatedMachine.Spec.ProviderID == nil {
+			glog.V(2).Infof("Waiting for '%v/%v' machine's providerID to be updated", machine.Namespace, machine.Name)
 			return false, nil
 		}
 		return true, nil
@@ -77,8 +83,8 @@ func (f *Framework) waitForMachineToRun(machine *machinev1beta1.Machine, client 
 
 	f.By("Verify machine's underlying instance is running")
 	err = wait.Poll(PollInterval, PoolTimeout, func() (bool, error) {
-		glog.V(2).Info("Waiting for instance to come up")
-		runningInstances, err := client.GetRunningInstances(machine)
+		glog.V(2).Info("Waiting for instance to come up, %v", *updatedMachine.Spec.ProviderID)
+		runningInstances, err := client.GetRunningInstances(updatedMachine)
 		if err != nil {
 			glog.V(2).Infof("unable to get running instances: %v", err)
 			return false, nil
@@ -94,6 +100,7 @@ func (f *Framework) waitForMachineToRun(machine *machinev1beta1.Machine, client 
 		return false, nil
 	})
 	f.ErrNotExpected(err)
+	return updatedMachine
 }
 
 func (f *Framework) waitForMachineToTerminate(machine *machinev1beta1.Machine, client types.CloudProviderClient) error {
@@ -133,7 +140,7 @@ func (f *Framework) waitForMachineToTerminate(machine *machinev1beta1.Machine, c
 	return nil
 }
 
-func (f *Framework) CreateMachineAndWait(machine *machinev1beta1.Machine, client types.CloudProviderClient) {
+func (f *Framework) CreateMachineAndWait(machine *machinev1beta1.Machine, client types.CloudProviderClient) *machinev1beta1.Machine {
 	f.By(fmt.Sprintf("Creating %q machine", machine.Name))
 	err := wait.Poll(PollInterval, PoolTimeout, func() (bool, error) {
 		_, err := f.CAPIClient.MachineV1beta1().Machines(machine.Namespace).Create(machine)
@@ -145,7 +152,7 @@ func (f *Framework) CreateMachineAndWait(machine *machinev1beta1.Machine, client
 	})
 	f.ErrNotExpected(err)
 
-	f.waitForMachineToRun(machine, client)
+	return f.waitForMachineToRun(machine, client)
 }
 
 func (f *Framework) CreateMachineSetAndWait(machineset *machinev1beta1.MachineSet, client types.CloudProviderClient) {
