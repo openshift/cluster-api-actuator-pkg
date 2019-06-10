@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -198,8 +199,16 @@ var _ = g.Describe("[Feature:Machines][Serial] Autoscaler should", func() {
 		client, err = e2e.LoadClient()
 		o.Expect(err).NotTo(o.HaveOccurred())
 
+		var restClient *rest.RESTClient
+		restClient, err = e2e.LoadRestClient()
+		o.Expect(err).NotTo(o.HaveOccurred())
+
 		// Anything we create we must cleanup
 		var cleanupObjects []runtime.Object
+		var clusterAutoscaler *caov1.ClusterAutoscaler
+		caLabels := map[string]string{
+			"app": "cluster-autoscaler",
+		}
 		defer func() {
 			cascadeDelete := metav1.DeletePropagationForeground
 			for _, obj := range cleanupObjects {
@@ -207,6 +216,29 @@ var _ = g.Describe("[Feature:Machines][Serial] Autoscaler should", func() {
 					opt.PropagationPolicy = &cascadeDelete
 				}); err != nil {
 					glog.Errorf("error deleting object: %v", err)
+				}
+			}
+			if clusterAutoscaler != nil {
+				pods := corev1.PodList{}
+				if err := client.List(context.TODO(), &pods, []runtimeclient.ListOptionFunc{runtimeclient.MatchingLabels(caLabels)}...); err != nil {
+					glog.Errorf("Error querying api for clusterAutoscaler pod object: %v", err)
+				}
+				if len(pods.Items) > 1 {
+					glog.Errorf("Got more than one autoscaler pods, which is unexpected!!!")
+				}
+				pod := pods.Items[0]
+				req := restClient.Get().Namespace(e2e.TestContext.MachineApiNamespace).Resource("pods").Name(pod.Name).SubResource("log")
+				res := req.Do()
+				raw, err := res.Raw()
+				if err != nil {
+					glog.Errorf("Unable to get pod logs: %v", err)
+				}
+				glog.Infof("\n\n Pod %q logs:\n\n%v", pod.Name, string(raw))
+
+				if err = client.Delete(context.TODO(), clusterAutoscaler, func(opt *runtimeclient.DeleteOptions) {
+					opt.PropagationPolicy = &cascadeDelete
+				}); err != nil {
+					glog.Errorf("error deleting clusterAutoscaler: %v", err)
 				}
 			}
 		}()
@@ -258,9 +290,8 @@ var _ = g.Describe("[Feature:Machines][Serial] Autoscaler should", func() {
 		}).enable()
 
 		g.By(fmt.Sprintf("Creating ClusterAutoscaler configured with maxNodesTotal:%v", maxNodesTotal))
-		clusterAutoscaler := clusterAutoscalerResource(maxNodesTotal)
+		clusterAutoscaler = clusterAutoscalerResource(maxNodesTotal)
 		o.Expect(client.Create(context.TODO(), clusterAutoscaler)).Should(o.Succeed())
-		cleanupObjects = append(cleanupObjects, runtime.Object(clusterAutoscaler))
 
 		g.By("Creating scale-out workload")
 		scaledGroups := map[string]bool{}
