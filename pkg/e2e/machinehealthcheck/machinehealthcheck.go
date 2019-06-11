@@ -21,7 +21,7 @@ import (
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck controller", func() {
+var _ = Describe("[TechPreview:Feature:MachineHealthCheck] MachineHealthCheck controller", func() {
 	var client runtimeclient.Client
 	var numberOfReadyWorkers int
 	var workerNode *corev1.Node
@@ -56,10 +56,6 @@ var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck controller", f
 		var err error
 		client, err = e2e.LoadClient()
 		Expect(err).ToNot(HaveOccurred())
-
-		// TODO: enable once https://github.com/openshift/cluster-api-actuator-pkg/pull/61 is fixed
-		glog.V(2).Info("Skipping machine health checking test")
-		Skip("Skipping machine health checking test")
 
 		workerNodes, err := e2e.GetWorkerNodes(client)
 		Expect(err).ToNot(HaveOccurred())
@@ -112,10 +108,6 @@ var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck controller", f
 	})
 
 	AfterEach(func() {
-		// TODO: enable once https://github.com/openshift/cluster-api-actuator-pkg/pull/61 is fixed
-		glog.V(2).Info("Skipping machine health checking test")
-		Skip("Skipping machine health checking test")
-
 		waitForWorkersToGetReady(numberOfReadyWorkers)
 		deleteMachineHealthCheck(e2e.MachineHealthCheckName)
 		deleteKubeletKillerPods()
