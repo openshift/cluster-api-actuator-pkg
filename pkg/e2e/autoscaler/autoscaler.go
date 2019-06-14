@@ -188,6 +188,30 @@ func remaining(t time.Time) time.Duration {
 	return t.Sub(time.Now()).Round(time.Second)
 }
 
+func dumpClusterAutoscalerLogs(client runtimeclient.Client, restClient *rest.RESTClient, namespace string) {
+	pods := corev1.PodList{}
+	listOptions := []runtimeclient.ListOptionFunc{
+		runtimeclient.MatchingLabels(map[string]string{
+			"app": "cluster-autoscaler",
+		}),
+	}
+	if err := client.List(context.TODO(), &pods, listOptions...); err != nil {
+		glog.Errorf("Error querying api for clusterAutoscaler pod object: %v", err)
+		return
+	}
+	// We're only expecting one pod but let's log from all that
+	// are found. If we see more than one that's indicative of
+	// some unexpected problem and we may as well dump its logs.
+	for _, pod := range pods.Items {
+		req := restClient.Get().Namespace(namespace).Resource("pods").Name(pod.Name).SubResource("log")
+		if data, err := req.Do().Raw(); err != nil {
+			glog.Errorf("Unable to get pod logs: %v", err)
+		} else {
+			glog.Infof("Pod %q logs:\n%v\n", path.Join(pod.Namespace, pod.Name), string(data))
+		}
+	}
+}
+
 var _ = g.Describe("[Feature:Machines][Serial] Autoscaler should", func() {
 	g.It("scale up and down", func() {
 		defer g.GinkgoRecover()
@@ -205,40 +229,17 @@ var _ = g.Describe("[Feature:Machines][Serial] Autoscaler should", func() {
 
 		// Anything we create we must cleanup
 		var cleanupObjects []runtime.Object
-		var clusterAutoscaler *caov1.ClusterAutoscaler
-		caLabels := map[string]string{
-			"app": "cluster-autoscaler",
-		}
 		defer func() {
 			cascadeDelete := metav1.DeletePropagationForeground
 			for _, obj := range cleanupObjects {
+				switch obj.(type) {
+				case *caov1.ClusterAutoscaler:
+					dumpClusterAutoscalerLogs(client, restClient, e2e.TestContext.MachineApiNamespace)
+				}
 				if err = client.Delete(context.TODO(), obj, func(opt *runtimeclient.DeleteOptions) {
 					opt.PropagationPolicy = &cascadeDelete
 				}); err != nil {
 					glog.Errorf("error deleting object: %v", err)
-				}
-			}
-			if clusterAutoscaler != nil {
-				pods := corev1.PodList{}
-				if err := client.List(context.TODO(), &pods, []runtimeclient.ListOptionFunc{runtimeclient.MatchingLabels(caLabels)}...); err != nil {
-					glog.Errorf("Error querying api for clusterAutoscaler pod object: %v", err)
-				}
-				if len(pods.Items) > 1 {
-					glog.Errorf("Got more than one autoscaler pods, which is unexpected!!!")
-				}
-				pod := pods.Items[0]
-				req := restClient.Get().Namespace(e2e.TestContext.MachineApiNamespace).Resource("pods").Name(pod.Name).SubResource("log")
-				res := req.Do()
-				raw, err := res.Raw()
-				if err != nil {
-					glog.Errorf("Unable to get pod logs: %v", err)
-				}
-				glog.Infof("\n\n Pod %q logs:\n\n%v", pod.Name, string(raw))
-
-				if err = client.Delete(context.TODO(), clusterAutoscaler, func(opt *runtimeclient.DeleteOptions) {
-					opt.PropagationPolicy = &cascadeDelete
-				}); err != nil {
-					glog.Errorf("error deleting clusterAutoscaler: %v", err)
 				}
 			}
 		}()
@@ -290,8 +291,9 @@ var _ = g.Describe("[Feature:Machines][Serial] Autoscaler should", func() {
 		}).enable()
 
 		g.By(fmt.Sprintf("Creating ClusterAutoscaler configured with maxNodesTotal:%v", maxNodesTotal))
-		clusterAutoscaler = clusterAutoscalerResource(maxNodesTotal)
+		clusterAutoscaler := clusterAutoscalerResource(maxNodesTotal)
 		o.Expect(client.Create(context.TODO(), clusterAutoscaler)).Should(o.Succeed())
+		cleanupObjects = append(cleanupObjects, runtime.Object(clusterAutoscaler))
 
 		g.By("Creating scale-out workload")
 		scaledGroups := map[string]bool{}
