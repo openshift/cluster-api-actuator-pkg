@@ -166,7 +166,9 @@ func DefaultSSHConfig() (*SSHConfig, error) {
 func NewFrameworkFromConfig(config *rest.Config, sshConfig *SSHConfig) (*Framework, error) {
 	f := &Framework{
 		RestConfig: config,
-		SSH:        sshConfig,
+
+		SSH: sshConfig,
+
 		MachineControllerImage:  machineControllerImage,
 		MachineManagerImage:     machineManagerImage,
 		NodelinkControllerImage: nodelinkControllerImage,

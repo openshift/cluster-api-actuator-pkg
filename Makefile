@@ -7,7 +7,7 @@ ifeq ($(NO_DOCKER), 1)
   IMAGE_BUILD_CMD = imagebuilder
   CGO_ENABLED = 1
 else
-  DOCKER_CMD := docker run --rm -v "$(PWD)":/go/src/github.com/openshift/cluster-api-actuator-pkg:Z -w /go/src/github.com/openshift/cluster-api-actuator-pkg openshift/origin-release:golang-1.10
+  DOCKER_CMD := docker run --rm -v "$(PWD)":/go/src/github.com/openshift/cluster-api-actuator-pkg:Z -w /go/src/github.com/openshift/cluster-api-actuator-pkg openshift/origin-release:golang-1.12
   IMAGE_BUILD_CMD = docker build
 endif
 
