@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -17,13 +17,14 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/openshift/library-go/pkg/operator/condition"
 	"github.com/openshift/library-go/pkg/operator/events"
+	"github.com/openshift/library-go/pkg/operator/management"
 	"github.com/openshift/library-go/pkg/operator/status"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 )
 
 var (
-	staticPodStateControllerFailing      = "StaticPodsFailing"
 	staticPodStateControllerWorkQueueKey = "key"
 )
 
@@ -35,14 +36,14 @@ type StaticPodStateController struct {
 	operandName       string
 	operatorNamespace string
 
-	operatorConfigClient v1helpers.StaticPodOperatorClient
-	configMapGetter      corev1client.ConfigMapsGetter
-	podsGetter           corev1client.PodsGetter
-	versionRecorder      status.VersionGetter
-	eventRecorder        events.Recorder
+	operatorClient  v1helpers.StaticPodOperatorClient
+	configMapGetter corev1client.ConfigMapsGetter
+	podsGetter      corev1client.PodsGetter
+	versionRecorder status.VersionGetter
 
-	// queue only ever has one item, but it has nice error handling backoff/retry semantics
-	queue workqueue.RateLimitingInterface
+	cachesToSync  []cache.InformerSynced
+	queue         workqueue.RateLimitingInterface
+	eventRecorder events.Recorder
 }
 
 // NewStaticPodStateController creates a controller that watches static pods and will produce a failing status if the
@@ -50,7 +51,7 @@ type StaticPodStateController struct {
 func NewStaticPodStateController(
 	targetNamespace, staticPodName, operatorNamespace, operandName string,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
-	operatorConfigClient v1helpers.StaticPodOperatorClient,
+	operatorClient v1helpers.StaticPodOperatorClient,
 	configMapGetter corev1client.ConfigMapsGetter,
 	podsGetter corev1client.PodsGetter,
 	versionRecorder status.VersionGetter,
@@ -62,35 +63,31 @@ func NewStaticPodStateController(
 		operandName:       operandName,
 		operatorNamespace: operatorNamespace,
 
-		operatorConfigClient: operatorConfigClient,
-		configMapGetter:      configMapGetter,
-		podsGetter:           podsGetter,
-		versionRecorder:      versionRecorder,
-		eventRecorder:        eventRecorder,
+		operatorClient:  operatorClient,
+		configMapGetter: configMapGetter,
+		podsGetter:      podsGetter,
+		versionRecorder: versionRecorder,
+		eventRecorder:   eventRecorder.WithComponentSuffix("static-pod-state-controller"),
 
 		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "StaticPodStateController"),
 	}
 
-	operatorConfigClient.Informer().AddEventHandler(c.eventHandler())
+	operatorClient.Informer().AddEventHandler(c.eventHandler())
 	kubeInformersForTargetNamespace.Core().V1().Pods().Informer().AddEventHandler(c.eventHandler())
+
+	c.cachesToSync = append(c.cachesToSync, operatorClient.Informer().HasSynced)
+	c.cachesToSync = append(c.cachesToSync, kubeInformersForTargetNamespace.Core().V1().Pods().Informer().HasSynced)
 
 	return c
 }
 
 func (c *StaticPodStateController) sync() error {
-	operatorSpec, originalOperatorStatus, _, err := c.operatorConfigClient.GetStaticPodOperatorState()
+	operatorSpec, originalOperatorStatus, _, err := c.operatorClient.GetStaticPodOperatorState()
 	if err != nil {
 		return err
 	}
 
-	switch operatorSpec.ManagementState {
-	case operatorv1.Managed:
-	case operatorv1.Unmanaged:
-		return nil
-	case operatorv1.Removed:
-		// TODO probably just fail
-		return nil
-	default:
+	if !management.IsOperatorManaged(operatorSpec.ManagementState) {
 		return nil
 	}
 
@@ -113,7 +110,7 @@ func (c *StaticPodStateController) sync() error {
 				// We will still reflect the container not ready state in error conditions, but we don't set the operator as failed.
 				errs = append(errs, fmt.Errorf("nodes/%s pods/%s container=%q is not ready", node.NodeName, pod.Name, containerStatus.Name))
 			}
-			if containerStatus.State.Waiting != nil {
+			if containerStatus.State.Waiting != nil && containerStatus.State.Waiting.Reason != "PodInitializing" {
 				errs = append(errs, fmt.Errorf("nodes/%s pods/%s container=%q is waiting: %q - %q", node.NodeName, pod.Name, containerStatus.Name, containerStatus.State.Waiting.Reason, containerStatus.State.Waiting.Message))
 				failingErrorCount++
 			}
@@ -136,13 +133,17 @@ func (c *StaticPodStateController) sync() error {
 	} else {
 		c.versionRecorder.SetVersion(
 			c.operandName,
-			status.VersionForOperand(c.operatorNamespace, images.List()[0], c.configMapGetter, c.eventRecorder),
+			status.VersionForOperandFromEnv(),
+		)
+		c.versionRecorder.SetVersion(
+			"operator",
+			status.VersionForOperatorFromEnv(),
 		)
 	}
 
 	// update failing condition
 	cond := operatorv1.OperatorCondition{
-		Type:   staticPodStateControllerFailing,
+		Type:   condition.StaticPodsDegradedConditionType,
 		Status: operatorv1.ConditionFalse,
 	}
 	// Failing errors
@@ -156,10 +157,8 @@ func (c *StaticPodStateController) sync() error {
 		cond.Reason = "Error"
 		cond.Message = v1helpers.NewMultiLineAggregate(errs).Error()
 	}
-	if _, _, updateError := v1helpers.UpdateStaticPodStatus(c.operatorConfigClient, v1helpers.UpdateStaticPodConditionFn(cond), v1helpers.UpdateStaticPodConditionFn(cond)); updateError != nil {
-		if err == nil {
-			return updateError
-		}
+	if _, _, updateError := v1helpers.UpdateStaticPodStatus(c.operatorClient, v1helpers.UpdateStaticPodConditionFn(cond), v1helpers.UpdateStaticPodConditionFn(cond)); updateError != nil {
+		return updateError
 	}
 
 	return err
@@ -174,8 +173,11 @@ func (c *StaticPodStateController) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
-	glog.Infof("Starting StaticPodStateController")
-	defer glog.Infof("Shutting down StaticPodStateController")
+	klog.Infof("Starting StaticPodStateController")
+	defer klog.Infof("Shutting down StaticPodStateController")
+	if !cache.WaitForCacheSync(stopCh, c.cachesToSync...) {
+		return
+	}
 
 	// doesn't matter what workers say, only start one.
 	go wait.Until(c.runWorker, time.Second, stopCh)

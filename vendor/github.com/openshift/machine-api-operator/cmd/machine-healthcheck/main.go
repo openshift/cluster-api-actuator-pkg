@@ -4,6 +4,11 @@ import (
 	"flag"
 	"runtime"
 
+	"github.com/openshift/machine-api-operator/pkg/controller/disruption"
+	"github.com/openshift/machine-api-operator/pkg/controller/machinehealthcheck"
+
+	"k8s.io/klog"
+
 	"github.com/golang/glog"
 	mapiv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
@@ -22,6 +27,7 @@ func printVersion() {
 }
 
 func main() {
+	watchNamespace := flag.String("namespace", "", "Namespace that the controller watches to reconcile machine-api objects. If unspecified, the controller watches for machine-api objects across all namespaces.")
 	flag.Parse()
 	printVersion()
 
@@ -31,8 +37,13 @@ func main() {
 		glog.Fatal(err)
 	}
 
+	opts := manager.Options{}
+	if *watchNamespace != "" {
+		opts.Namespace = *watchNamespace
+		klog.Infof("Watching machine-api objects only in namespace %q for reconciliation.", opts.Namespace)
+	}
 	// Create a new Cmd to provide shared dependencies and start components
-	mgr, err := manager.New(cfg, manager.Options{})
+	mgr, err := manager.New(cfg, opts)
 	if err != nil {
 		glog.Fatal(err)
 	}
@@ -47,8 +58,13 @@ func main() {
 		glog.Fatal(err)
 	}
 
+	AddToHealthCheckingManagerFuncs := []func(manager.Manager) error{
+		machinehealthcheck.Add,
+		disruption.Add,
+	}
+
 	// Setup all Controllers
-	if err := controller.AddToManager(mgr); err != nil {
+	if err := controller.AddToManager(mgr, AddToHealthCheckingManagerFuncs); err != nil {
 		glog.Fatal(err)
 	}
 
