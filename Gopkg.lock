@@ -348,9 +348,29 @@
   branch = "master"
   digest = "1:41ab820304915dacf12d7fe44f4ec6f808d1a8909bf4b47525a7d24c9af8d091"
   name = "github.com/openshift/api"
-  packages = ["config/v1"]
+  packages = [
+    "config/v1",
+    "security/v1",
+  ]
   pruneopts = ""
   revision = "da8f874733b4967e7a632fe6fc042a21f5dbbb6b"
+
+[[projects]]
+  branch = "master"
+  digest = "1:36418a1c5fce09c60bb56855d5b581fbbba762dc9afe2c5f06871a3894aa2fab"
+  name = "github.com/openshift/client-go"
+  packages = [
+    "config/clientset/versioned",
+    "config/clientset/versioned/scheme",
+    "config/clientset/versioned/typed/config/v1",
+    "config/informers/externalversions/config/v1",
+    "config/informers/externalversions/internalinterfaces",
+    "config/listers/config/v1",
+    "security/clientset/versioned/scheme",
+    "security/clientset/versioned/typed/security/v1",
+  ]
+  pruneopts = ""
+  revision = "8892c0adc000741c33af70e05f4ede47725d0773"
 
 [[projects]]
   branch = "openshift-4.2-cluster-api-0.1.0"
@@ -386,6 +406,17 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:bac26c4cdf469cd54519773b22eda4e8644eb13ebc42dc5c611b3cbd99ee6720"
+  name = "github.com/openshift/cluster-version-operator"
+  packages = [
+    "lib/resourceapply",
+    "lib/resourcemerge",
+  ]
+  pruneopts = ""
+  revision = "70c8b8f9713976a3e40d832bac207e41a3dcb89f"
+
+[[projects]]
+  branch = "master"
   digest = "1:5660d0216f6e3be26985d0040e2ea4e6b4dd857ed52d12a998f5ae27064410e2"
   name = "github.com/openshift/library-go"
   packages = ["pkg/config/clusteroperator/v1helpers"]
@@ -394,7 +425,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:ee621b8882fe2e806d4acd06d40fcae438e13e459c2d26877c8779477c61c919"
+  digest = "1:b9644172bd11e3540f7919cccd4e387c4d5d6ccaf6e736c2ca632adbbe5ef6eb"
   name = "github.com/openshift/machine-api-operator"
   packages = [
     "pkg/apis/healthchecking",
@@ -402,10 +433,11 @@
     "pkg/generated/clientset/versioned",
     "pkg/generated/clientset/versioned/scheme",
     "pkg/generated/clientset/versioned/typed/healthchecking/v1alpha1",
+    "pkg/operator",
     "pkg/util/conditions",
   ]
   pruneopts = ""
-  revision = "e549906e3ef62caa3bb096d341039d93fba54af0"
+  revision = "a85d27ec08fb6e9c681c4b7f54a9bdb69419046f"
 
 [[projects]]
   digest = "1:a5484d4fa43127138ae6e7b2299a6a52ae006c7f803d98d717f60abf3e97192e"
@@ -740,6 +772,7 @@
     "pkg/client/clientset/clientset",
     "pkg/client/clientset/clientset/scheme",
     "pkg/client/clientset/clientset/typed/apiextensions/v1beta1",
+    "pkg/client/listers/apiextensions/v1beta1",
   ]
   pruneopts = ""
   revision = "727a075fdec8319bf095330e344b3ccc668abc73"
@@ -1009,6 +1042,20 @@
   version = "v0.3.3"
 
 [[projects]]
+  branch = "release-1.14"
+  digest = "1:c72592440074f0096c4bc2dad5dbba2196072e305ba40ef10baaf65b60ab81b2"
+  name = "k8s.io/kube-aggregator"
+  packages = [
+    "pkg/apis/apiregistration",
+    "pkg/apis/apiregistration/v1",
+    "pkg/apis/apiregistration/v1beta1",
+    "pkg/client/clientset_generated/clientset/scheme",
+    "pkg/client/clientset_generated/clientset/typed/apiregistration/v1",
+  ]
+  pruneopts = ""
+  revision = "f5e124c822d616bd90f9b545b977d55df030f454"
+
+[[projects]]
   branch = "master"
   digest = "1:d2aae07aa745223592ae668f6eb6c2ca0242d66a6dcf16b1e8e2711a79aad0f1"
   name = "k8s.io/kube-openapi"
@@ -1131,6 +1178,7 @@
     "github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers",
     "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1",
     "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned",
+    "github.com/openshift/machine-api-operator/pkg/operator",
     "github.com/openshift/machine-api-operator/pkg/util/conditions",
     "golang.org/x/crypto/ssh",
     "k8s.io/api/apps/v1",
