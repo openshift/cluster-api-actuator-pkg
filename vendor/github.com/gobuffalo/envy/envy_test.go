@@ -1,12 +1,42 @@
 package envy
 
 import (
+	"io/ioutil"
+	"log"
 	"os"
 	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+var _ = func() error {
+	b, err := ioutil.ReadFile("env")
+	if err != nil {
+		log.Fatal(err)
+	}
+	f, err := os.Create(".env")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+	f.Write(b)
+	return nil
+}()
+
+func Test_Mods(t *testing.T) {
+	r := require.New(t)
+	Temp(func() {
+		Set(GO111MODULE, "off")
+		r.False(Mods())
+		Set(GO111MODULE, "on")
+		r.True(Mods())
+		Set(GO111MODULE, "auto")
+		r.Equal(!InGoPath(), Mods())
+		Set(GO111MODULE, "")
+		r.Equal(!InGoPath(), Mods())
+	})
+}
 
 // envy should detect when running as a unit test and return GO_ENV=test if otherwise undefined
 func Test_GO_ENVUnitTest(t *testing.T) {

@@ -15,6 +15,7 @@
 package storage
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"net/http"
@@ -22,11 +23,8 @@ import (
 	"testing"
 
 	"cloud.google.com/go/internal/testutil"
-	"google.golang.org/api/option"
-
-	"golang.org/x/net/context"
-
 	"google.golang.org/api/googleapi"
+	"google.golang.org/api/option"
 )
 
 var testEncryptionKey = []byte("secret-key-that-is-32-bytes-long")

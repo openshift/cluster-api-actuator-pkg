@@ -11,12 +11,17 @@ const ConfigMapNodeUnhealthyConditions = "node-unhealthy-conditions"
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // MachineHealthCheck is the Schema for the machinehealthchecks API
+// kubebuilder:subresource:status
+// +kubebuilder:resource:shortName=mhc;mhcs
 // +k8s:openapi-gen=true
 type MachineHealthCheck struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   MachineHealthCheckSpec   `json:"spec,omitempty"`
+	// Specification of machine health check policy
+	Spec MachineHealthCheckSpec `json:"spec,omitempty"`
+
+	// Most recently observed status of MachineHealthCheck resource
 	Status MachineHealthCheckStatus `json:"status,omitempty"`
 }
 
@@ -31,6 +36,7 @@ type MachineHealthCheckList struct {
 
 // MachineHealthCheckSpec defines the desired state of MachineHealthCheck
 type MachineHealthCheckSpec struct {
+	// Label selector to match machines whose health will be exercised
 	Selector metav1.LabelSelector `json:"selector"`
 }
 

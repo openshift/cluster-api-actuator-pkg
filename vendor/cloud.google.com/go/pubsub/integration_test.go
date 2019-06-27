@@ -15,23 +15,22 @@
 package pubsub
 
 import (
+	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
-
-	gax "github.com/googleapis/gax-go"
-	"google.golang.org/grpc/status"
-
-	"golang.org/x/net/context"
 
 	"cloud.google.com/go/iam"
 	"cloud.google.com/go/internal"
 	"cloud.google.com/go/internal/testutil"
 	"cloud.google.com/go/internal/uid"
+	gax "github.com/googleapis/gax-go/v2"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -55,7 +54,7 @@ func extractMessageData(m *Message) *messageData {
 	}
 }
 
-func integrationTestClient(t *testing.T, ctx context.Context) *Client {
+func integrationTestClient(ctx context.Context, t *testing.T) *Client {
 	if testing.Short() {
 		t.Skip("Integration tests skipped in short mode")
 	}
@@ -77,7 +76,7 @@ func integrationTestClient(t *testing.T, ctx context.Context) *Client {
 func TestIntegration_All(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	client := integrationTestClient(t, ctx)
+	client := integrationTestClient(ctx, t)
 	defer client.Close()
 
 	topic, err := client.CreateTopic(ctx, topicIDs.New())
@@ -107,8 +106,11 @@ func TestIntegration_All(t *testing.T) {
 
 	for _, sync := range []bool{false, true} {
 		for _, maxMsgs := range []int{0, 3, -1} { // MaxOutstandingMessages = default, 3, unlimited
-			testPublishAndReceive(t, topic, sub, maxMsgs, sync)
+			testPublishAndReceive(t, topic, sub, maxMsgs, sync, 10, 0)
 		}
+
+		// Tests for large messages (larger than the 4MB gRPC limit).
+		testPublishAndReceive(t, topic, sub, 0, sync, 1, 5*1024*1024)
 	}
 	if msg, ok := testIAM(ctx, topic.IAM(), "pubsub.topics.get"); !ok {
 		t.Errorf("topic IAM: %s", msg)
@@ -177,11 +179,11 @@ func TestIntegration_All(t *testing.T) {
 	}
 }
 
-func testPublishAndReceive(t *testing.T, topic *Topic, sub *Subscription, maxMsgs int, synchronous bool) {
+func testPublishAndReceive(t *testing.T, topic *Topic, sub *Subscription, maxMsgs int, synchronous bool, numMsgs, extraBytes int) {
 	ctx := context.Background()
 	var msgs []*Message
-	for i := 0; i < 10; i++ {
-		text := fmt.Sprintf("a message with an index %d", i)
+	for i := 0; i < numMsgs; i++ {
+		text := fmt.Sprintf("a message with an index %d - %s", i, strings.Repeat(".", extraBytes))
 		attrs := make(map[string]string)
 		attrs["foo"] = "bar"
 		msgs = append(msgs, &Message{
@@ -302,7 +304,7 @@ func testIAM(ctx context.Context, h *iam.Handle, permission string) (msg string,
 func TestIntegration_CancelReceive(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
-	client := integrationTestClient(t, ctx)
+	client := integrationTestClient(ctx, t)
 	defer client.Close()
 
 	topic, err := client.CreateTopic(ctx, topicIDs.New())
@@ -344,7 +346,7 @@ func TestIntegration_CancelReceive(t *testing.T) {
 			time.AfterFunc(5*time.Second, msg.Ack)
 		})
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 	}()
 
@@ -358,15 +360,15 @@ func TestIntegration_CancelReceive(t *testing.T) {
 func TestIntegration_UpdateSubscription(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	client := integrationTestClient(t, ctx)
+	client := integrationTestClient(ctx, t)
 	defer client.Close()
 
 	topic, err := client.CreateTopic(ctx, topicIDs.New())
 	if err != nil {
 		t.Fatalf("CreateTopic error: %v", err)
 	}
-	defer topic.Stop()
 	defer topic.Delete(ctx)
+	defer topic.Stop()
 
 	var sub *Subscription
 	if sub, err = client.CreateSubscription(ctx, subIDs.New(), SubscriptionConfig{Topic: topic}); err != nil {
@@ -383,9 +385,10 @@ func TestIntegration_UpdateSubscription(t *testing.T) {
 		AckDeadline:         10 * time.Second,
 		RetainAckedMessages: false,
 		RetentionDuration:   defaultRetentionDuration,
+		ExpirationPolicy:    defaultExpirationPolicy,
 	}
-	if !testutil.Equal(got, want) {
-		t.Fatalf("\ngot  %+v\nwant %+v", got, want)
+	if diff := testutil.Diff(got, want); diff != "" {
+		t.Fatalf("\ngot: - want: +\n%s", diff)
 	}
 	// Add a PushConfig and change other fields.
 	projID := testutil.ProjID()
@@ -399,6 +402,7 @@ func TestIntegration_UpdateSubscription(t *testing.T) {
 		RetainAckedMessages: true,
 		RetentionDuration:   2 * time.Hour,
 		Labels:              map[string]string{"label": "value"},
+		ExpirationPolicy:    25 * time.Hour,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -410,6 +414,7 @@ func TestIntegration_UpdateSubscription(t *testing.T) {
 		RetainAckedMessages: true,
 		RetentionDuration:   2 * time.Hour,
 		Labels:              map[string]string{"label": "value"},
+		ExpirationPolicy:    25 * time.Hour,
 	}
 
 	if !testutil.Equal(got, want) {
@@ -443,10 +448,12 @@ func TestIntegration_UpdateSubscription(t *testing.T) {
 	}
 }
 
+// NOTE: This test should be skipped by open source contributors. It requires
+// whitelisting, a (gsuite) organization project, and specific permissions.
 func TestIntegration_UpdateTopic(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	client := integrationTestClient(t, ctx)
+	client := integrationTestClient(ctx, t)
 	defer client.Close()
 
 	compareConfig := func(got TopicConfig, wantLabels map[string]string) bool {
@@ -465,8 +472,8 @@ func TestIntegration_UpdateTopic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTopic error: %v", err)
 	}
-	defer topic.Stop()
 	defer topic.Delete(ctx)
+	defer topic.Stop()
 
 	got, err := topic.Config(ctx)
 	if err != nil {
@@ -497,7 +504,7 @@ func TestIntegration_UpdateTopic(t *testing.T) {
 func TestIntegration_PublicTopic(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	client := integrationTestClient(t, ctx)
+	client := integrationTestClient(ctx, t)
 	defer client.Close()
 
 	sub, err := client.CreateSubscription(ctx, subIDs.New(), SubscriptionConfig{
@@ -523,15 +530,15 @@ func TestIntegration_Errors(t *testing.T) {
 	// Test various edge conditions.
 	t.Parallel()
 	ctx := context.Background()
-	client := integrationTestClient(t, ctx)
+	client := integrationTestClient(ctx, t)
 	defer client.Close()
 
 	topic, err := client.CreateTopic(ctx, topicIDs.New())
 	if err != nil {
 		t.Fatalf("CreateTopic error: %v", err)
 	}
-	defer topic.Stop()
 	defer topic.Delete(ctx)
+	defer topic.Stop()
 
 	// Out-of-range retention duration.
 	sub, err := client.CreateSubscription(ctx, subIDs.New(), SubscriptionConfig{
@@ -581,6 +588,11 @@ func TestIntegration_Errors(t *testing.T) {
 	}
 }
 
+// NOTE: This test should be skipped by open source contributors. It requires
+// whitelisting, a (gsuite) organization project, and specific permissions.
+//
+// Googlers, see internal bug 77920644. Furthermore, be sure to add your
+// service account as an owner of ps-geofencing-test.
 func TestIntegration_MessageStoragePolicy(t *testing.T) {
 	// Verify that the message storage policy is populated.
 	if testing.Short() {
@@ -607,8 +619,8 @@ func TestIntegration_MessageStoragePolicy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTopic error: %v", err)
 	}
-	defer topic.Stop()
 	defer topic.Delete(ctx)
+	defer topic.Stop()
 
 	config, err := topic.Config(ctx)
 	if err != nil {

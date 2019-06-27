@@ -16,12 +16,16 @@ ifeq ($(NO_DOCKER), 1)
   DOCKER_CMD =
   IMAGE_BUILD_CMD = imagebuilder
 else
-  DOCKER_CMD := docker run --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator golang:1.10
+  DOCKER_CMD := docker run --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator golang:1.12
   IMAGE_BUILD_CMD = docker build
 endif
 
 .PHONY: check
-check: lint fmt vet verify-codegen test ## Run code validations
+check: lint fmt vet verify-codegen check-pkg test ## Run code validations
+
+.PHONY: check-pkg
+check-pkg:
+	./hack/verify-actuator-pkg.sh
 
 .PHONY: build
 build: machine-api-operator nodelink-controller machine-healthcheck ## Build binaries
@@ -37,6 +41,13 @@ nodelink-controller:
 .PHONY: machine-healthcheck
 machine-healthcheck:
 	$(DOCKER_CMD) ./hack/go-build.sh machine-healthcheck
+
+.PHONY: generate
+generate: gen-crd update-codegen
+
+.PHONY: gen-crd
+gen-crd:
+	$(DOCKER_CMD) ./hack/gen-crd.sh
 
 .PHONY: update-codegen
 update-codegen:
@@ -54,18 +65,13 @@ build-integration: ## Build integration test binary
 
 .PHONY: test-e2e
 test-e2e: ## Run openshift specific e2e test
-	go test -timeout 60m \
-		-v ./vendor/github.com/openshift/cluster-api-actuator-pkg/pkg/e2e \
-		-kubeconfig $${KUBECONFIG:-~/.kube/config} \
-		-machine-api-namespace $${NAMESPACE:-openshift-machine-api} \
-		-ginkgo.v \
-		-args -v 5 -logtostderr true
+	$(MAKE) -C ./vendor/github.com/openshift/cluster-api-actuator-pkg $@
 
 .PHONY: deploy-kubemark
 deploy-kubemark:
 	kustomize build config | kubectl apply -f -
 	kustomize build | kubectl apply -f -
-	kubectl apply -f config/kubemark-install-config.yaml
+	kubectl apply -f config/kubemark-config-infra.yaml
 
 .PHONY: test
 test: ## Run tests

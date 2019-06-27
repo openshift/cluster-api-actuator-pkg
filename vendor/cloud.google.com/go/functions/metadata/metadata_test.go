@@ -15,21 +15,31 @@
 package metadata
 
 import (
+	"context"
+	"reflect"
 	"testing"
-
-	"golang.org/x/net/context"
 )
 
 func TestMetadata(t *testing.T) {
-	meta := Metadata{
-		EventID: "test event ID",
+	md := &Metadata{EventID: "test event ID"}
+	ctx := NewContext(context.Background(), md)
+	got, err := FromContext(ctx)
+	if err != nil {
+		t.Fatalf("FromContext error: %v", err)
 	}
-	ctx := NewContext(context.Background(), meta)
-	newMeta, ok := FromContext(ctx)
-	if !ok {
-		t.Fatalf("No context metadata found")
+	if !reflect.DeepEqual(got, md) {
+		t.Fatalf("FromContext\nGot %v\nWant %v", got, md)
 	}
-	if newMeta != meta {
-		t.Fatalf("got %v, want %v", newMeta, meta)
+}
+
+func TestMetadataError(t *testing.T) {
+	if _, err := FromContext(nil); err == nil {
+		t.Errorf("FromContext got no error, wanted an error")
+	}
+	if _, err := FromContext(context.Background()); err == nil {
+		t.Errorf("FromContext got no error, wanted an error")
+	}
+	if _, err := FromContext(NewContext(context.Background(), nil)); err == nil {
+		t.Errorf("FromContext got no error, wanted an error")
 	}
 }
