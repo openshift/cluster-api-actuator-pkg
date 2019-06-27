@@ -33,7 +33,7 @@ func isOneMachinePerNode(client runtimeclient.Client) bool {
 	machineList := mapiv1beta1.MachineList{}
 	nodeList := corev1.NodeList{}
 
-	if err := wait.PollImmediate(5*time.Second, e2e.WaitShort, func() (bool, error) {
+	if err := wait.PollImmediate(5*time.Second, e2e.WaitMedium, func() (bool, error) {
 		if err := client.List(context.TODO(), &machineList, runtimeclient.InNamespace(e2e.TestContext.MachineApiNamespace)); err != nil {
 			glog.Errorf("Error querying api for machineList object: %v, retrying...", err)
 			return false, nil

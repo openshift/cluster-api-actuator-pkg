@@ -77,8 +77,8 @@ func newWorkLoad() *batchv1.Job {
 				},
 			},
 			BackoffLimit: pointer.Int32Ptr(4),
-			Completions:  pointer.Int32Ptr(50),
-			Parallelism:  pointer.Int32Ptr(50),
+			Completions:  pointer.Int32Ptr(100),
+			Parallelism:  pointer.Int32Ptr(100),
 		},
 	}
 }
@@ -262,6 +262,11 @@ var _ = g.Describe("[Feature:Machines][Serial] Autoscaler should", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(len(machineSets)).To(o.BeNumerically(">=", 2))
 
+		g.By("Getting machines")
+		machines, err := e2e.GetMachines(context.TODO(), client)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		o.Expect(len(machines)).To(o.BeNumerically(">=", 1))
+
 		g.By("Getting nodes")
 		nodes, err := e2e.GetNodes(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
@@ -372,5 +377,15 @@ var _ = g.Describe("[Feature:Machines][Serial] Autoscaler should", func() {
 				remaining(testDuration), len(nodes), len(currentNodes))
 			return len(currentNodes)
 		}, e2e.WaitMedium, pollingInterval).Should(o.Equal(len(nodes)))
+
+		g.By("Waiting for scaled up machines to be deleted")
+		testDuration = time.Now().Add(time.Duration(e2e.WaitMedium))
+		o.Eventually(func() int {
+			currentMachines, err := e2e.GetMachines(context.TODO(), client)
+			o.Expect(err).NotTo(o.HaveOccurred())
+			glog.Infof("[%s remaining] Waiting fo cluster to reach original machine count of %v; currently have %v",
+				remaining(testDuration), len(machines), len(currentMachines))
+			return len(currentMachines)
+		}, e2e.WaitMedium, pollingInterval).Should(o.Equal(len(machines)))
 	})
 })
