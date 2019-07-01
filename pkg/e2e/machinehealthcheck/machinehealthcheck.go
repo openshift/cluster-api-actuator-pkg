@@ -11,7 +11,6 @@ import (
 	"github.com/golang/glog"
 	e2e "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/framework"
 	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
-	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 
 	corev1 "k8s.io/api/core/v1"
@@ -129,8 +128,8 @@ var _ = Describe("[TechPreview:Feature:MachineHealthCheck] MachineHealthCheck co
 
 	AfterEach(func() {
 		waitForWorkersToGetReady(numberOfReadyWorkers)
-		deleteMachineHealthCheck(e2e.MachineHealthCheckName)
-		deleteKubeletKillerPods()
+		e2e.DeleteMachineHealthCheck(e2e.MachineHealthCheckName)
+		e2e.DeleteKubeletKillerPods()
 	})
 })
 
@@ -170,36 +169,4 @@ func waitForWorkersToGetReady(numberOfReadyWorkers int) {
 		glog.V(2).Infof("Number of ready workers %d", len(readyWorkerNodes))
 		return len(readyWorkerNodes) == numberOfReadyWorkers
 	}, 15*time.Minute, 10*time.Second).Should(BeTrue())
-}
-
-func deleteMachineHealthCheck(healthcheckName string) {
-	client, err := e2e.LoadClient()
-	Expect(err).ToNot(HaveOccurred())
-
-	key := types.NamespacedName{
-		Name:      healthcheckName,
-		Namespace: e2e.TestContext.MachineApiNamespace,
-	}
-	healthcheck := &healthcheckingv1alpha1.MachineHealthCheck{}
-	err = client.Get(context.TODO(), key, healthcheck)
-	Expect(err).ToNot(HaveOccurred())
-
-	glog.V(2).Infof("Delete machine health check %s", healthcheck.Name)
-	err = client.Delete(context.TODO(), healthcheck)
-	Expect(err).ToNot(HaveOccurred())
-}
-
-func deleteKubeletKillerPods() {
-	client, err := e2e.LoadClient()
-	Expect(err).ToNot(HaveOccurred())
-
-	podList := &corev1.PodList{}
-	err = client.List(context.TODO(), podList, runtimeclient.InNamespace(e2e.TestContext.MachineApiNamespace), runtimeclient.MatchingLabels(map[string]string{e2e.KubeletKillerPodName: ""}))
-	Expect(err).ToNot(HaveOccurred())
-
-	for _, pod := range podList.Items {
-		glog.V(2).Infof("Delete kubelet killer pod %s", pod.Name)
-		err = client.Delete(context.TODO(), &pod)
-		Expect(err).ToNot(HaveOccurred())
-	}
 }
