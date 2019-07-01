@@ -1,0 +1,88 @@
+required = [ "k8s.io/code-generator/cmd/client-gen", "k8s.io/gengo/types", "github.com/openshift/library-go/cmd/crd-schema-gen" ]
+
+[prune]
+  non-go = true
+  go-tests = true
+  unused-packages = true
+
+[[prune.project]]
+  name = "k8s.io/code-generator"
+  non-go = false
+  unused-packages = false
+
+[[prune.project]]
+  name = "k8s.io/gengo"
+  non-go = false
+  unused-packages = false
+
+[[prune.project]]
+  name = "github.com/openshift/library-go"
+  non-go = false
+  unused-packages = false
+
+[[constraint]]
+  name = "github.com/golang/glog"
+  revision = "3c92600d7533018d216b534fe894ad60a1e6d5bf"
+  source = "https://github.com/openshift/golang-glog.git"
+
+[[constraint]]
+  name = "github.com/google/uuid"
+  revision = "8c31c18f31ede9fc8eae72290a7e7a8064e9b3e3"
+
+[[constraint]]
+  name = "k8s.io/api"
+  version = "kubernetes-1.13.4"
+
+[[constraint]]
+  name = "k8s.io/client-go"
+  version = "kubernetes-1.13.4"
+
+[[override]]
+  name = "k8s.io/apiextensions-apiserver"
+  # use origin fork with nullable support.
+  # TODO(sttts, sig-master): switch back to upstream version in 1.14
+  branch = "origin-4.1-kubernetes-1.13.4"
+  source = "https://github.com/openshift/kubernetes-apiextensions-apiserver"
+
+[[constraint]]
+  name = "k8s.io/apimachinery"
+  version = "kubernetes-1.13.4"
+
+[[constraint]]
+  name = "k8s.io/code-generator"
+  version = "kubernetes-1.13.4"
+
+[[constraint]]
+  name = "k8s.io/kube-aggregator"
+  version = "kubernetes-1.13.4"
+
+[[constraint]]
+  name = "k8s.io/utils"
+  revision = "66066c83e385e385ccc3c964b44fd7dcd413d0ed"
+
+[[override]]
+  name = "k8s.io/gengo"
+  revision = "fdcf9f9480fdd5bf2b3c3df9bf4ecd22b25b87e2"
+
+[[constraint]]
+  name = "github.com/spf13/cobra"
+  version = "v0.0.3"
+
+[[constraint]]
+  name = "github.com/openshift/api"
+  branch = "master"
+
+[[constraint]]
+  name = "github.com/openshift/client-go"
+  branch = "master"
+
+[[override]]
+  name = "github.com/openshift/library-go"
+  branch = "master"
+
+[[override]]
+  name = "sigs.k8s.io/controller-tools"
+  # use origin fork with nullable support.
+  # TODO(soltysh, sig-master): switch back to upstream version in 1.14
+  branch = "origin-4.1-kubernetes-1.13.4"
+  source = "https://github.com/openshift/kubernetes-sigs-controller-tools"

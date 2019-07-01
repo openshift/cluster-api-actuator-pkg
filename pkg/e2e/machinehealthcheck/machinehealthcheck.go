@@ -21,6 +21,11 @@ import (
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const (
+	machineAPIControllers       = "machine-api-controllers"
+	machineHealthCheckControler = "machine-healthcheck-controller"
+)
+
 var _ = Describe("[TechPreview:Feature:MachineHealthCheck] MachineHealthCheck controller", func() {
 	var client runtimeclient.Client
 	var numberOfReadyWorkers int
@@ -48,6 +53,7 @@ var _ = Describe("[TechPreview:Feature:MachineHealthCheck] MachineHealthCheck co
 					return true
 				}
 			}
+			glog.V(2).Infof("machine deletion timestamp %s still exists", machine.DeletionTimestamp)
 			return false
 		}, timeout, 5*time.Second).Should(BeTrue())
 	}
@@ -56,6 +62,20 @@ var _ = Describe("[TechPreview:Feature:MachineHealthCheck] MachineHealthCheck co
 		var err error
 		client, err = e2e.LoadClient()
 		Expect(err).ToNot(HaveOccurred())
+
+		err = e2e.CreateOrUpdateTechPreviewFeatureGate()
+		Expect(err).ToNot(HaveOccurred())
+
+		// Wait until the deployment with machine-healthcheck controller will be ready
+		Eventually(func() bool {
+			d, err := e2e.GetDeployment(client, machineAPIControllers)
+			if err != nil {
+				return false
+			}
+			return e2e.DeploymentHasContainer(d, machineHealthCheckControler)
+		}, e2e.WaitLong, 10*time.Second).Should(BeTrue())
+
+		Expect(e2e.IsDeploymentAvailable(client, machineAPIControllers)).Should(BeTrue())
 
 		workerNodes, err := e2e.GetWorkerNodes(client)
 		Expect(err).ToNot(HaveOccurred())
