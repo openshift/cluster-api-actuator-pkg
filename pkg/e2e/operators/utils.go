@@ -8,6 +8,7 @@ import (
 	osconfigv1 "github.com/openshift/api/config/v1"
 	e2e "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/framework"
 	cov1helpers "github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
+	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -44,4 +45,23 @@ func isStatusAvailable(client runtimeclient.Client, name string) bool {
 	}
 	return true
 
+}
+
+func waitForValidatingWebhook(client runtimeclient.Client, name string) bool {
+	key := types.NamespacedName{Name: name}
+	webhook := &admissionregistrationv1beta1.ValidatingWebhookConfiguration{}
+
+	if err := wait.PollImmediate(1*time.Second, e2e.WaitShort, func() (bool, error) {
+		if err := client.Get(context.TODO(), key, webhook); err != nil {
+			glog.Errorf("error querying api for ValidatingWebhookConfiguration: %v, retrying...", err)
+			return false, nil
+		}
+
+		return true, nil
+	}); err != nil {
+		glog.Errorf("Error waiting for ValidatingWebhookConfiguration: %v", err)
+		return false
+	}
+
+	return true
 }
