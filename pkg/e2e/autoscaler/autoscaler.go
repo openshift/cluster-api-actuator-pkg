@@ -240,19 +240,23 @@ var _ = g.Describe("[Feature:Machines][Serial] Autoscaler should", func() {
 		restClient, err = e2e.LoadRestClient()
 		o.Expect(err).NotTo(o.HaveOccurred())
 
+		deleteObject := func(obj runtime.Object) error {
+			return client.Delete(context.TODO(), obj, func(opt *runtimeclient.DeleteOptions) {
+				cascadeDelete := metav1.DeletePropagationForeground
+				opt.PropagationPolicy = &cascadeDelete
+			})
+		}
+
 		// Anything we create we must cleanup
 		var cleanupObjects []runtime.Object
 		defer func() {
-			cascadeDelete := metav1.DeletePropagationForeground
 			for _, obj := range cleanupObjects {
 				switch obj.(type) {
 				case *caov1.ClusterAutoscaler:
 					dumpClusterAutoscalerLogs(client, restClient)
 				}
-				if err = client.Delete(context.TODO(), obj, func(opt *runtimeclient.DeleteOptions) {
-					opt.PropagationPolicy = &cascadeDelete
-				}); err != nil {
-					glog.Errorf("error deleting object: %v", err)
+				if err := deleteObject(obj); err != nil {
+					glog.Errorf("[cleanup] error deleting object: %v", err)
 				}
 			}
 		}()
