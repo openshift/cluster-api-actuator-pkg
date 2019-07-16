@@ -130,8 +130,8 @@ func deleteMachine(client runtimeclient.Client, machine *mapiv1beta1.Machine) er
 	})
 }
 
-// getNodesFromMachineSet returns an array of nodes backed by machines owned by a given machineSet
-func getNodesFromMachineSet(client runtimeclient.Client, machineSet mapiv1beta1.MachineSet) ([]*corev1.Node, error) {
+// GetNodesFromMachineSet returns an array of nodes backed by machines owned by a given machineSet
+func GetNodesFromMachineSet(client runtimeclient.Client, machineSet mapiv1beta1.MachineSet) ([]*corev1.Node, error) {
 	machines, err := getMachinesFromMachineSet(client, machineSet)
 	if err != nil {
 		return nil, fmt.Errorf("error calling getMachinesFromMachineSet %v", err)
@@ -165,8 +165,8 @@ func getNodeFromMachine(client runtimeclient.Client, machine *mapiv1beta1.Machin
 	return &node, nil
 }
 
-// nodesAreReady returns true if an array of nodes are all ready
-func nodesAreReady(nodes []*corev1.Node) bool {
+// NodesAreReady returns true if an array of nodes are all ready
+func NodesAreReady(nodes []*corev1.Node) bool {
 	// All nodes needs to be ready
 	for key := range nodes {
 		if !e2e.IsNodeReady(nodes[key]) {

@@ -324,19 +324,19 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		o.Eventually(func() bool {
-			nodes, err := getNodesFromMachineSet(client, machineSet0)
+			nodes, err := GetNodesFromMachineSet(client, machineSet0)
 			if err != nil {
 				return false
 			}
-			return len(nodes) == scaleOut && nodesAreReady(nodes)
+			return len(nodes) == scaleOut && NodesAreReady(nodes)
 		}, e2e.WaitLong, 5*time.Second).Should(o.BeTrue())
 
 		o.Eventually(func() bool {
-			nodes, err := getNodesFromMachineSet(client, machineSet1)
+			nodes, err := GetNodesFromMachineSet(client, machineSet1)
 			if err != nil {
 				return false
 			}
-			return len(nodes) == scaleOut && nodesAreReady(nodes)
+			return len(nodes) == scaleOut && NodesAreReady(nodes)
 		}, e2e.WaitLong, 5*time.Second).Should(o.BeTrue())
 
 		g.By(fmt.Sprintf("scaling %q from %d to %d replicas", machineSet0.Name, scaleOut, initialReplicasMachineSet0))
