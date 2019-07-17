@@ -180,7 +180,7 @@ func newScaleDownCounter(w *eventWatcher, v uint32) *eventCounter {
 			strings.HasPrefix(event.Message, "Scale-down: empty node")
 	}
 
-	c := newEventCounter(w, isAutoscalerScaleDownEvent, v, decrement)
+	c := newEventCounter(w, isAutoscalerScaleDownEvent, v, increment)
 	c.enable()
 	return c
 }
@@ -426,12 +426,12 @@ var _ = g.Describe("[Feature:Machines][Serial] Autoscaler should", func() {
 			cleanupObjects = cleanupObjects[:len(cleanupObjects)-1]
 		}
 		testDuration = time.Now().Add(time.Duration(e2e.WaitLong))
-		o.Eventually(func() uint32 {
+		o.Eventually(func() bool {
 			v := scaleDownCounter.get()
-			glog.Infof("[%s remaining] Waiting for %s to generate %v more %q events",
-				remaining(testDuration), clusterAutoscalerComponent, v, clusterAutoscalerScaleDownEmpty)
-			return v
-		}, e2e.WaitLong, pollingInterval).Should(o.BeZero())
+			glog.Infof("[%s remaining] Expecting %v %q events; observed %v",
+				remaining(testDuration), clusterExpansionSize-1, clusterAutoscalerScaleDownEmpty, v)
+			return v == uint32(clusterExpansionSize-1)
+		}, e2e.WaitLong, pollingInterval).Should(o.BeTrue())
 
 		g.By("Scaling transient machinesets to zero")
 		for i := len(existingMachineSets); i < len(machineSets); i++ {
