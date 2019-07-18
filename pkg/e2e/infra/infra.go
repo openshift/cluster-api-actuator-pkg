@@ -347,6 +347,10 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		client, err := e2e.LoadClient()
 		o.Expect(err).NotTo(o.HaveOccurred())
 
+		g.By("checking existing cluster size")
+		existingClusterSize, err := getClusterSize(client)
+		o.Expect(err).NotTo(o.HaveOccurred())
+
 		delObjects := make(map[string]runtime.Object)
 
 		defer func() {
@@ -385,13 +389,14 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		machine1 := machineFromMachineset(&machinesets.Items[0])
 		machine1.Name = "machine1"
 
+		var machine2 *mapiv1beta1.Machine
 		err = func() error {
 			if err := client.Create(context.TODO(), machine1); err != nil {
 				return fmt.Errorf("unable to create machine %q: %v", machine1.Name, err)
 			}
 			delObjects["machine1"] = machine1
 
-			machine2 := machineFromMachineset(&machinesets.Items[0])
+			machine2 = machineFromMachineset(&machinesets.Items[0])
 			machine2.Name = "machine2"
 
 			if err := client.Create(context.TODO(), machine2); err != nil {
@@ -461,10 +466,23 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		})
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		g.By("Validate underlying node is removed as well")
+		g.By("Validate underlying node corresponding to machine1 is removed as well")
 		err = waitUntilNodeDoesNotExists(client, drainedNodeName)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
+		// cleanup
+		g.By("Delete PDB")
+		err = client.Delete(context.TODO(), pdb)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		delete(delObjects, "pdb")
+		g.By("Delete machine2")
+		err = client.Delete(context.TODO(), machine2)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		delete(delObjects, "machine2")
+
+		g.By(fmt.Sprintf("waiting for cluster to get back to original size. Final size should be %d nodes", existingClusterSize))
+		err = waitForClusterSizeToBeHealthy(client, existingClusterSize)
+		o.Expect(err).NotTo(o.HaveOccurred())
 	})
 
 	g.It("reject invalid machinesets", func() {
