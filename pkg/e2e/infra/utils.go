@@ -2,6 +2,7 @@ package infra
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
+	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/scale"
 	"k8s.io/utils/pointer"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -28,6 +30,11 @@ const (
 	machineRoleLabel = "machine.openshift.io/cluster-api-machine-role"
 	machineAPIGroup  = "machine.openshift.io"
 )
+
+// State partially cloned from webserver.go
+type State struct {
+	Received map[string]int
+}
 
 func isOneMachinePerNode(client runtimeclient.Client) bool {
 	machineList := mapiv1beta1.MachineList{}
@@ -292,7 +299,7 @@ func waitUntilAllNodesAreSchedulable(client runtimeclient.Client) error {
 	})
 }
 
-func machineFromMachineset(machineset *mapiv1beta1.MachineSet) *mapiv1beta1.Machine {
+func machineFromMachineset(machineset *mapiv1beta1.MachineSet, labels map[string]string) *mapiv1beta1.Machine {
 	randomUUID := string(uuid.NewUUID())
 
 	machine := &mapiv1beta1.Machine{
@@ -306,16 +313,16 @@ func machineFromMachineset(machineset *mapiv1beta1.MachineSet) *mapiv1beta1.Mach
 	if machine.Spec.ObjectMeta.Labels == nil {
 		machine.Spec.ObjectMeta.Labels = map[string]string{}
 	}
-	for key := range nodeDrainLabels {
+	for key := range labels {
 		if _, exists := machine.Spec.ObjectMeta.Labels[key]; exists {
 			continue
 		}
-		machine.Spec.ObjectMeta.Labels[key] = nodeDrainLabels[key]
+		machine.Spec.ObjectMeta.Labels[key] = labels[key]
 	}
 	return machine
 }
 
-func waitUntilNodesAreReady(client runtimeclient.Client, listOptFncs []runtimeclient.ListOptionFunc, nodeCount int) error {
+func waitUntilNodesAreReady(client runtimeclient.Client, listOptFncs []runtimeclient.ListOptionFunc, nodeCount int, labels map[string]string) error {
 	endTime := time.Now().Add(time.Duration(e2e.WaitLong))
 	return wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
 		nodes := corev1.NodeList{}
@@ -338,16 +345,16 @@ func waitUntilNodesAreReady(client runtimeclient.Client, listOptFncs []runtimecl
 		}
 
 		if readyNodes < nodeCount {
-			glog.Errorf("[remaining %s] Expecting %v nodes with %#v labels in Ready state, got %v", remainingTime(endTime), nodeCount, nodeDrainLabels, readyNodes)
+			glog.Errorf("[remaining %s] Expecting %v nodes with %#v labels in Ready state, got %v", remainingTime(endTime), nodeCount, labels, readyNodes)
 			return false, nil
 		}
 
-		glog.Infof("[%s remaining] Expected number (%v) of nodes with %v label in Ready state found", remainingTime(endTime), nodeCount, nodeDrainLabels)
+		glog.Infof("[%s remaining] Expected number (%v) of nodes with %v label in Ready state found", remainingTime(endTime), nodeCount, labels)
 		return true, nil
 	})
 }
 
-func waitUntilNodesAreDeleted(client runtimeclient.Client, listOptFncs []runtimeclient.ListOptionFunc) error {
+func waitUntilNodesAreDeleted(client runtimeclient.Client, listOptFncs []runtimeclient.ListOptionFunc, labels map[string]string) error {
 	endTime := time.Now().Add(time.Duration(e2e.WaitLong))
 	return wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
 		nodes := corev1.NodeList{}
@@ -370,11 +377,11 @@ func waitUntilNodesAreDeleted(client runtimeclient.Client, listOptFncs []runtime
 		}
 
 		if nodeCounter > 0 {
-			glog.Errorf("[%s remaining] Expecting to found 0 nodes with %#v labels, got %v", remainingTime(endTime), nodeDrainLabels, nodeCounter)
+			glog.Errorf("[%s remaining] Expecting to found 0 nodes with %#v labels, got %v", remainingTime(endTime), labels, nodeCounter)
 			return false, nil
 		}
 
-		glog.Infof("[%s remaining] Found 0 number of nodes with %v label as expected", remainingTime(endTime), nodeDrainLabels)
+		glog.Infof("[%s remaining] Found 0 number of nodes with %v label as expected", remainingTime(endTime), labels)
 		return true, nil
 	})
 }
@@ -398,6 +405,122 @@ func waitUntilAllRCPodsAreReady(client runtimeclient.Client, rc *corev1.Replicat
 		glog.Infof("[%s remaining] Waiting for RC ready replicas, ReadyReplicas: %v, Replicas: %v", remainingTime(endTime), rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
 		return rcObj.Status.Replicas == rcObj.Status.ReadyReplicas, nil
 	})
+}
+
+func waitForPodRunningInNamespace(client runtimeclient.Client, pod *corev1.Pod) error {
+	return wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
+		podObj := corev1.Pod{}
+		key := types.NamespacedName{
+			Namespace: pod.Namespace,
+			Name:      pod.Name,
+		}
+		if err := client.Get(context.TODO(), key, &podObj); err != nil {
+			glog.Errorf("Error querying api pod %q object: %v, retrying...", pod.Name, err)
+			return false, nil
+		}
+		if podObj.Status.Phase == corev1.PodRunning {
+			return true, nil
+		}
+		glog.Errorf("waiting for pod %q to be running", pod.Name)
+		return false, nil
+
+	})
+}
+
+func verifyNodeDrainingWithPreStop(client runtimeclient.Client, kClient clientset.Interface, targetMachine *mapiv1beta1.Machine, rc *corev1.ReplicationController, serverPod *corev1.Pod) (string, error) {
+	//get number of pods running on the node to be deleted
+	var drainedNodeName string
+	pods := corev1.PodList{}
+	if err := client.List(context.TODO(), &pods, runtimeclient.MatchingLabels(rc.Spec.Selector)); err != nil {
+		return "", fmt.Errorf("error querying api for Pods object: %v, retrying...", err)
+	}
+	numOfPodsRunning := 0
+	for _, pod := range pods.Items {
+		if pod.Spec.NodeName != targetMachine.Status.NodeRef.Name {
+			continue
+		}
+		if !pod.DeletionTimestamp.IsZero() {
+			continue
+		}
+		numOfPodsRunning++
+	}
+
+	glog.Infof("Have %v pods scheduled to node %q", numOfPodsRunning, targetMachine.Status.NodeRef.Name)
+
+	// delete machine
+	machine := mapiv1beta1.Machine{}
+
+	key := types.NamespacedName{
+		Namespace: targetMachine.Namespace,
+		Name:      targetMachine.Name,
+	}
+	if err := client.Get(context.TODO(), key, &machine); err != nil {
+		return "", fmt.Errorf("error querying api machine %q object: %v, retrying...", targetMachine.Name, err)
+	}
+
+	err := client.Get(context.TODO(), key, &machine)
+	if err != nil {
+		return "", fmt.Errorf("Machine %q not found", targetMachine.Name)
+	}
+	if machine.Status.NodeRef == nil || machine.Status.NodeRef.Kind != "Node" {
+		return "", fmt.Errorf("Machine %q not linked to a node", machine.Name)
+	}
+	glog.Info("Delete machine to trigger node draining")
+	if err := client.Delete(context.TODO(), targetMachine); err != nil {
+		return "", fmt.Errorf("failed to delete machine %q: %v", machine.Name, err)
+	}
+	drainedNodeName = machine.Status.NodeRef.Name
+	node := corev1.Node{}
+
+	webPokeCount := 0
+	err = wait.PollImmediate(e2e.RetryMedium, e2e.WaitMedium, func() (bool, error) {
+		if err := client.Get(context.TODO(), types.NamespacedName{Name: drainedNodeName}, &node); err != nil {
+			glog.Infof("error querying api node %q object: %v, retrying...", drainedNodeName, err)
+			return false, nil
+		}
+
+		if !node.Spec.Unschedulable {
+			glog.Infof("Node %q is expected to be marked as unschedulable, it is not", node.Name)
+			return false, nil
+		}
+		glog.Infof("Node %q is mark unschedulable as expected", node.Name)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		var body []byte
+		body, err = kClient.CoreV1().RESTClient().Get().
+			Context(ctx).
+			Namespace(serverPod.Namespace).
+			Resource("pods").
+			SubResource("proxy").
+			Name(serverPod.Name).
+			Suffix("read").
+			DoRaw()
+		cancel()
+
+		if err != nil {
+			glog.Errorf("Error validating prestop: %v", err)
+			return false, nil
+		} else {
+			glog.Infof("Saw: %s", string(body))
+			state := State{}
+			err := json.Unmarshal(body, &state)
+			if err != nil {
+				glog.Errorf("Error parsing: %v", err)
+				return false, nil
+			}
+			webPokeCount = 0
+			for _, pod := range pods.Items {
+				if state.Received[pod.Name] != 0 {
+					webPokeCount++
+				}
+			}
+		}
+		glog.Infof("Total pods %d, Total webpokes received %d", numOfPodsRunning, webPokeCount)
+		if numOfPodsRunning == webPokeCount {
+			return true, nil
+		}
+		return false, nil
+	})
+	return drainedNodeName, err
 }
 
 func verifyNodeDraining(client runtimeclient.Client, targetMachine *mapiv1beta1.Machine, rc *corev1.ReplicationController) (string, error) {
@@ -486,6 +609,27 @@ func verifyNodeDraining(client runtimeclient.Client, targetMachine *mapiv1beta1.
 	})
 
 	return drainedNodeName, err
+}
+
+func waitUntilMachineNodeLinking(client runtimeclient.Client, targetMachine *mapiv1beta1.Machine) (*mapiv1beta1.Machine, error) {
+	machine := mapiv1beta1.Machine{}
+	err := wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
+
+		key := types.NamespacedName{
+			Namespace: targetMachine.Namespace,
+			Name:      targetMachine.Name,
+		}
+		if err := client.Get(context.TODO(), key, &machine); err != nil {
+			glog.Errorf("Error querying api machine %q object: %v, retrying...", targetMachine.Name, err)
+			return false, nil
+		}
+		if machine.Status.NodeRef == nil || machine.Status.NodeRef.Kind != "Node" {
+			glog.Errorf("Machine %q not linked to a node", machine.Name)
+			return false, nil
+		}
+		return true, nil
+	})
+	return &machine, err
 }
 
 func waitUntilNodeDoesNotExists(client runtimeclient.Client, nodeName string) error {

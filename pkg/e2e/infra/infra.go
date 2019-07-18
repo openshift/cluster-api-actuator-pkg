@@ -3,6 +3,7 @@ package infra
 import (
 	"context"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -69,6 +70,56 @@ func replicationControllerWorkload(namespace string) *corev1.ReplicationControll
 							Operator: corev1.TolerationOpExists,
 						},
 					},
+				},
+			},
+		},
+	}
+}
+
+func replicationControllerWorkloadWithPreStop(namespace string, serverURL string, labels map[string]string) *corev1.ReplicationController {
+	val := "'{\"Source\": \"'\"$HOSTNAME\"'\"}'"
+	var replicas int32 = 20
+	return &corev1.ReplicationController{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "node-drain-workload",
+			Namespace: namespace,
+		},
+		Spec: corev1.ReplicationControllerSpec{
+			Replicas: &replicas,
+			Selector: map[string]string{
+				"app": "nginx",
+			},
+			Template: &corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "nginx",
+					Labels: map[string]string{
+						"app": "nginx",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:    "work",
+							Image:   "busybox",
+							Command: []string{"sleep", "10h"},
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									"cpu":    resource.MustParse("50m"),
+									"memory": resource.MustParse("50Mi"),
+								},
+							},
+							Lifecycle: &corev1.Lifecycle{
+								PreStop: &corev1.Handler{
+									Exec: &corev1.ExecAction{
+										Command: []string{
+											"sh", "-c", "sleep 20 && wget -O- --post-data=" + val + " " + fmt.Sprintf("http://%s/write", serverURL),
+										},
+									},
+								},
+							},
+						},
+					},
+					NodeSelector: labels,
 				},
 			},
 		},
@@ -363,7 +414,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 			// TODO(jchaloup): we need to make sure this gets called no matter what
 			// and waits until all labeled nodes are gone. Though, it it does not
 			// happend in the timeout set, it will not happen ever.
-			err := waitUntilNodesAreDeleted(client, []runtimeclient.ListOptionFunc{runtimeclient.MatchingLabels(nodeDrainLabels)})
+			err := waitUntilNodesAreDeleted(client, []runtimeclient.ListOptionFunc{runtimeclient.MatchingLabels(nodeDrainLabels)}, nodeDrainLabels)
 			o.Expect(err).NotTo(o.HaveOccurred())
 		}()
 
@@ -384,7 +435,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 
 		g.By("Creating two new machines, one for node about to be drained, other for moving workload from drained node")
 		// Create two machines
-		machine1 := machineFromMachineset(&machinesets.Items[0])
+		machine1 := machineFromMachineset(&machinesets.Items[0], nodeDrainLabels)
 		machine1.Name = "machine1"
 
 		var machine2 *mapiv1beta1.Machine
@@ -394,7 +445,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 			}
 			delObjects["machine1"] = machine1
 
-			machine2 = machineFromMachineset(&machinesets.Items[0])
+			machine2 = machineFromMachineset(&machinesets.Items[0], nodeDrainLabels)
 			machine2.Name = "machine2"
 
 			if err := client.Create(context.TODO(), machine2); err != nil {
@@ -407,7 +458,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("Waiting until both new nodes are ready")
-		err = waitUntilNodesAreReady(client, []runtimeclient.ListOptionFunc{runtimeclient.MatchingLabels(nodeDrainLabels)}, 2)
+		err = waitUntilNodesAreReady(client, []runtimeclient.ListOptionFunc{runtimeclient.MatchingLabels(nodeDrainLabels)}, 2, nodeDrainLabels)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("Creating RC with workload")
@@ -480,6 +531,177 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 
 		g.By(fmt.Sprintf("waiting for cluster to get back to original size. Final size should be %d nodes", existingClusterSize))
 		err = waitForClusterSizeToBeHealthy(client, existingClusterSize)
+		o.Expect(err).NotTo(o.HaveOccurred())
+	})
+
+	g.It("drain node before removing machine resource without PDB", func() {
+		nodeDrainLabelsWithoutPDB := map[string]string{
+			e2e.WorkerNodeRoleLabel:          "",
+			"node-draining-test-without-pdb": string(uuid.NewUUID()),
+		}
+		var err error
+		client, err := e2e.LoadClient()
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		isKubemarkProvider, err := e2e.IsKubemarkProvider(client)
+		o.Expect(err).ToNot(o.HaveOccurred())
+		if isKubemarkProvider {
+			glog.V(2).Info("Can not run this tests with the 'KubeMark' provider")
+			g.Skip("Can not run this tests with the 'KubeMark' provider")
+		}
+
+		kClient, err := e2e.LoadClientset()
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		delObjects := make(map[string]runtime.Object)
+
+		defer func() {
+			// Remove resources
+			for key := range delObjects {
+				glog.Infof("Deleting object %q with cascade option", key)
+				if err := client.Delete(context.TODO(), delObjects[key], func(opt *runtimeclient.DeleteOptions) {
+					cascadeDelete := metav1.DeletePropagationForeground
+					opt.PropagationPolicy = &cascadeDelete
+				}); err != nil {
+					glog.Errorf("Unable to delete object %q: %v", key, err)
+				}
+			}
+
+			// TODO(jchaloup): we need to make sure this gets called no matter what
+			// and waits until all labeled nodes are gone. Though, it it does not
+			// happend in the timeout set, it will not happen ever.
+			err := waitUntilNodesAreDeleted(client, []runtimeclient.ListOptionFunc{runtimeclient.MatchingLabels(nodeDrainLabelsWithoutPDB)}, nodeDrainLabelsWithoutPDB)
+			o.Expect(err).NotTo(o.HaveOccurred())
+		}()
+
+		g.By("Taking the first worker machineset (assuming only worker machines are backed by machinesets)")
+		machinesets := mapiv1beta1.MachineSetList{}
+		err = wait.PollImmediate(e2e.RetryMedium, e2e.WaitShort, func() (bool, error) {
+			if err := client.List(context.TODO(), &machinesets); err != nil {
+				glog.Errorf("Error querying api for machineset object: %v, retrying...", err)
+				return false, nil
+			}
+			if len(machinesets.Items) < 1 {
+				glog.Errorf("Expected at least one machineset, have none")
+				return false, nil
+			}
+			return true, nil
+		})
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By("Creating two new machines, one for node about to be drained, other for moving workload from drained node")
+		// Create two machines
+		machine1 := machineFromMachineset(&machinesets.Items[0], nodeDrainLabelsWithoutPDB)
+		machine1.Name = "machine1"
+		var machine2 *mapiv1beta1.Machine
+
+		err = func() error {
+			if err := client.Create(context.TODO(), machine1); err != nil {
+				return fmt.Errorf("unable to create machine %q: %v", machine1.Name, err)
+			}
+			delObjects["machine1"] = machine1
+
+			machine2 = machineFromMachineset(&machinesets.Items[0], nodeDrainLabelsWithoutPDB)
+			machine2.Name = "machine2"
+
+			if err := client.Create(context.TODO(), machine2); err != nil {
+				return fmt.Errorf("unable to create machine %q: %v", machine2.Name, err)
+			}
+			delObjects["machine2"] = machine2
+
+			return nil
+		}()
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By("Waiting until both new nodes are ready")
+		err = waitUntilNodesAreReady(client, []runtimeclient.ListOptionFunc{runtimeclient.MatchingLabels(nodeDrainLabelsWithoutPDB)}, 2, nodeDrainLabelsWithoutPDB)
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By("waiting until machine node linking")
+		machine1, err = waitUntilMachineNodeLinking(client, machine1)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		machine2, err = waitUntilMachineNodeLinking(client, machine2)
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		ns := "default"
+
+		// This is the server that will receive the preStop notification
+		podDescr := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "server",
+				Namespace: ns,
+			},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name: "server",
+						// TODO(vikasc): use image from official registry
+						Image: "quay.io/vichoudh/nettest:latest",
+						Args:  []string{"nettest"},
+						Ports: []corev1.ContainerPort{{ContainerPort: 8080}},
+					},
+				},
+				NodeName: machine2.Status.NodeRef.Name,
+			},
+		}
+		g.By(fmt.Sprintf("Creating server pod %s in namespace %s on node %s", podDescr.Name, ns, podDescr.Spec.NodeName))
+		err = client.Create(context.TODO(), podDescr)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		delObjects["server"] = podDescr
+
+		g.By("Wait until server pod is running")
+		err = waitForPodRunningInNamespace(client, podDescr)
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		serverPod := corev1.Pod{}
+		key := types.NamespacedName{
+			Namespace: podDescr.Namespace,
+			Name:      podDescr.Name,
+		}
+		err = client.Get(context.TODO(), key, &serverPod)
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By("Creating RC with workload with preStop")
+		rc := replicationControllerWorkloadWithPreStop("default", net.JoinHostPort(serverPod.Status.PodIP, "8080"), nodeDrainLabelsWithoutPDB)
+		err = client.Create(context.TODO(), rc)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		delObjects["rc"] = rc
+
+		g.By("Wait until all replicas are ready")
+		err = waitUntilAllRCPodsAreReady(client, rc)
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By("Observing and verifying node draining")
+		drainedNodeName, err := verifyNodeDrainingWithPreStop(client, kClient, machine1, rc, &serverPod)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		delete(delObjects, "machine1")
+
+		g.By("Validating the machine is deleted")
+		err = wait.PollImmediate(e2e.RetryMedium, e2e.WaitShort, func() (bool, error) {
+			machine := mapiv1beta1.Machine{}
+
+			key := types.NamespacedName{
+				Namespace: machine1.Namespace,
+				Name:      machine1.Name,
+			}
+			err := client.Get(context.TODO(), key, &machine)
+			if err == nil {
+				glog.Errorf("Machine %q not yet deleted", machine1.Name)
+				return false, nil
+			}
+
+			if !strings.Contains(err.Error(), "not found") {
+				glog.Errorf("Error querying api machine %q object: %v, retrying...", machine1.Name, err)
+				return false, nil
+			}
+
+			glog.Infof("Machine %q successfully deleted", machine1.Name)
+			return true, nil
+		})
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By("Validate underlying node is removed as well")
+		err = waitUntilNodeDoesNotExists(client, drainedNodeName)
 		o.Expect(err).NotTo(o.HaveOccurred())
 	})
 
