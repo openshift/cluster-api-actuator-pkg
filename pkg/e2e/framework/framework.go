@@ -10,6 +10,7 @@ import (
 
 	"github.com/golang/glog"
 
+	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
 	healthcheckingclient "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
 	kappsapi "k8s.io/api/apps/v1"
@@ -25,6 +26,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	"k8s.io/utils/pointer"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/ginkgo"
@@ -46,6 +48,9 @@ const (
 	PoolNodesReadyTimeout = 10 * time.Minute
 	// Instances are running timeout
 	TimeoutPoolMachineRunningInterval = 10 * time.Minute
+
+	ClusterKey    = "machine.openshift.io/cluster-api-cluster"
+	MachineSetKey = "machine.openshift.io/cluster-api-machineset"
 )
 
 // ClusterID set by -cluster-id flag
@@ -499,4 +504,61 @@ func IsKubemarkProvider(client runtimeclient.Client) (bool, error) {
 	}
 	glog.Infof("Deployment %q exists", key.Name)
 	return true, nil
+}
+
+func NewMachineSet(
+	clusterName, namespace, name string,
+	selectorLabels map[string]string,
+	templateLabels map[string]string,
+	providerSpec *mapiv1beta1.ProviderSpec,
+	replicas int32,
+) *mapiv1beta1.MachineSet {
+	ms := mapiv1beta1.MachineSet{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "MachineSet",
+			APIVersion: "machine.openshift.io/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Labels: map[string]string{
+				ClusterKey: clusterName,
+			},
+		},
+		Spec: mapiv1beta1.MachineSetSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					ClusterKey:    clusterName,
+					MachineSetKey: name,
+				},
+			},
+			Template: mapiv1beta1.MachineTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						ClusterKey:    clusterName,
+						MachineSetKey: name,
+					},
+				},
+				Spec: mapiv1beta1.MachineSpec{
+					ProviderSpec: *providerSpec.DeepCopy(),
+				},
+			},
+			Replicas: pointer.Int32Ptr(replicas),
+		},
+	}
+
+	// Copy additional labels but do not overwrite those that
+	// already exist.
+	for k, v := range selectorLabels {
+		if _, exists := ms.Spec.Selector.MatchLabels[k]; !exists {
+			ms.Spec.Selector.MatchLabels[k] = v
+		}
+	}
+	for k, v := range templateLabels {
+		if _, exists := ms.Spec.Template.ObjectMeta.Labels[k]; !exists {
+			ms.Spec.Template.ObjectMeta.Labels[k] = v
+		}
+	}
+
+	return &ms
 }

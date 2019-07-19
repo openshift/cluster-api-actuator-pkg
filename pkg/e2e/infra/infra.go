@@ -21,7 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/utils/pointer"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -258,103 +257,98 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 	})
 
-	g.It("grow or decrease when scaling out or in", func() {
-		g.By("checking initial cluster state")
-		client, err := e2e.LoadClient()
-		o.Expect(err).NotTo(o.HaveOccurred())
-
-		initialClusterSize, err := getClusterSize(client)
-		err = waitForClusterSizeToBeHealthy(client, initialClusterSize)
-		o.Expect(err).NotTo(o.HaveOccurred())
-
-		machineSets, err := e2e.GetMachineSets(context.TODO(), client)
-		o.Expect(err).NotTo(o.HaveOccurred())
-		o.Expect(len(machineSets)).To(o.BeNumerically(">=", 2))
-		machineSet := machineSets[0]
-		initialReplicasMachineSet := int(pointer.Int32PtrDerefOr(machineSet.Spec.Replicas, e2e.DefaultMachineSetReplicas))
-		scaleOut := 3
-		scaleIn := initialReplicasMachineSet
-		originalReplicas := initialReplicasMachineSet
-		clusterGrowth := scaleOut - originalReplicas
-		clusterDecrease := scaleOut - scaleIn
-		intermediateClusterSize := initialClusterSize + clusterGrowth
-		finalClusterSize := initialClusterSize + clusterGrowth - clusterDecrease
-
-		g.By(fmt.Sprintf("scaling out %q machineSet to %d replicas", machineSet.Name, scaleOut))
-		err = scaleMachineSet(machineSet.Name, scaleOut)
-		o.Expect(err).NotTo(o.HaveOccurred())
-
-		g.By(fmt.Sprintf("waiting for cluster to grow %d nodes. Size should be %d", clusterGrowth, intermediateClusterSize))
-		err = waitForClusterSizeToBeHealthy(client, intermediateClusterSize)
-		o.Expect(err).NotTo(o.HaveOccurred())
-
-		g.By(fmt.Sprintf("scaling in %q machineSet to %d replicas", machineSet.Name, scaleIn))
-		err = scaleMachineSet(machineSet.Name, scaleIn)
-		o.Expect(err).NotTo(o.HaveOccurred())
-
-		g.By(fmt.Sprintf("waiting for cluster to decrease %d nodes. Final size should be %d nodes", clusterDecrease, finalClusterSize))
-		err = waitForClusterSizeToBeHealthy(client, finalClusterSize)
-		o.Expect(err).NotTo(o.HaveOccurred())
-	})
-
 	g.It("grow and decrease when scaling different machineSets simultaneously", func() {
 		client, err := e2e.LoadClient()
 		o.Expect(err).NotTo(o.HaveOccurred())
-		scaleOut := 3
+		scaleOut := 2
 
-		g.By("checking initial cluster size")
-		initialClusterSize, err := getClusterSize(client)
+		deleteObject := func(obj runtime.Object) error {
+			return client.Delete(context.TODO(), obj, func(opt *runtimeclient.DeleteOptions) {
+				cascadeDelete := metav1.DeletePropagationForeground
+				opt.PropagationPolicy = &cascadeDelete
+			})
+		}
+
+		// Anything we create we must cleanup
+		var cleanupObjects []runtime.Object
+		defer func() {
+			for _, obj := range cleanupObjects {
+				if err := deleteObject(obj); err != nil {
+					glog.Errorf("[cleanup] error deleting object: %v", err)
+				}
+			}
+		}()
+
+		g.By("checking existing cluster size")
+		existingClusterSize, err := getClusterSize(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("getting worker machineSets")
-		machineSets, err := e2e.GetMachineSets(context.TODO(), client)
+		existingMachineSets, err := e2e.GetMachineSets(context.TODO(), client)
 		o.Expect(err).NotTo(o.HaveOccurred())
-		o.Expect(len(machineSets)).To(o.BeNumerically(">=", 2))
-		machineSet0 := machineSets[0]
-		initialReplicasMachineSet0 := int(pointer.Int32PtrDerefOr(machineSet0.Spec.Replicas, e2e.DefaultMachineSetReplicas))
-		machineSet1 := machineSets[1]
-		initialReplicasMachineSet1 := int(pointer.Int32PtrDerefOr(machineSet1.Spec.Replicas, e2e.DefaultMachineSetReplicas))
+		o.Expect(len(existingMachineSets)).To(o.BeNumerically(">=", 1))
 
-		g.By(fmt.Sprintf("scaling %q from %d to %d replicas", machineSet0.Name, initialReplicasMachineSet0, scaleOut))
-		err = scaleMachineSet(machineSet0.Name, scaleOut)
+		// Create transient machinesets with replicas==0
+		machineSets := make([]*mapiv1beta1.MachineSet, scaleOut)
+		for i := 0; i < scaleOut; i++ {
+			targetMachineSet := existingMachineSets[i%len(existingMachineSets)]
+			machineSetName := fmt.Sprintf("infra-e2e-%d-%s", i, targetMachineSet.Name)
+			glog.Infof("Creating transient MachineSet %q", machineSetName)
+			machineSets[i] = e2e.NewMachineSet(
+				targetMachineSet.Labels[e2e.ClusterKey],
+				targetMachineSet.Namespace,
+				machineSetName,
+				targetMachineSet.Spec.Selector.MatchLabels,
+				targetMachineSet.Spec.Template.ObjectMeta.Labels,
+				&targetMachineSet.Spec.Template.Spec.ProviderSpec,
+				0) // zero replicas
+			machineSets[i].Spec.Template.Spec.ObjectMeta.Labels = map[string]string{
+				e2e.WorkerNodeRoleLabel: "",
+			}
+			o.Expect(client.Create(context.TODO(), machineSets[i])).Should(o.Succeed())
+			cleanupObjects = append(cleanupObjects, runtime.Object(machineSets[i]))
+		}
+
+		g.By(fmt.Sprintf("scaling %q from %d to %d replicas", machineSets[0].Name, 0, scaleOut))
+		err = scaleMachineSet(machineSets[0].Name, scaleOut)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		g.By(fmt.Sprintf("scaling %q from %d to %d replicas", machineSet1.Name, initialReplicasMachineSet1, scaleOut))
-		err = scaleMachineSet(machineSet1.Name, scaleOut)
+		g.By(fmt.Sprintf("scaling %q from %d to %d replicas", machineSets[1].Name, 0, scaleOut))
+		err = scaleMachineSet(machineSets[1].Name, scaleOut)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		o.Eventually(func() bool {
-			nodes, err := getNodesFromMachineSet(client, machineSet0)
+			nodes0, err := GetNodesFromMachineSet(client, *machineSets[0])
 			if err != nil {
 				return false
 			}
-			return len(nodes) == scaleOut && nodesAreReady(nodes)
-		}, e2e.WaitLong, 5*time.Second).Should(o.BeTrue())
-
-		o.Eventually(func() bool {
-			nodes, err := getNodesFromMachineSet(client, machineSet1)
+			nodes1, err := GetNodesFromMachineSet(client, *machineSets[1])
 			if err != nil {
 				return false
 			}
-			return len(nodes) == scaleOut && nodesAreReady(nodes)
+			return len(nodes0) == scaleOut && NodesAreReady(nodes0) && len(nodes1) == scaleOut && NodesAreReady(nodes1)
 		}, e2e.WaitLong, 5*time.Second).Should(o.BeTrue())
 
-		g.By(fmt.Sprintf("scaling %q from %d to %d replicas", machineSet0.Name, scaleOut, initialReplicasMachineSet0))
-		err = scaleMachineSet(machineSet0.Name, initialReplicasMachineSet0)
+		g.By(fmt.Sprintf("scaling %q from %d to %d replicas", machineSets[0].Name, scaleOut, 0))
+		err = scaleMachineSet(machineSets[0].Name, 0)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		g.By(fmt.Sprintf("scaling %q from %d to %d replicas", machineSet1.Name, scaleOut, initialReplicasMachineSet1))
-		err = scaleMachineSet(machineSet1.Name, initialReplicasMachineSet1)
+		g.By(fmt.Sprintf("scaling %q from %d to %d replicas", machineSets[1].Name, scaleOut, 0))
+		err = scaleMachineSet(machineSets[1].Name, 0)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		g.By(fmt.Sprintf("waiting for cluster to get back to original size. Final size should be %d nodes", initialClusterSize))
-		err = waitForClusterSizeToBeHealthy(client, initialClusterSize)
+		g.By(fmt.Sprintf("waiting for cluster to get back to original size. Final size should be %d nodes", existingClusterSize))
+		err = waitForClusterSizeToBeHealthy(client, existingClusterSize)
 		o.Expect(err).NotTo(o.HaveOccurred())
 	})
 
 	g.It("drain node before removing machine resource", func() {
 		var err error
 		client, err := e2e.LoadClient()
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By("checking existing cluster size")
+		existingClusterSize, err := getClusterSize(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		delObjects := make(map[string]runtime.Object)
@@ -395,13 +389,14 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		machine1 := machineFromMachineset(&machinesets.Items[0])
 		machine1.Name = "machine1"
 
+		var machine2 *mapiv1beta1.Machine
 		err = func() error {
 			if err := client.Create(context.TODO(), machine1); err != nil {
 				return fmt.Errorf("unable to create machine %q: %v", machine1.Name, err)
 			}
 			delObjects["machine1"] = machine1
 
-			machine2 := machineFromMachineset(&machinesets.Items[0])
+			machine2 = machineFromMachineset(&machinesets.Items[0])
 			machine2.Name = "machine2"
 
 			if err := client.Create(context.TODO(), machine2); err != nil {
@@ -471,10 +466,23 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		})
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		g.By("Validate underlying node is removed as well")
+		g.By("Validate underlying node corresponding to machine1 is removed as well")
 		err = waitUntilNodeDoesNotExists(client, drainedNodeName)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
+		// cleanup
+		g.By("Delete PDB")
+		err = client.Delete(context.TODO(), pdb)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		delete(delObjects, "pdb")
+		g.By("Delete machine2")
+		err = client.Delete(context.TODO(), machine2)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		delete(delObjects, "machine2")
+
+		g.By(fmt.Sprintf("waiting for cluster to get back to original size. Final size should be %d nodes", existingClusterSize))
+		err = waitForClusterSizeToBeHealthy(client, existingClusterSize)
+		o.Expect(err).NotTo(o.HaveOccurred())
 	})
 
 	g.It("reject invalid machinesets", func() {
