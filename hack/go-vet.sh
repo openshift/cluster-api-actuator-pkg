@@ -1,4 +1,8 @@
 #!/bin/sh
+
+export GO111MODULE=on
+export GOFLAGS=-mod=vendor
+
 REPO_NAME=$(basename "${PWD}")
 if [ "$IS_CONTAINER" != "" ]; then
   go vet "${@}"
