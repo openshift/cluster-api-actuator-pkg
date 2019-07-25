@@ -1,8 +1,5 @@
 #!/bin/sh
 
-export GO111MODULE=on
-export GOFLAGS=-mod=vendor
-
 go test -timeout 90m \
   -v ./pkg/e2e \
   -kubeconfig ${KUBECONFIG:-~/.kube/config} \

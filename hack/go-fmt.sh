@@ -8,9 +8,12 @@ if [ "$IS_CONTAINER" != "" ]; then
   git diff --exit-code
 else
   docker run -it --rm \
+    --env "GO111MODULE=$GO111MODULE" \
+    --env "GOFLAGS=$GOFLAGS" \
+    --env "GOPROXY=$GOPROXY" \
     --env IS_CONTAINER=TRUE \
-    --volume "${PWD}:/go/src/github.com/openshift/${REPO_NAME}:z" \
-    --workdir "/go/src/github.com/openshift/${REPO_NAME}" \
+    --volume "${PWD}:/go/src/github.com/openshift/$REPO_NAME:z" \
+    --workdir "/go/src/github.com/openshift/$REPO_NAME" \
     openshift/origin-release:golang-1.12 \
     ./hack/go-fmt.sh "${@}"
 fi
