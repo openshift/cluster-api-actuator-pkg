@@ -454,13 +454,13 @@ var _ = g.Describe("[Feature:Machines][Serial] Autoscaler should", func() {
 		}, e2e.WaitMedium, pollingInterval).Should(o.Equal(len(existingNodes)))
 
 		g.By("Waiting for scaled up machines to be deleted")
-		testDuration = time.Now().Add(time.Duration(e2e.WaitMedium))
+		testDuration = time.Now().Add(time.Duration(e2e.WaitLong))
 		o.Eventually(func() int {
 			currentMachines, err := e2e.GetMachines(context.TODO(), client)
 			o.Expect(err).NotTo(o.HaveOccurred())
 			glog.Infof("[%s remaining] Waiting for cluster to reach original machine count of %v; currently have %v",
 				remaining(testDuration), len(existingMachines), len(currentMachines))
 			return len(currentMachines)
-		}, e2e.WaitMedium, pollingInterval).Should(o.Equal(len(existingMachines)))
+		}, e2e.WaitLong, pollingInterval).Should(o.Equal(len(existingMachines)))
 	})
 })
