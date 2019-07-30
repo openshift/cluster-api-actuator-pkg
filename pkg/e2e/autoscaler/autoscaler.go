@@ -35,7 +35,7 @@ const (
 	pollingInterval                       = 3 * time.Second
 )
 
-func newWorkLoad() *batchv1.Job {
+func newWorkLoad(njobs int32, memoryRequest resource.Quantity) *batchv1.Job {
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "workload",
@@ -59,7 +59,7 @@ func newWorkLoad() *batchv1.Job {
 							},
 							Resources: corev1.ResourceRequirements{
 								Requests: corev1.ResourceList{
-									"memory": resource.MustParse("500Mi"),
+									"memory": memoryRequest,
 									"cpu":    resource.MustParse("500m"),
 								},
 							},
@@ -78,8 +78,8 @@ func newWorkLoad() *batchv1.Job {
 				},
 			},
 			BackoffLimit: pointer.Int32Ptr(4),
-			Completions:  pointer.Int32Ptr(100),
-			Parallelism:  pointer.Int32Ptr(100),
+			Completions:  pointer.Int32Ptr(njobs),
+			Parallelism:  pointer.Int32Ptr(njobs),
 		},
 	}
 }
@@ -378,14 +378,30 @@ var _ = g.Describe("[Feature:Machines][Serial] Autoscaler should", func() {
 		o.Expect(client.Create(context.TODO(), clusterAutoscaler)).Should(o.Succeed())
 		cleanupObjects = append(cleanupObjects, runtime.Object(clusterAutoscaler))
 
-		g.By("Creating scale-out workload")
+		g.By(fmt.Sprintf("Deriving Memory capacity from machine %q", existingMachineSets[0].Name))
+		workerNodes, err := e2e.GetWorkerNodes(client)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		o.Expect(len(workerNodes)).To(o.BeNumerically(">=", 1))
+		memCapacity := workerNodes[0].Status.Capacity[corev1.ResourceMemory]
+		o.Expect(memCapacity).ShouldNot(o.BeNil())
+		o.Expect(memCapacity.String()).ShouldNot(o.BeEmpty())
+		glog.Infof("Memory capacity of worker node %q is %s", workerNodes[0].Name, memCapacity.String())
+		bytes, ok := memCapacity.AsInt64()
+		o.Expect(ok).Should(o.BeTrue())
+		// 70% - enough that the existing and new nodes will
+		// be used, not enough to have more than 1 pod per
+		// node.
+		workloadMemRequest := resource.MustParse(fmt.Sprintf("%v", 0.7*float32(bytes)))
+
+		g.By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s", maxNodesTotal+1, workloadMemRequest.String()))
 		scaledGroups := map[string]bool{}
 		for i := range machineSets {
 			scaledGroups[path.Join(machineSets[i].Namespace, machineSets[i].Name)] = false
 		}
 		scaleUpCounter := newScaleUpCounter(eventWatcher, 0, scaledGroups)
 		maxNodesTotalReachedCounter := newMaxNodesTotalReachedCounter(eventWatcher, 0)
-		workload := newWorkLoad()
+		// +1 to continuously generate the MaxNodesTotalReached
+		workload := newWorkLoad(int32(maxNodesTotal+1), workloadMemRequest)
 		o.Expect(client.Create(context.TODO(), workload)).Should(o.Succeed())
 		cleanupObjects = append(cleanupObjects, runtime.Object(workload))
 		testDuration := time.Now().Add(time.Duration(e2e.WaitLong))
