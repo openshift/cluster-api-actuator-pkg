@@ -32,7 +32,7 @@ const (
 func isOneMachinePerNode(client runtimeclient.Client) bool {
 	machineList := mapiv1beta1.MachineList{}
 	nodeList := corev1.NodeList{}
-
+	endTime := time.Now().Add(time.Duration(e2e.WaitMedium))
 	if err := wait.PollImmediate(5*time.Second, e2e.WaitMedium, func() (bool, error) {
 		if err := client.List(context.TODO(), &machineList, runtimeclient.InNamespace(e2e.TestContext.MachineApiNamespace)); err != nil {
 			glog.Errorf("Error querying api for machineList object: %v, retrying...", err)
@@ -43,7 +43,7 @@ func isOneMachinePerNode(client runtimeclient.Client) bool {
 			return false, nil
 		}
 
-		glog.Infof("Expecting the same number of machines and nodes, have %d nodes and %d machines", len(nodeList.Items), len(machineList.Items))
+		glog.Infof("[remaining %s] Expecting the same number of machines and nodes, have %d nodes and %d machines", remainingTime(endTime), len(nodeList.Items), len(machineList.Items))
 		if len(machineList.Items) != len(nodeList.Items) {
 			return false, nil
 		}
@@ -66,7 +66,7 @@ func isOneMachinePerNode(client runtimeclient.Client) bool {
 				glog.Errorf("Node name %q does not match expected machine name %q, retrying...", nodeName, machine.Name)
 				return false, nil
 			}
-			glog.Infof("Machine %q is linked to node %q", machine.Name, nodeName)
+			glog.Infof("[remaining %s] Machine %q is linked to node %q", remainingTime(endTime), machine.Name, nodeName)
 		}
 		return true, nil
 	}); err != nil {
@@ -233,8 +233,9 @@ func nodesSnapShotLogs(client runtimeclient.Client) error {
 }
 
 func waitForClusterSizeToBeHealthy(client runtimeclient.Client, targetSize int) error {
+	endTime := time.Now().Add(time.Duration(e2e.WaitLong))
 	if err := wait.PollImmediate(5*time.Second, e2e.WaitLong, func() (bool, error) {
-		glog.Infof("Cluster size expected to be %d nodes", targetSize)
+		glog.Infof("[remaining %s] Cluster size expected to be %d nodes", remainingTime(endTime), targetSize)
 		if err := machineSetsSnapShotLogs(client); err != nil {
 			return false, err
 		}
@@ -272,6 +273,7 @@ func waitForClusterSizeToBeHealthy(client runtimeclient.Client, targetSize int) 
 
 // waitUntilAllNodesAreSchedulable waits for all cluster nodes to be schedulable and returns an error otherwise
 func waitUntilAllNodesAreSchedulable(client runtimeclient.Client) error {
+	endTime := time.Now().Add(time.Duration(time.Minute))
 	return wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
 		nodeList := corev1.NodeList{}
 		if err := client.List(context.TODO(), &nodeList); err != nil {
@@ -284,7 +286,7 @@ func waitUntilAllNodesAreSchedulable(client runtimeclient.Client) error {
 				glog.Errorf("Node %q is unschedulable", node.Name)
 				return false, nil
 			}
-			glog.Infof("Node %q is schedulable", node.Name)
+			glog.Infof("[remaining %s] Node %q is schedulable", remainingTime(endTime), node.Name)
 		}
 		return true, nil
 	})
@@ -314,6 +316,7 @@ func machineFromMachineset(machineset *mapiv1beta1.MachineSet) *mapiv1beta1.Mach
 }
 
 func waitUntilNodesAreReady(client runtimeclient.Client, listOptFncs []runtimeclient.ListOptionFunc, nodeCount int) error {
+	endTime := time.Now().Add(time.Duration(e2e.WaitLong))
 	return wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
 		nodes := corev1.NodeList{}
 		if err := client.List(context.TODO(), &nodes, listOptFncs...); err != nil {
@@ -335,16 +338,17 @@ func waitUntilNodesAreReady(client runtimeclient.Client, listOptFncs []runtimecl
 		}
 
 		if readyNodes < nodeCount {
-			glog.Errorf("Expecting %v nodes with %#v labels in Ready state, got %v", nodeCount, nodeDrainLabels, readyNodes)
+			glog.Errorf("[remaining %s] Expecting %v nodes with %#v labels in Ready state, got %v", remainingTime(endTime), nodeCount, nodeDrainLabels, readyNodes)
 			return false, nil
 		}
 
-		glog.Infof("Expected number (%v) of nodes with %v label in Ready state found", nodeCount, nodeDrainLabels)
+		glog.Infof("[%s remaining] Expected number (%v) of nodes with %v label in Ready state found", remainingTime(endTime), nodeCount, nodeDrainLabels)
 		return true, nil
 	})
 }
 
 func waitUntilNodesAreDeleted(client runtimeclient.Client, listOptFncs []runtimeclient.ListOptionFunc) error {
+	endTime := time.Now().Add(time.Duration(e2e.WaitLong))
 	return wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
 		nodes := corev1.NodeList{}
 		if err := client.List(context.TODO(), &nodes, listOptFncs...); err != nil {
@@ -366,16 +370,17 @@ func waitUntilNodesAreDeleted(client runtimeclient.Client, listOptFncs []runtime
 		}
 
 		if nodeCounter > 0 {
-			glog.Errorf("Expecting to found 0 nodes with %#v labels , got %v", nodeDrainLabels, nodeCounter)
+			glog.Errorf("[%s remaining] Expecting to found 0 nodes with %#v labels, got %v", remainingTime(endTime), nodeDrainLabels, nodeCounter)
 			return false, nil
 		}
 
-		glog.Infof("Found 0 number of nodes with %v label as expected", nodeDrainLabels)
+		glog.Infof("[%s remaining] Found 0 number of nodes with %v label as expected", remainingTime(endTime), nodeDrainLabels)
 		return true, nil
 	})
 }
 
 func waitUntilAllRCPodsAreReady(client runtimeclient.Client, rc *corev1.ReplicationController) error {
+	endTime := time.Now().Add(time.Duration(e2e.WaitLong))
 	return wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
 		rcObj := corev1.ReplicationController{}
 		key := types.NamespacedName{
@@ -387,15 +392,16 @@ func waitUntilAllRCPodsAreReady(client runtimeclient.Client, rc *corev1.Replicat
 			return false, nil
 		}
 		if rcObj.Status.ReadyReplicas == 0 {
-			glog.Infof("Waiting for at least one RC ready replica, ReadyReplicas: %v, Replicas: %v", rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
+			glog.Infof("[%s remaining] Waiting for at least one RC ready replica, ReadyReplicas: %v, Replicas: %v", remainingTime(endTime), rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
 			return false, nil
 		}
-		glog.Infof("Waiting for RC ready replicas, ReadyReplicas: %v, Replicas: %v", rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
+		glog.Infof("[%s remaining] Waiting for RC ready replicas, ReadyReplicas: %v, Replicas: %v", remainingTime(endTime), rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
 		return rcObj.Status.Replicas == rcObj.Status.ReadyReplicas, nil
 	})
 }
 
 func verifyNodeDraining(client runtimeclient.Client, targetMachine *mapiv1beta1.Machine, rc *corev1.ReplicationController) (string, error) {
+	endTime := time.Now().Add(time.Duration(e2e.WaitLong))
 	var drainedNodeName string
 	err := wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
 		machine := mapiv1beta1.Machine{}
@@ -426,7 +432,7 @@ func verifyNodeDraining(client runtimeclient.Client, targetMachine *mapiv1beta1.
 			return false, nil
 		}
 
-		glog.Infof("Node %q is mark unschedulable as expected", node.Name)
+		glog.Infof("[remaining %s] Node %q is mark unschedulable as expected", remainingTime(endTime), node.Name)
 
 		pods := corev1.PodList{}
 		if err := client.List(context.TODO(), &pods, runtimeclient.MatchingLabels(rc.Spec.Selector)); err != nil {
@@ -445,7 +451,7 @@ func verifyNodeDraining(client runtimeclient.Client, targetMachine *mapiv1beta1.
 			podCounter++
 		}
 
-		glog.Infof("Have %v pods scheduled to node %q", podCounter, machine.Status.NodeRef.Name)
+		glog.Infof("[remaining %s] Have %v pods scheduled to node %q", remainingTime(endTime), podCounter, machine.Status.NodeRef.Name)
 
 		// Verify we have enough pods running as well
 		rcObj := corev1.ReplicationController{}
@@ -461,7 +467,7 @@ func verifyNodeDraining(client runtimeclient.Client, targetMachine *mapiv1beta1.
 		// The point of the test is to make sure majority of the pods are rescheduled
 		// to other nodes. Pod disruption budget makes sure at most one pod
 		// owned by the RC is not Ready. So no need to test it. Though, useful to have it printed.
-		glog.Infof("RC ReadyReplicas: %v, Replicas: %v", rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
+		glog.Infof("[remaining %s] RC ReadyReplicas: %v, Replicas: %v", remainingTime(endTime), rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
 
 		// This makes sure at most one replica is not ready
 		if rcObj.Status.Replicas-rcObj.Status.ReadyReplicas > 1 {
@@ -471,11 +477,11 @@ func verifyNodeDraining(client runtimeclient.Client, targetMachine *mapiv1beta1.
 		// Depends on timing though a machine can be deleted even before there is only
 		// one pod left on the node (that is being evicted).
 		if podCounter > 2 {
-			glog.Infof("Expecting at most 2 pods to be scheduled to drained node %q, got %v", machine.Status.NodeRef.Name, podCounter)
+			glog.Infof("[remaining %s] Expecting at most 2 pods to be scheduled to drained node %q, got %v", remainingTime(endTime), machine.Status.NodeRef.Name, podCounter)
 			return false, nil
 		}
 
-		glog.Info("Expected result: all pods from the RC up to last one or two got scheduled to a different node while respecting PDB")
+		glog.Infof("[remaining %s] Expected result: all pods from the RC up to last one or two got scheduled to a different node while respecting PDB", remainingTime(endTime))
 		return true, nil
 	})
 
@@ -483,6 +489,7 @@ func verifyNodeDraining(client runtimeclient.Client, targetMachine *mapiv1beta1.
 }
 
 func waitUntilNodeDoesNotExists(client runtimeclient.Client, nodeName string) error {
+	endTime := time.Now().Add(time.Duration(e2e.WaitLong))
 	return wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
 		node := corev1.Node{}
 
@@ -500,7 +507,11 @@ func waitUntilNodeDoesNotExists(client runtimeclient.Client, nodeName string) er
 			return false, nil
 		}
 
-		glog.Infof("Node %q successfully deleted", nodeName)
+		glog.Infof("[%s remaining] Node %q successfully deleted", remainingTime(endTime), nodeName)
 		return true, nil
 	})
+}
+
+func remainingTime(t time.Time) time.Duration {
+	return t.Sub(time.Now()).Round(time.Second)
 }
