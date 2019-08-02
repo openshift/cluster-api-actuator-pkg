@@ -126,6 +126,13 @@ func invalidMachinesetWithEmptyProviderConfig() *mapiv1beta1.MachineSet {
 var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 	defer g.GinkgoRecover()
 
+	deleteObject := func(client runtimeclient.Client, obj runtime.Object) error {
+		return client.Delete(context.TODO(), obj, func(opt *runtimeclient.DeleteOptions) {
+			cascadeDelete := metav1.DeletePropagationForeground
+			opt.PropagationPolicy = &cascadeDelete
+		})
+	}
+
 	g.It("have machines linked with nodes", func() {
 		var err error
 		client, err := e2e.LoadClient()
@@ -262,18 +269,11 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 		scaleOut := 2
 
-		deleteObject := func(obj runtime.Object) error {
-			return client.Delete(context.TODO(), obj, func(opt *runtimeclient.DeleteOptions) {
-				cascadeDelete := metav1.DeletePropagationForeground
-				opt.PropagationPolicy = &cascadeDelete
-			})
-		}
-
 		// Anything we create we must cleanup
 		var cleanupObjects []runtime.Object
 		defer func() {
 			for _, obj := range cleanupObjects {
-				if err := deleteObject(obj); err != nil {
+				if err := deleteObject(client, obj); err != nil {
 					glog.Errorf("[cleanup] error deleting object: %v", err)
 				}
 			}
@@ -355,13 +355,11 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 
 		defer func() {
 			// Remove resources
-			for key := range delObjects {
-				glog.Infof("Deleting object %q", key)
-				if err := client.Delete(context.TODO(), delObjects[key]); err != nil {
-					glog.Errorf("Unable to delete object %q: %v", key, err)
+			for _, obj := range delObjects {
+				if err := deleteObject(client, obj); err != nil {
+					glog.Errorf("[cleanup] error deleting object: %v", err)
 				}
 			}
-
 			// TODO(jchaloup): we need to make sure this gets called no matter what
 			// and waits until all labeled nodes are gone. Though, it it does not
 			// happend in the timeout set, it will not happen ever.
