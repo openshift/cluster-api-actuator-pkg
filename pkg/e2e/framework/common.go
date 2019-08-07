@@ -19,7 +19,7 @@ const (
 	WorkerNodeRoleLabel = "node-role.kubernetes.io/worker"
 	WaitShort           = 1 * time.Minute
 	WaitMedium          = 3 * time.Minute
-	WaitLong            = 10 * time.Minute
+	WaitLong            = 15 * time.Minute
 	RetryMedium         = 5 * time.Second
 	// DefaultMachineSetReplicas is the default number of replicas of a machineset
 	// if MachineSet.Spec.Replicas field is set to nil
