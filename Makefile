@@ -61,11 +61,11 @@ test-e2e: ## Run openshift specific e2e test
 	# failures and flakes.
 	# Feature:Operator tests remove deployments. Thus loosing all the logs
 	# previously acquired.
-	hack/ci-integration.sh -ginkgo.v -ginkgo.noColor=true -ginkgo.focus "Feature:Operators" -ginkgo.failFast
-	hack/ci-integration.sh -ginkgo.v -ginkgo.noColor=true -ginkgo.skip "Feature:Operators|TechPreview" -ginkgo.failFast
+	hack/ci-integration.sh $(GINKGO_ARGS) -ginkgo.v -ginkgo.noColor=true -ginkgo.focus "Feature:Operators" -ginkgo.failFast
+	hack/ci-integration.sh $(GINKGO_ARGS) -ginkgo.v -ginkgo.noColor=true -ginkgo.skip "Feature:Operators|TechPreview" -ginkgo.failFast -ginkgo.seed=1
 
 test-e2e-tech-preview:
-	hack/ci-integration.sh -ginkgo.v -ginkgo.noColor=true -ginkgo.focus "TechPreview" -ginkgo.failFast
+	hack/ci-integration.sh $(GINKGO_ARGS) -ginkgo.v -ginkgo.noColor=true -ginkgo.focus "TechPreview" -ginkgo.failFast
 
 .PHONY: k8s-e2e
 k8s-e2e: ## Run k8s specific e2e test
@@ -73,8 +73,8 @@ k8s-e2e: ## Run k8s specific e2e test
 	# failures and flakes.
 	# Feature:Operator tests remove deployments. Thus loosing all the logs
 	# previously acquired.
-	NAMESPACE=kube-system hack/ci-integration.sh -ginkgo.v -ginkgo.noColor=true -ginkgo.focus "Feature:Operators" -ginkgo.failFast
-	NAMESPACE=kube-system hack/ci-integration.sh -ginkgo.v -ginkgo.noColor=true -ginkgo.skip "Feature:Operators|TechPreview" -ginkgo.failFast
+	NAMESPACE=kube-system hack/ci-integration.sh $(GINKGO_ARGS) -ginkgo.v -ginkgo.noColor=true -ginkgo.focus "Feature:Operators" -ginkgo.failFast
+	NAMESPACE=kube-system hack/ci-integration.sh $(GINKGO_ARGS) -ginkgo.v -ginkgo.noColor=true -ginkgo.skip "Feature:Operators|TechPreview" -ginkgo.failFast -ginkgo.seed=1
 
 .PHONY: help
 help:

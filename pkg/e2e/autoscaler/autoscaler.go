@@ -226,7 +226,7 @@ func dumpClusterAutoscalerLogs(client runtimeclient.Client, restClient *rest.RES
 	}
 }
 
-var _ = g.Describe("[Feature:Machines][Serial] Autoscaler should", func() {
+var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 	g.It("scale up and down", func() {
 		defer g.GinkgoRecover()
 
