@@ -2,6 +2,7 @@ package infra
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -381,7 +382,7 @@ func waitUntilNodesAreDeleted(client runtimeclient.Client, listOptFncs []runtime
 
 func waitUntilAllRCPodsAreReady(client runtimeclient.Client, rc *corev1.ReplicationController) error {
 	endTime := time.Now().Add(time.Duration(e2e.WaitLong))
-	return wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
+	err := wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
 		rcObj := corev1.ReplicationController{}
 		key := types.NamespacedName{
 			Namespace: rc.Namespace,
@@ -398,6 +399,25 @@ func waitUntilAllRCPodsAreReady(client runtimeclient.Client, rc *corev1.Replicat
 		glog.Infof("[%s remaining] Waiting for RC ready replicas, ReadyReplicas: %v, Replicas: %v", remainingTime(endTime), rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
 		return rcObj.Status.Replicas == rcObj.Status.ReadyReplicas, nil
 	})
+
+	// Sometimes this will timeout because Status.Replicas !=
+	// Status.ReadyReplicas. Print the state of all the pods for
+	// debugging purposes so we can distinguish between the cases
+	// when it works and those rare cases when it doesn't.
+	pods := corev1.PodList{}
+	if err := client.List(context.TODO(), &pods, runtimeclient.MatchingLabels(rc.Spec.Selector)); err != nil {
+		glog.Errorf("Error listing pods: %v", err)
+	} else {
+		prettyPrint := func(i interface{}) string {
+			s, _ := json.MarshalIndent(i, "", "  ")
+			return string(s)
+		}
+		for i := range pods.Items {
+			glog.Infof("POD #%v/%v: %s", i, len(pods.Items), prettyPrint(pods.Items[i]))
+		}
+	}
+
+	return err
 }
 
 func verifyNodeDraining(client runtimeclient.Client, targetMachine *mapiv1beta1.Machine, rc *corev1.ReplicationController) (string, error) {
