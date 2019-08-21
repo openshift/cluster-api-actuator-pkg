@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -287,9 +288,10 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 		// machinesets.
 		var machineSets [3]*mapiv1beta1.MachineSet
 
+		randomUUID := string(uuid.NewUUID())
 		for i := 0; i < len(machineSets); i++ {
 			targetMachineSet := existingMachineSets[i%len(existingMachineSets)]
-			machineSetName := fmt.Sprintf("autoscaler-e2e-%d-%s", i, targetMachineSet.Name)
+			machineSetName := fmt.Sprintf("e2e-%s-w-%d", randomUUID[:5], i)
 			machineSets[i] = e2e.NewMachineSet(targetMachineSet.Labels[e2e.ClusterKey],
 				targetMachineSet.Namespace,
 				machineSetName,
