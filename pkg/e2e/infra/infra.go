@@ -290,9 +290,10 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 
 		// Create transient machinesets with replicas==0
 		machineSets := make([]*mapiv1beta1.MachineSet, scaleOut)
+		randomUUID := string(uuid.NewUUID())
 		for i := 0; i < scaleOut; i++ {
 			targetMachineSet := existingMachineSets[i%len(existingMachineSets)]
-			machineSetName := fmt.Sprintf("infra-e2e-%d-%s", i, targetMachineSet.Name)
+			machineSetName := fmt.Sprintf("e2e-%s-w-%d", randomUUID[:5], i)
 			glog.Infof("Creating transient MachineSet %q", machineSetName)
 			machineSets[i] = e2e.NewMachineSet(
 				targetMachineSet.Labels[e2e.ClusterKey],
