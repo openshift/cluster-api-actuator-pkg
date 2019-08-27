@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/pointer"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -437,7 +438,11 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 		g.By("Scaling transient machinesets to zero")
 		for i := 0; i < len(machineSets); i++ {
 			glog.Infof("Scaling transient machineset %q to zero", machineSets[i].Name)
-			freshMachineSet, err := e2e.GetMachineSet(context.TODO(), client, machineSets[i].Name)
+			var freshMachineSet *mapiv1beta1.MachineSet
+			err := retry.RetryOnConflict(retry.DefaultRetry, func() (err error) {
+				freshMachineSet, err = e2e.GetMachineSet(context.TODO(), client, machineSets[i].Name)
+				return
+			})
 			o.Expect(err).NotTo(o.HaveOccurred())
 			freshMachineSet.Spec.Replicas = pointer.Int32Ptr(0)
 			err = client.Update(context.TODO(), freshMachineSet)
