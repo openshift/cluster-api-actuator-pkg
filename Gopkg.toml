@@ -43,7 +43,7 @@ required = [
 
 [[constraint]]
   name = "github.com/openshift/api"
-  branch = "master"
+  branch = "release-4.1"
 
 [[constraint]]
   name = "github.com/openshift/cluster-api"
@@ -51,7 +51,7 @@ required = [
 
 [[constraint]]
   name = "github.com/openshift/cluster-autoscaler-operator"
-  branch = "master"
+  branch = "release-4.1"
 
 [[constraint]]
   name = "github.com/openshift/machine-api-operator"
