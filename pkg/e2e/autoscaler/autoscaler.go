@@ -36,12 +36,13 @@ const (
 	clusterAutoscalerMaxNodesTotalReached = "MaxNodesTotalReached"
 	pollingInterval                       = 3 * time.Second
 	autoscalerWorkerNodeRoleLabel         = "machine.openshift.io/autoscaler-e2e-worker"
+	workloadJobName                       = "e2e-autoscaler-workload"
 )
 
 func newWorkLoad(njobs int32, memoryRequest resource.Quantity) *batchv1.Job {
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "workload",
+			Name:      workloadJobName,
 			Namespace: "default",
 			Labels:    map[string]string{autoscalingTestLabel: ""},
 		},
@@ -54,7 +55,7 @@ func newWorkLoad(njobs int32, memoryRequest resource.Quantity) *batchv1.Job {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:  "workload",
+							Name:  workloadJobName,
 							Image: "busybox",
 							Command: []string{
 								"sleep",
@@ -244,7 +245,12 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 		restClient, err = e2e.LoadRestClient()
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		deleteObject := func(obj runtime.Object) error {
+		deleteObject := func(name string, obj runtime.Object) error {
+			glog.Infof("[cleanup] %q (%T)", name, obj)
+			switch obj.(type) {
+			case *caov1.ClusterAutoscaler:
+				dumpClusterAutoscalerLogs(client, restClient)
+			}
 			return client.Delete(context.TODO(), obj, func(opt *runtimeclient.DeleteOptions) {
 				cascadeDelete := metav1.DeletePropagationForeground
 				opt.PropagationPolicy = &cascadeDelete
@@ -252,15 +258,12 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 		}
 
 		// Anything we create we must cleanup
-		var cleanupObjects []runtime.Object
+		cleanupObjects := map[string]runtime.Object{}
+
 		defer func() {
-			for _, obj := range cleanupObjects {
-				switch obj.(type) {
-				case *caov1.ClusterAutoscaler:
-					dumpClusterAutoscalerLogs(client, restClient)
-				}
-				if err := deleteObject(obj); err != nil {
-					glog.Errorf("[cleanup] error deleting object: %v", err)
+			for name, obj := range cleanupObjects {
+				if err := deleteObject(name, obj); err != nil {
+					glog.Infof("[cleanup] error deleting object %q (%T): %v", name, obj, err)
 				}
 			}
 		}()
@@ -304,7 +307,7 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 				autoscalerWorkerNodeRoleLabel: "",
 			}
 			o.Expect(client.Create(context.TODO(), machineSets[i])).Should(o.Succeed())
-			cleanupObjects = append(cleanupObjects, runtime.Object(machineSets[i]))
+			cleanupObjects[machineSets[i].Name] = runtime.Object(machineSets[i])
 		}
 
 		g.By(fmt.Sprintf("Creating %v transient machinesets", len(machineSets)))
@@ -337,7 +340,7 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 			glog.Infof("Create MachineAutoscaler backed by MachineSet %s/%s - min:%v, max:%v", machineSets[i].Namespace, machineSets[i].Name, 1, 2)
 			asr := machineAutoscalerResource(machineSets[i], 1, 2)
 			o.Expect(client.Create(context.TODO(), asr)).Should(o.Succeed())
-			cleanupObjects = append(cleanupObjects, runtime.Object(asr))
+			cleanupObjects[asr.Name] = runtime.Object(asr)
 		}
 		o.Expect(clusterExpansionSize).To(o.BeNumerically(">", 1))
 
@@ -362,7 +365,7 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 		g.By(fmt.Sprintf("Creating ClusterAutoscaler configured with maxNodesTotal:%v", maxNodesTotal))
 		clusterAutoscaler := clusterAutoscalerResource(maxNodesTotal)
 		o.Expect(client.Create(context.TODO(), clusterAutoscaler)).Should(o.Succeed())
-		cleanupObjects = append(cleanupObjects, runtime.Object(clusterAutoscaler))
+		cleanupObjects[clusterAutoscaler.Name] = runtime.Object(clusterAutoscaler)
 
 		g.By(fmt.Sprintf("Deriving Memory capacity from machine %q", existingMachineSets[0].Name))
 		workerNodes, err := e2e.GetWorkerNodes(client)
@@ -389,7 +392,7 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 		// +1 to continuously generate the MaxNodesTotalReached
 		workload := newWorkLoad(int32(maxNodesTotal+1), workloadMemRequest)
 		o.Expect(client.Create(context.TODO(), workload)).Should(o.Succeed())
-		cleanupObjects = append(cleanupObjects, runtime.Object(workload))
+		cleanupObjects[workload.Name] = runtime.Object(workload)
 		testDuration = time.Now().Add(time.Duration(e2e.WaitLong))
 		o.Eventually(func() bool {
 			v := scaleUpCounter.get()
@@ -423,10 +426,8 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 
 		g.By("Deleting workload")
 		scaleDownCounter := newScaleDownCounter(eventWatcher, uint32(clusterExpansionSize-1))
-		o.Expect(e2e.DeleteObjectsByLabels(context.TODO(), client, map[string]string{autoscalingTestLabel: ""}, &batchv1.JobList{})).Should(o.Succeed())
-		if len(cleanupObjects) > 1 && cleanupObjects[len(cleanupObjects)-1] == workload {
-			cleanupObjects = cleanupObjects[:len(cleanupObjects)-1]
-		}
+		o.Expect(deleteObject(workload.Name, cleanupObjects[workload.Name])).Should(o.Succeed())
+		delete(cleanupObjects, workload.Name)
 		testDuration = time.Now().Add(time.Duration(e2e.WaitLong))
 		o.Eventually(func() bool {
 			v := scaleDownCounter.get()
@@ -434,6 +435,39 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 				remaining(testDuration), clusterExpansionSize-1, clusterAutoscalerScaleDownEmpty, v)
 			return v == uint32(clusterExpansionSize-1)
 		}, e2e.WaitLong, pollingInterval).Should(o.BeTrue())
+
+		o.Eventually(func() bool {
+			podList := corev1.PodList{}
+			err = client.List(context.TODO(), &podList, runtimeclient.InNamespace(workload.Namespace))
+			o.Expect(err).NotTo(o.HaveOccurred())
+			for i := range podList.Items {
+				if strings.Contains(podList.Items[i].Name, workloadJobName) {
+					glog.Infof("still have workload POD: %q", podList.Items[i].Name)
+					return false
+				}
+			}
+			return true
+		}, e2e.WaitMedium, pollingInterval).Should(o.BeZero())
+
+		o.Expect(deleteObject(clusterAutoscaler.Name, cleanupObjects[clusterAutoscaler.Name])).Should(o.Succeed())
+		delete(cleanupObjects, clusterAutoscaler.Name)
+		o.Eventually(func() bool {
+			podList := corev1.PodList{}
+			err = client.List(context.TODO(), &podList, runtimeclient.InNamespace(""))
+			o.Expect(err).NotTo(o.HaveOccurred())
+			for i := range podList.Items {
+				// This needs to disappear before we
+				// start scaling the machinesets to
+				// zero because we don't want it
+				// scaling anything up as we are
+				// trying to scale down.
+				if strings.Contains(podList.Items[i].Name, "cluster-autoscaler-default") {
+					glog.Infof("Waiting for cluster-autoscaler POD %q to disappear", podList.Items[i].Name)
+					return true
+				}
+			}
+			return false
+		}, e2e.WaitMedium, pollingInterval).Should(o.BeTrue())
 
 		g.By("Scaling transient machinesets to zero")
 		for i := 0; i < len(machineSets); i++ {
