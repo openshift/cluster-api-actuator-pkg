@@ -412,7 +412,8 @@
   revision = "cd621d02d319d52b9ac1297674b9bd743ebe2687"
 
 [[projects]]
-  digest = "1:d499d0c870bf83afc8e077db22359f5064521d7ea197ce986b23e30ec9359535"
+  branch = "release-4.1"
+  digest = "1:b953c4362004d527700b7ef761e91fd5df5f3cbd6ead548b2964bacbdce3a0db"
   name = "github.com/openshift/machine-api-operator"
   packages = [
     "pkg/apis/healthchecking",
@@ -423,7 +424,7 @@
     "pkg/util/conditions",
   ]
   pruneopts = ""
-  revision = "9650e16c98802a4b57b7551201b0973fcae2f738"
+  revision = "545465beeeb6d99fd890c6b3bc5dba5789a38b4c"
 
 [[projects]]
   digest = "1:a5484d4fa43127138ae6e7b2299a6a52ae006c7f803d98d717f60abf3e97192e"

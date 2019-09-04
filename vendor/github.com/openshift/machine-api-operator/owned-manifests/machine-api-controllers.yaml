@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: clusterapi-manager-controllers
+  name: machine-api-controllers
   namespace: {{ .TargetNamespace }}
   labels:
     api: clusterapi
@@ -22,6 +22,7 @@ spec:
         k8s-app: controller
     spec:
       priorityClassName: system-node-critical
+      serviceAccountName: machine-api-operator
       nodeSelector:
         node-role.kubernetes.io/master: ""
       tolerations:
@@ -30,16 +31,18 @@ spec:
       - key: CriticalAddonsOnly
         operator: Exists
       - effect: NoExecute
-        key: node.alpha.kubernetes.io/notReady
+        key: node.kubernetes.io/not-ready
         operator: Exists
+        tolerationSeconds: 120
       - effect: NoExecute
-        key: node.alpha.kubernetes.io/unreachable
+        key: node.kubernetes.io/unreachable
         operator: Exists
+        tolerationSeconds: 120
       containers:
       - name: controller-manager
         image: {{ .Controllers.Provider }}
         command:
-          - "./manager"
+          - /manager
         args:
           - --logtostderr=true
           - --v=3
@@ -70,7 +73,8 @@ spec:
           requests:
             cpu: 10m
             memory: 20Mi
-      - name: machine-healthcheck
+      {{if .Controllers.MachineHealthCheckEnabled }}
+      - name: machine-healthcheck-controller
         image: {{ .Controllers.MachineHealthCheck }}
         command:
           - /machine-healthcheck
@@ -81,3 +85,4 @@ spec:
           requests:
             cpu: 10m
             memory: 20Mi
+      {{end}}

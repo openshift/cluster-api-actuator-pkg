@@ -62,6 +62,7 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 				}
 
 				ctrlCtx.KubeNamespacedInformerFactory.Start(ctrlCtx.Stop)
+				ctrlCtx.ConfigInformerFactory.Start(ctrlCtx.Stop)
 				close(ctrlCtx.InformersStarted)
 
 				select {}
@@ -81,6 +82,7 @@ func startControllers(ctx *ControllerContext) error {
 
 		config,
 		ctx.KubeNamespacedInformerFactory.Apps().V1().Deployments(),
+		ctx.ConfigInformerFactory.Config().V1().FeatureGates(),
 
 		ctx.ClientBuilder.KubeClientOrDie(componentName),
 		ctx.ClientBuilder.OpenshiftClientOrDie(componentName),

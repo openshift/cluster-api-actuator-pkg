@@ -17,24 +17,28 @@ This allows to convey desired state of machines in a cluster in a declarative fa
 ## Controllers
 
 ### Cluster API controllers
-- [MachineSet Controller](https://github.com/kubernetes-sigs/cluster-api/tree/master/pkg/controller)
-  - Reconciles desired state for [MachineSets](https://github.com/kubernetes-sigs/cluster-api/blob/master/pkg/apis/cluster/v1alpha1/machineset_types.go) by ensuring presence of specified number of replicas and config for a set of machines.
+- [MachineSet Controller](https://github.com/openshift/cluster-api/tree/master/pkg/controller/machineset)
+  - Reconciles desired state for [MachineSets](https://github.com/openshift/cluster-api/blob/master/pkg/apis/machine/v1beta1/machineset_types.go) by ensuring presence of specified number of replicas and config for a set of machines.
 
-- [Machine Controller](https://github.com/kubernetes-sigs/cluster-api/tree/master/pkg/controller)
-  - Reconciles desired state for [Machines](https://github.com/kubernetes-sigs/cluster-api/blob/master/pkg/apis/cluster/v1alpha1/machine_types.go) by ensuring that instances with a desired config exist in a given cloud provider. Currently we support:
+- [Machine Controller](https://github.com/openshift/cluster-api/tree/master/pkg/controller/machine)
+  - Reconciles desired state for [Machines](https://github.com/openshift/cluster-api/blob/master/pkg/apis/machine/v1beta1/machine_types.go) by ensuring that instances with a desired config exist in a given cloud provider. Currently we support:
 
   - [cluster-api-provider-aws](https://github.com/openshift/cluster-api-provider-aws)
 
   - [cluster-api-provider-libvirt](https://github.com/openshift/cluster-api-provider-libvirt)
 
-  - [cluster-api-provider-openstack](https://github.com/kubernetes-sigs/cluster-api-provider-openstack). Coming soon.
+  - [cluster-api-provider-azure](https://github.com/openshift/cluster-api-provider-azure) Coming soon.
 
-- [Node Controller](https://github.com/kubernetes-sigs/cluster-api/tree/master/pkg/controller)
+  - [cluster-api-provider-openstack](https://github.com/kubernetes-sigs/cluster-api-provider-openstack) Coming soon.
+
+  - [cluster-api-provider-baremetal](https://github.com/metal3-io/cluster-api-provider-baremetal). Under development in [Metal3](http://metal3.io).
+
+- [Node Controller](https://github.com/openshift/cluster-api/tree/master/pkg/controller/node)
   - Reconciles desired state of machines by matching IP addresses of machine objects with IP addresses of node objects. Annotating node with a special label containing machine name that the cluster-api node controller interprets and sets corresponding nodeRef field of each relevant machine.
 
 ### Nodelink controller
 
-- Reconciles desired state of machines by matching IP addresses of machine objects with IP addresses of node objects and annotates nodes with a special [machine annotation](https://github.com/kubernetes-sigs/cluster-api/blob/master/pkg/controller/node/node.go#L35) containing the machine name. The cluster-api node controller interprets the annotation and sets the corresponding nodeRef field of each relevant machine.
+- Reconciles desired state of machines by matching IP addresses of machine objects with IP addresses of node objects and annotates nodes with a special [machine annotation](https://github.com/openshift/cluster-api/blob/master/pkg/controller/node/node.go#L34) containing the machine name. The cluster-api node controller interprets the annotation and sets the corresponding nodeRef field of each relevant machine.
 
 - Build:
 
@@ -91,11 +95,11 @@ $ make nodelink-controller
      data:
        conditions: |
          items:
-         - name: NetworkUnavailable 
+         - name: NetworkUnavailable
            timeout: 5m
            status: True
      ```
-  
+
   1. Pick a node that is managed by one of the machineset's machines
   1. SSH into the node, disable and stop the kubelet services:
      ```
@@ -110,7 +114,26 @@ $ make nodelink-controller
      new instance is created. Followed by new node joining the cluster
      and turning in `Ready` state.
 
+## Creating machines
+
+You can create a new machine by [applying a manifest representing an instance of the machine CRD](docs/examples/machine.yaml)
+
+The `machine.openshift.io/cluster-api-cluster` label will be used by the controllers to lookup for the right cloud instance.
+
+You can set other labels to provide a convenient way for users and consumers to retrieve groups of machines:
+```
+machine.openshift.io/cluster-api-machine-role: worker
+machine.openshift.io/cluster-api-machine-type: worker
+```
+
+
 ## Dev
+
+- Generate code (if needed):
+
+  ```sh
+  $ make generate
+  ```
 
 - Build:
 
@@ -136,14 +159,12 @@ You can see it in action by running an [OpenShift Cluster deployed by the Instal
 However you can run it in a vanilla Kubernetes cluster by precreating some assets:
 
 - Create a `openshift-machine-api-operator` namespace
-- Create a [CRD Status definition](test/integration/manifests/status-crd.yaml)
+- Create a [CRD Status definition](config/0000_00_cluster-version-operator_01_clusteroperator.crd.yaml)
 - Create a [CRD Machine definition](install/0000_30_machine-api-operator_02_machine.crd.yaml)
 - Create a [CRD MachineSet definition](install/0000_30_machine-api-operator_03_machineset.crd.yaml)
-- Create a [CRD MachineDeployment definition](install/0000_30_machine-api-operator_04_machinedeployment.crd.yaml)
-- Create a [CRD Cluster definition](install/0000_30_machine-api-operator_05_cluster.crd.yaml)
-- Create a [Installer config](test/integration/manifests/install-config.yaml)
+- Create a [Installer config](config/kubemark-config-infra.yaml)
 - Then you can run it as a [deployment](install/0000_30_machine-api-operator_09_deployment.yaml)
-- You should then be able to deploy a [cluster](test/integration/manifests/cluster.yaml) and a [machineSet](test/integration/manifests/machineset.yaml) object
+- You should then be able to deploy a [machineSet](config/machineset.yaml) object
 
 ## Machine API operator with Kubemark over Kubernetes
 
@@ -159,22 +180,36 @@ INFO: For development and testing purposes only
    $ kustomize build config | kubectl apply -f -
    ```
 
-3. Create `cluster-config-v1` configmap to tell the MAO to deploy `kubemark` provider:
+3. Create `cluster` `infrastructure.config.openshift.io` to tell the MAO to deploy `kubemark` provider:
    ```yaml
-   apiVersion: v1
-   kind: ConfigMap
+   apiVersion: apiextensions.k8s.io/v1beta1
+   kind: CustomResourceDefinition
    metadata:
-     name: cluster-config-v1
-     namespace: kube-system
-   data:
-     install-config: |-
-       platform:
-         kubemark: {}
+     name: infrastructures.config.openshift.io
+   spec:
+     group: config.openshift.io
+     names:
+       kind: Infrastructure
+       listKind: InfrastructureList
+       plural: infrastructures
+       singular: infrastructure
+     scope: Cluster
+     versions:
+     - name: v1
+       served: true
+   storage: true
+   ---
+   apiVersion: config.openshift.io/v1
+   kind: Infrastructure
+   metadata:
+     name: cluster
+   status:
+     platform: kubemark
    ```
 
-   The file is already present under `config/kubemark-install-config.yaml` so it's sufficient to run:
+   The file is already present under `config/kubemark-config-infra.yaml` so it's sufficient to run:
    ```sh
-   $ kubectl apply -f config/kubemark-install-config.yaml
+   $ kubectl apply -f config/kubemark-config-infra.yaml
    ```
 
 ## CI & tests
