@@ -232,9 +232,13 @@ func remediate(r *ReconcileMachineHealthCheck, machine *mapiv1.Machine) (reconci
 			durationUnhealthy.String(),
 		)
 
+		// calculate the duration until the node will be unhealthy for too long
+		// and re-queue after with this timeout, add one second just to be sure
+		// that we will not enter this loop again before the node unhealthy for too long
+		unhealthyTooLongTimeout := conditionTimeout - durationUnhealthy + time.Second
 		// be sure that we will use timeout with the minimal value for the reconcile.Result
-		if minimalConditionTimeout == 0 || minimalConditionTimeout > conditionTimeout {
-			minimalConditionTimeout = conditionTimeout
+		if minimalConditionTimeout == 0 || minimalConditionTimeout > unhealthyTooLongTimeout {
+			minimalConditionTimeout = unhealthyTooLongTimeout
 		}
 		result = &reconcile.Result{Requeue: true, RequeueAfter: minimalConditionTimeout}
 	}
@@ -331,21 +335,8 @@ func hasMatchingLabels(machineHealthCheck *healthcheckingv1alpha1.MachineHealthC
 }
 
 func isMaster(machine mapiv1.Machine, client client.Client) bool {
-	machineMasterLabels := []string{
-		"machine.openshift.io/cluster-api-machine-role",
-		"machine.openshift.io/cluster-api-machine-type",
-		"sigs.k8s.io/cluster-api-machine-role",
-		"sigs.k8s.io/cluster-api-machine-type",
-	}
-	nodeMasterLabels := []string{
+	masterLabels := []string{
 		"node-role.kubernetes.io/master",
-	}
-
-	machineLabels := labels.Set(machine.Labels)
-	for _, masterLabel := range machineMasterLabels {
-		if machineLabels.Get(masterLabel) == "master" {
-			return true
-		}
 	}
 
 	node, err := getNodeFromMachine(machine, client)
@@ -354,7 +345,7 @@ func isMaster(machine mapiv1.Machine, client client.Client) bool {
 		return false
 	}
 	nodeLabels := labels.Set(node.Labels)
-	for _, masterLabel := range nodeMasterLabels {
+	for _, masterLabel := range masterLabels {
 		if nodeLabels.Has(masterLabel) {
 			return true
 		}

@@ -6,10 +6,14 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	osclientset "github.com/openshift/client-go/config/clientset/versioned"
-
 	osconfigv1 "github.com/openshift/api/config/v1"
+	osclientset "github.com/openshift/client-go/config/clientset/versioned"
+	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
+	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
+
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsinformersv1 "k8s.io/client-go/informers/apps/v1"
@@ -19,8 +23,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
-
-	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset/scheme"
 )
 
 const (
@@ -37,8 +39,9 @@ const (
 type Operator struct {
 	namespace, name string
 
-	imagesFile string
-	config     string
+	imagesFile        string
+	config            string
+	ownedManifestsDir string
 
 	kubeClient    kubernetes.Interface
 	osClient      osclientset.Interface
@@ -48,6 +51,9 @@ type Operator struct {
 
 	deployLister       appslisterv1.DeploymentLister
 	deployListerSynced cache.InformerSynced
+
+	featureGateLister      configlistersv1.FeatureGateLister
+	featureGateCacheSynced cache.InformerSynced
 
 	// queue only ever has one item, but it has nice error handling backoff/retry semantics
 	queue           workqueue.RateLimitingInterface
@@ -62,6 +68,7 @@ func New(
 	config string,
 
 	deployInformer appsinformersv1.DeploymentInformer,
+	featureGateInformer configinformersv1.FeatureGateInformer,
 
 	kubeClient kubernetes.Interface,
 	osClient osclientset.Interface,
@@ -76,24 +83,32 @@ func New(
 		operandVersions = append(operandVersions, osconfigv1.OperandVersion{Name: "operator", Version: releaseVersion})
 	}
 
+	eventRecorderScheme := runtime.NewScheme()
+	osconfigv1.Install(eventRecorderScheme)
+
 	optr := &Operator{
-		namespace:       namespace,
-		name:            name,
-		imagesFile:      imagesFile,
-		kubeClient:      kubeClient,
-		osClient:        osClient,
-		eventRecorder:   eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "machineapioperator"}),
-		queue:           workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
-		operandVersions: operandVersions,
+		namespace:         namespace,
+		name:              name,
+		imagesFile:        imagesFile,
+		ownedManifestsDir: ownedManifestsDir,
+		kubeClient:        kubeClient,
+		osClient:          osClient,
+		eventRecorder:     eventBroadcaster.NewRecorder(eventRecorderScheme, v1.EventSource{Component: "machineapioperator"}),
+		queue:             workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
+		operandVersions:   operandVersions,
 	}
 
 	deployInformer.Informer().AddEventHandler(optr.eventHandler())
+	featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
 
 	optr.config = config
 	optr.syncHandler = optr.sync
 
 	optr.deployLister = deployInformer.Lister()
 	optr.deployListerSynced = deployInformer.Informer().HasSynced
+
+	optr.featureGateLister = featureGateInformer.Lister()
+	optr.featureGateCacheSynced = featureGateInformer.Informer().HasSynced
 
 	return optr
 }
@@ -107,7 +122,8 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 	defer glog.Info("Shutting down Machine API Operator")
 
 	if !cache.WaitForCacheSync(stopCh,
-		optr.deployListerSynced) {
+		optr.deployListerSynced,
+		optr.featureGateCacheSynced) {
 		glog.Error("Failed to sync caches")
 		return
 	}
@@ -171,22 +187,21 @@ func (optr *Operator) sync(key string) error {
 		glog.V(4).Infof("Finished syncing operator %q (%v)", key, time.Since(startTime))
 	}()
 
-	operatorConfig, err := optr.maoConfigFromInstallConfig()
+	operatorConfig, err := optr.maoConfigFromInfrastructure()
 	if err != nil {
 		glog.Errorf("Failed getting operator config: %v", err)
 		return err
 	}
-
 	return optr.syncAll(*operatorConfig)
 }
 
-func (optr *Operator) maoConfigFromInstallConfig() (*OperatorConfig, error) {
-	installConfig, err := getInstallConfig(optr.kubeClient)
+func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
+	infra, err := optr.osClient.ConfigV1().Infrastructures().Get("cluster", metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	provider, err := getProviderFromInstallConfig(installConfig)
+	provider, err := getProviderFromInfrastructure(infra)
 	if err != nil {
 		return nil, err
 	}
@@ -207,11 +222,11 @@ func (optr *Operator) maoConfigFromInstallConfig() (*OperatorConfig, error) {
 	}
 
 	return &OperatorConfig{
-		optr.namespace,
-		Controllers{
-			providerControllerImage,
-			machineAPIOperatorImage,
-			machineAPIOperatorImage,
+		TargetNamespace: optr.namespace,
+		Controllers: Controllers{
+			Provider:           providerControllerImage,
+			NodeLink:           machineAPIOperatorImage,
+			MachineHealthCheck: machineAPIOperatorImage,
 		},
 	}, nil
 }

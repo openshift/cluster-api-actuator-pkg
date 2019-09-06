@@ -5,32 +5,17 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/ghodss/yaml"
-
 	"bytes"
-	"reflect"
 	"text/template"
 
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
+	configv1 "github.com/openshift/api/config/v1"
 )
 
 const (
-	// ClusterConfigNamespace is the namespace containing the cluster config
-	ClusterConfigNamespace = "kube-system"
-	// ClusterConfigName is the name of the cluster config configmap
-	ClusterConfigName = "cluster-config-v1"
-	// InstallConfigKey is the key in the cluster config configmap containing yaml installConfig data
-	InstallConfigKey = "install-config"
-	// AWSPlatformType is used to install on AWS
-	AWSProvider = Provider("aws")
-	// LibvirtPlatformType is used to install of libvirt
-	LibvirtProvider = Provider("libvirt")
-	// OpenStackPlatformType is used to install on OpenStack
-	OpenStackProvider = Provider("openstack")
-	// KubemarkPlatformType is used to install on Kubemark
-	KubemarkProvider = Provider("kubemark")
+	// TODO(alberto): move to "quay.io/openshift/origin-kubemark-machine-controllers:v4.0.0" once available
+	clusterAPIControllerKubemark = "docker.io/gofed/kubemark-machine-controllers:v1.0"
+	clusterAPIControllerNoOp     = "no-op"
+	kubemarkPlatform             = configv1.PlatformType("kubemark")
 )
 
 type Provider string
@@ -42,9 +27,10 @@ type OperatorConfig struct {
 }
 
 type Controllers struct {
-	Provider           string
-	NodeLink           string
-	MachineHealthCheck string
+	Provider                  string
+	NodeLink                  string
+	MachineHealthCheck        string
+	MachineHealthCheckEnabled bool
 }
 
 // Images allows build systems to inject images for MAO components
@@ -53,78 +39,15 @@ type Images struct {
 	ClusterAPIControllerAWS       string `json:"clusterAPIControllerAWS"`
 	ClusterAPIControllerOpenStack string `json:"clusterAPIControllerOpenStack"`
 	ClusterAPIControllerLibvirt   string `json:"clusterAPIControllerLibvirt"`
-	ClusterAPIControllerKubemark  string `json:"clusterAPIControllerKubemark"`
+	ClusterAPIControllerBareMetal string `json:"clusterAPIControllerBareMetal"`
+	ClusterAPIControllerAzure     string `json:"clusterAPIControllerAzure"`
 }
 
-// InstallConfig contains the mao relevant config coming from the install config, i.e provider
-type InstallConfig struct {
-	InstallPlatform `json:"platform"`
-}
-
-// InstallPlatform is the configuration for the specific platform upon which to perform
-// the installation. Only one of the platform configuration should be set
-type InstallPlatform struct {
-	// AWS is the configuration used when running on AWS
-	AWS interface{} `json:"aws,omitempty"`
-
-	// Libvirt is the configuration used when running on libvirt
-	Libvirt interface{} `json:"libvirt,omitempty"`
-
-	// OpenStack is the configuration used when running on OpenStack
-	OpenStack interface{} `json:"openstack,omitempty"`
-
-	// Kubemark is the configuration used when running with Kubemark
-	Kubemark interface{} `json:"kubemark,omitempty"`
-}
-
-func getInstallConfig(client kubernetes.Interface) (*InstallConfig, error) {
-	cm, err := client.CoreV1().ConfigMaps(ClusterConfigNamespace).Get(ClusterConfigName, metav1.GetOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed getting clusterconfig %s/%s: %v", ClusterConfigNamespace, ClusterConfigName, err)
+func getProviderFromInfrastructure(infra *configv1.Infrastructure) (configv1.PlatformType, error) {
+	if infra.Status.Platform == "" {
+		return "", fmt.Errorf("no platform provider found on install config")
 	}
-
-	return getInstallConfigFromClusterConfig(cm)
-}
-
-// getInstallConfigFromClusterConfig builds an install config from the cluster config.
-func getInstallConfigFromClusterConfig(clusterConfig *corev1.ConfigMap) (*InstallConfig, error) {
-	icYaml, ok := clusterConfig.Data[InstallConfigKey]
-	if !ok {
-		return nil, fmt.Errorf("missing %q in configmap", InstallConfigKey)
-	}
-	var ic InstallConfig
-	if err := yaml.Unmarshal([]byte(icYaml), &ic); err != nil {
-		return nil, fmt.Errorf("invalid InstallConfig: %v yaml: %s", err, icYaml)
-	}
-	return &ic, nil
-}
-
-func getProviderFromInstallConfig(installConfig *InstallConfig) (Provider, error) {
-	v := reflect.ValueOf(installConfig.InstallPlatform)
-	var nonNilFields int
-
-	for i := 0; i < v.NumField(); i++ {
-		if v.Field(i).Interface() != nil {
-			nonNilFields = nonNilFields + 1
-		}
-		if nonNilFields > 1 {
-			return "", fmt.Errorf("more than one platform provider given")
-		}
-	}
-
-	if installConfig.AWS != nil {
-		return AWSProvider, nil
-	}
-	if installConfig.Libvirt != nil {
-		return LibvirtProvider, nil
-	}
-	if installConfig.OpenStack != nil {
-		return OpenStackProvider, nil
-	}
-	if installConfig.Kubemark != nil {
-		return KubemarkProvider, nil
-	}
-	return "", fmt.Errorf("no platform provider found on install config")
+	return infra.Status.Platform, nil
 }
 
 func getImagesFromJSONFile(filePath string) (*Images, error) {
@@ -140,18 +63,23 @@ func getImagesFromJSONFile(filePath string) (*Images, error) {
 	return &i, nil
 }
 
-func getProviderControllerFromImages(provider Provider, images Images) (string, error) {
-	switch provider {
-	case AWSProvider:
+func getProviderControllerFromImages(platform configv1.PlatformType, images Images) (string, error) {
+	switch platform {
+	case configv1.AWSPlatformType:
 		return images.ClusterAPIControllerAWS, nil
-	case LibvirtProvider:
+	case configv1.LibvirtPlatformType:
 		return images.ClusterAPIControllerLibvirt, nil
-	case OpenStackProvider:
+	case configv1.OpenStackPlatformType:
 		return images.ClusterAPIControllerOpenStack, nil
-	case KubemarkProvider:
-		return images.ClusterAPIControllerKubemark, nil
+	case configv1.AzurePlatformType:
+		return images.ClusterAPIControllerAzure, nil
+	case configv1.BareMetalPlatformType:
+		return images.ClusterAPIControllerBareMetal, nil
+	case kubemarkPlatform:
+		return clusterAPIControllerKubemark, nil
+	default:
+		return clusterAPIControllerNoOp, nil
 	}
-	return "", fmt.Errorf("not known platform provider given %s", provider)
 }
 
 func getMachineAPIOperatorFromImages(images Images) (string, error) {

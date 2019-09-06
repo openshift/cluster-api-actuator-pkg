@@ -6,12 +6,13 @@ import (
 
 	"github.com/golang/glog"
 	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"path/filepath"
 
+	osev1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
 )
@@ -26,17 +27,18 @@ func (optr *Operator) syncAll(config OperatorConfig) error {
 		glog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 		return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 	}
-
-	if err := optr.syncClusterAPIController(config); err != nil {
-		if err := optr.statusFailing(err.Error()); err != nil {
-			// Just log the error here.  We still want to
-			// return the outer error.
-			glog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
+	if config.Controllers.Provider != clusterAPIControllerNoOp {
+		if err := optr.syncClusterAPIController(config); err != nil {
+			if err := optr.statusDegraded(err.Error()); err != nil {
+				// Just log the error here.  We still want to
+				// return the outer error.
+				glog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
+			}
+			glog.Errorf("Error syncing cluster api controller: %v", err)
+			return err
 		}
-		glog.Errorf("Error syncing cluster api controller: %v", err)
-		return err
+		glog.V(3).Info("Synced up all components")
 	}
-	glog.V(3).Info("Synced up all components")
 
 	if err := optr.statusAvailable(); err != nil {
 		glog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
@@ -47,7 +49,32 @@ func (optr *Operator) syncAll(config OperatorConfig) error {
 }
 
 func (optr *Operator) syncClusterAPIController(config OperatorConfig) error {
-	controllerBytes, err := PopulateTemplate(&config, filepath.Join(ownedManifestsDir, "clusterapi-manager-controllers.yaml"))
+	// Fetch the Feature
+	featureGate, err := optr.featureGateLister.Get(MachineAPIFeatureGateName)
+
+	var featureSet osev1.FeatureSet
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			return err
+		}
+		glog.V(2).Infof("Failed to find feature gate %q, will use default feature set", MachineAPIFeatureGateName)
+		featureSet = osev1.Default
+	} else {
+		featureSet = featureGate.Spec.FeatureSet
+	}
+
+	features, err := generateFeatureMap(featureSet)
+	if err != nil {
+		return err
+	}
+
+	// add machine-health-check controller container if it exists and enabled under feature gates
+	if enabled, ok := features[FeatureGateMachineHealthCheck]; ok && enabled {
+		glog.V(2).Infof("Feature %q is enabled", FeatureGateMachineHealthCheck)
+		config.Controllers.MachineHealthCheckEnabled = true
+	}
+
+	controllerBytes, err := PopulateTemplate(&config, filepath.Join(optr.ownedManifestsDir, "machine-api-controllers.yaml"))
 	if err != nil {
 		return err
 	}
@@ -64,10 +91,7 @@ func (optr *Operator) syncClusterAPIController(config OperatorConfig) error {
 
 func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment) error {
 	return wait.Poll(deploymentRolloutPollInterval, deploymentRolloutTimeout, func() (bool, error) {
-		// TODO(vikas): When using deployLister, an issue is happening related to the apiVersion of cluster-api objects.
-		// This will be debugged later on to find out the root cause. For now, working aound is to use kubeClient.AppsV1
-		// d, err := optr.deployLister.Deployments(resource.Namespace).Get(resource.Name)
-		d, err := optr.kubeClient.AppsV1().Deployments(resource.Namespace).Get(resource.Name, metav1.GetOptions{})
+		d, err := optr.deployLister.Deployments(resource.Namespace).Get(resource.Name)
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		}
