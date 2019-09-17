@@ -452,7 +452,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("Validating the machine is deleted")
-		err = wait.PollImmediate(e2e.RetryMedium, e2e.WaitShort, func() (bool, error) {
+		err = wait.PollImmediate(e2e.RetryMedium, e2e.WaitMedium, func() (bool, error) {
 			machine := mapiv1beta1.Machine{}
 
 			key := types.NamespacedName{
