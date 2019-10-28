@@ -34,17 +34,31 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 				// return the outer error.
 				glog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 			}
-			glog.Errorf("Error syncing cluster api controller: %v", err)
+			glog.Errorf("Error syncing machine-api-controller: %v", err)
 			return err
 		}
-		glog.V(3).Info("Synced up all components")
+		glog.V(3).Info("Synced up all machine-api-controller components")
+	}
+
+	// In addition, if the Provider is BareMetal, then bring up
+	// the baremetal-operator pod
+	if config.BaremetalControllers.BaremetalOperator != "" {
+		if err := optr.syncBaremetalControllers(config); err != nil {
+			if err := optr.statusDegraded(err.Error()); err != nil {
+				// Just log the error here.  We still want to
+				// return the outer error.
+				glog.Errorf("Error syncing BaremetalOperatorStatus: %v", err)
+			}
+			glog.Errorf("Error syncing metal3-controller: %v", err)
+			return err
+		}
+		glog.V(3).Info("Synced up all metal3 components")
 	}
 
 	if err := optr.statusAvailable(); err != nil {
 		glog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 		return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 	}
-
 	return nil
 }
 
@@ -79,8 +93,28 @@ func (optr *Operator) syncClusterAPIController(config *OperatorConfig) error {
 	return nil
 }
 
+func (optr *Operator) syncBaremetalControllers(config *OperatorConfig) error {
+	// First create a Secret needed for the Metal3 deployment
+	if err := createMariadbPasswordSecret(optr.kubeClient.CoreV1(), config); err != nil {
+		glog.Error("Not proceeding with Metal3 deployment. Failed to create Mariadb password.")
+		return err
+	}
+
+	metal3Deployment := newMetal3Deployment(config)
+	_, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(), metal3Deployment)
+	if err != nil {
+		return err
+	}
+	if updated {
+		return optr.waitForDeploymentRollout(metal3Deployment)
+	}
+
+	return nil
+}
+
 func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment) error {
-	return wait.Poll(deploymentRolloutPollInterval, deploymentRolloutTimeout, func() (bool, error) {
+	var lastError error
+	err := wait.Poll(deploymentRolloutPollInterval, deploymentRolloutTimeout, func() (bool, error) {
 		d, err := optr.deployLister.Deployments(resource.Namespace).Get(resource.Name)
 		if apierrors.IsNotFound(err) {
 			return false, nil
@@ -88,20 +122,28 @@ func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment) erro
 		if err != nil {
 			// Do not return error here, as we could be updating the API Server itself, in which case we
 			// want to continue waiting.
-			glog.Errorf("Error getting Deployment %q during rollout: %v", resource.Name, err)
+			lastError = fmt.Errorf("getting Deployment %s during rollout: %v", resource.Name, err)
+			glog.Error(lastError)
 			return false, nil
 		}
 
 		if d.DeletionTimestamp != nil {
-			return false, fmt.Errorf("deployment %q is being deleted", resource.Name)
+			lastError = nil
+			return false, fmt.Errorf("deployment %s is being deleted", resource.Name)
 		}
 
 		if d.Generation <= d.Status.ObservedGeneration && d.Status.UpdatedReplicas == d.Status.Replicas && d.Status.UnavailableReplicas == 0 {
+			lastError = nil
 			return true, nil
 		}
-		glog.V(4).Infof("Deployment %q is not ready. status: (replicas: %d, updated: %d, ready: %d, unavailable: %d)", d.Name, d.Status.Replicas, d.Status.UpdatedReplicas, d.Status.ReadyReplicas, d.Status.UnavailableReplicas)
+		lastError = fmt.Errorf("deployment %s is not ready. status: (replicas: %d, updated: %d, ready: %d, unavailable: %d)", d.Name, d.Status.Replicas, d.Status.UpdatedReplicas, d.Status.ReadyReplicas, d.Status.UnavailableReplicas)
+		glog.V(4).Info(lastError)
 		return false, nil
 	})
+	if lastError != nil {
+		return lastError
+	}
+	return err
 }
 
 func newDeployment(config *OperatorConfig, features map[string]bool) *appsv1.Deployment {
@@ -112,6 +154,9 @@ func newDeployment(config *OperatorConfig, features map[string]bool) *appsv1.Dep
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "machine-api-controllers",
 			Namespace: config.TargetNamespace,
+			Annotations: map[string]string{
+				maoOwnedAnnotation: "",
+			},
 			Labels: map[string]string{
 				"api":     "clusterapi",
 				"k8s-app": "controller",
@@ -220,16 +265,13 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 			Args:      args,
 			Resources: resources,
 		},
-	}
-	// add machine-health-check controller container if it exists and enabled under feature gates
-	if enabled, ok := features[FeatureGateMachineHealthCheck]; ok && enabled {
-		containers = append(containers, corev1.Container{
+		{
 			Name:      "machine-healthcheck-controller",
 			Image:     config.Controllers.MachineHealthCheck,
 			Command:   []string{"/machine-healthcheck"},
 			Args:      args,
 			Resources: resources,
-		})
+		},
 	}
 	return containers
 }
