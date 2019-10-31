@@ -9,7 +9,7 @@ github.com/emicklei/go-restful
 github.com/emicklei/go-restful/log
 # github.com/evanphx/json-patch v4.5.0+incompatible
 github.com/evanphx/json-patch
-# github.com/ghodss/yaml v1.0.0
+# github.com/ghodss/yaml v0.0.0-20150909031657-73d445a93680
 github.com/ghodss/yaml
 # github.com/go-openapi/jsonpointer v0.19.2
 github.com/go-openapi/jsonpointer
@@ -102,7 +102,7 @@ github.com/onsi/gomega/matchers/support/goraph/util
 # github.com/openshift/api v3.9.1-0.20190517100836-d5b34b957e91+incompatible
 github.com/openshift/api/config/v1
 github.com/openshift/api/security/v1
-# github.com/openshift/client-go v0.0.0-20190617165122-8892c0adc000
+# github.com/openshift/client-go v0.0.0-20190617165122-8892c0adc000 => github.com/openshift/client-go v0.0.0-20190923180330-3b6373338c9b
 github.com/openshift/client-go/config/clientset/versioned
 github.com/openshift/client-go/config/informers/externalversions/config/v1
 github.com/openshift/client-go/config/listers/config/v1
@@ -131,6 +131,7 @@ github.com/openshift/cluster-version-operator/lib/resourcemerge
 github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers
 # github.com/openshift/machine-api-operator v0.2.1-0.20191025120018-fb3724fc7bdf
 github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1
+github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1beta1
 github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned
 github.com/openshift/machine-api-operator/pkg/operator
 github.com/openshift/machine-api-operator/pkg/util/conditions
@@ -138,7 +139,6 @@ github.com/openshift/machine-api-operator/pkg/apis/healthchecking
 github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned/typed/healthchecking/v1alpha1
 github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned/typed/healthchecking/v1beta1
 github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned/scheme
-github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1beta1
 # github.com/pkg/errors v0.8.1
 github.com/pkg/errors
 # github.com/spf13/pflag v1.0.3
@@ -212,7 +212,7 @@ gopkg.in/inf.v0
 gopkg.in/tomb.v1
 # gopkg.in/yaml.v2 v2.2.2
 gopkg.in/yaml.v2
-# k8s.io/api v0.0.0-20190918195907-bd6ac527cfd2
+# k8s.io/api v0.0.0-20190918195907-bd6ac527cfd2 => k8s.io/api v0.0.0-20190918155943-95b840bb6a1f
 k8s.io/api/batch/v1
 k8s.io/api/core/v1
 k8s.io/api/apps/v1
@@ -220,6 +220,7 @@ k8s.io/api/apps/v1beta2
 k8s.io/api/policy/v1beta1
 k8s.io/api/admissionregistration/v1beta1
 k8s.io/api/rbac/v1
+k8s.io/api/admissionregistration/v1
 k8s.io/api/apps/v1beta1
 k8s.io/api/auditregistration/v1alpha1
 k8s.io/api/autoscaling/v1
@@ -230,6 +231,7 @@ k8s.io/api/batch/v2alpha1
 k8s.io/api/certificates/v1beta1
 k8s.io/api/coordination/v1
 k8s.io/api/coordination/v1beta1
+k8s.io/api/discovery/v1alpha1
 k8s.io/api/events/v1beta1
 k8s.io/api/extensions/v1beta1
 k8s.io/api/networking/v1
@@ -249,14 +251,16 @@ k8s.io/api/authentication/v1
 k8s.io/api/authentication/v1beta1
 k8s.io/api/authorization/v1
 k8s.io/api/authorization/v1beta1
-# k8s.io/apiextensions-apiserver v0.0.0-20190918201827-3de75813f604
+# k8s.io/apiextensions-apiserver v0.0.0-20190918201827-3de75813f604 => github.com/openshift/kubernetes-apiextensions-apiserver v0.0.0-20190918161926-8f644eb6e783
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1
+k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions
 k8s.io/apiextensions-apiserver/pkg/client/listers/apiextensions/v1beta1
+k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme
-# k8s.io/apimachinery v0.0.0-20190913080033-27d36303b655
+# k8s.io/apimachinery v0.0.0-20190913080033-27d36303b655 => github.com/openshift/kubernetes-apimachinery v0.0.0-20190913080033-27d36303b655
 k8s.io/apimachinery/pkg/api/resource
 k8s.io/apimachinery/pkg/apis/meta/v1
 k8s.io/apimachinery/pkg/runtime
@@ -265,10 +269,10 @@ k8s.io/apimachinery/pkg/api/errors
 k8s.io/apimachinery/pkg/labels
 k8s.io/apimachinery/pkg/runtime/serializer
 k8s.io/apimachinery/pkg/types
+k8s.io/apimachinery/pkg/util/intstr
 k8s.io/apimachinery/pkg/util/rand
 k8s.io/apimachinery/pkg/util/wait
 k8s.io/apimachinery/pkg/runtime/schema
-k8s.io/apimachinery/pkg/util/intstr
 k8s.io/apimachinery/pkg/util/sets
 k8s.io/apimachinery/pkg/apis/meta/v1/validation
 k8s.io/apimachinery/pkg/util/validation/field
@@ -303,7 +307,7 @@ k8s.io/apimachinery/pkg/util/yaml
 k8s.io/apimachinery/pkg/apis/meta/v1beta1
 k8s.io/apimachinery/pkg/util/mergepatch
 k8s.io/apimachinery/third_party/forked/golang/json
-# k8s.io/client-go v11.0.1-0.20190409021438-1a26190bd76a+incompatible
+# k8s.io/client-go v11.0.1-0.20190409021438-1a26190bd76a+incompatible => github.com/openshift/kubernetes-client-go v0.0.0-20190918160344-1fbdaa4c8d90
 k8s.io/client-go/informers
 k8s.io/client-go/kubernetes
 k8s.io/client-go/rest
@@ -323,6 +327,7 @@ k8s.io/client-go/informers/batch
 k8s.io/client-go/informers/certificates
 k8s.io/client-go/informers/coordination
 k8s.io/client-go/informers/core
+k8s.io/client-go/informers/discovery
 k8s.io/client-go/informers/events
 k8s.io/client-go/informers/extensions
 k8s.io/client-go/informers/internalinterfaces
@@ -333,6 +338,7 @@ k8s.io/client-go/informers/rbac
 k8s.io/client-go/informers/scheduling
 k8s.io/client-go/informers/settings
 k8s.io/client-go/informers/storage
+k8s.io/client-go/kubernetes/typed/admissionregistration/v1
 k8s.io/client-go/kubernetes/typed/admissionregistration/v1beta1
 k8s.io/client-go/kubernetes/typed/apps/v1
 k8s.io/client-go/kubernetes/typed/apps/v1beta1
@@ -352,6 +358,7 @@ k8s.io/client-go/kubernetes/typed/certificates/v1beta1
 k8s.io/client-go/kubernetes/typed/coordination/v1
 k8s.io/client-go/kubernetes/typed/coordination/v1beta1
 k8s.io/client-go/kubernetes/typed/core/v1
+k8s.io/client-go/kubernetes/typed/discovery/v1alpha1
 k8s.io/client-go/kubernetes/typed/events/v1beta1
 k8s.io/client-go/kubernetes/typed/extensions/v1beta1
 k8s.io/client-go/kubernetes/typed/networking/v1
@@ -392,6 +399,7 @@ k8s.io/client-go/scale/scheme/autoscalingv1
 k8s.io/client-go/scale/scheme/extensionsint
 k8s.io/client-go/scale/scheme/extensionsv1beta1
 k8s.io/client-go/restmapper
+k8s.io/client-go/informers/admissionregistration/v1
 k8s.io/client-go/informers/admissionregistration/v1beta1
 k8s.io/client-go/informers/apps/v1beta1
 k8s.io/client-go/informers/apps/v1beta2
@@ -406,6 +414,7 @@ k8s.io/client-go/informers/certificates/v1beta1
 k8s.io/client-go/informers/coordination/v1
 k8s.io/client-go/informers/coordination/v1beta1
 k8s.io/client-go/informers/core/v1
+k8s.io/client-go/informers/discovery/v1alpha1
 k8s.io/client-go/informers/events/v1beta1
 k8s.io/client-go/informers/extensions/v1beta1
 k8s.io/client-go/informers/networking/v1
@@ -431,6 +440,7 @@ k8s.io/client-go/util/connrotation
 k8s.io/client-go/util/keyutil
 k8s.io/client-go/tools/record/util
 k8s.io/client-go/tools/clientcmd/api/v1
+k8s.io/client-go/listers/admissionregistration/v1
 k8s.io/client-go/listers/admissionregistration/v1beta1
 k8s.io/client-go/listers/apps/v1beta1
 k8s.io/client-go/listers/apps/v1beta2
@@ -445,6 +455,7 @@ k8s.io/client-go/listers/certificates/v1beta1
 k8s.io/client-go/listers/coordination/v1
 k8s.io/client-go/listers/coordination/v1beta1
 k8s.io/client-go/listers/core/v1
+k8s.io/client-go/listers/discovery/v1alpha1
 k8s.io/client-go/listers/events/v1beta1
 k8s.io/client-go/listers/extensions/v1beta1
 k8s.io/client-go/listers/networking/v1
@@ -464,7 +475,7 @@ k8s.io/client-go/listers/storage/v1alpha1
 k8s.io/client-go/listers/storage/v1beta1
 # k8s.io/klog v0.4.0
 k8s.io/klog
-# k8s.io/kube-aggregator v0.0.0-20190404125450-f5e124c822d6
+# k8s.io/kube-aggregator v0.0.0-20190404125450-f5e124c822d6 => github.com/openshift/kubernetes-kube-aggregator v0.0.0-20190918161219-8c8f079fddc3
 k8s.io/kube-aggregator/pkg/apis/apiregistration/v1
 k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1
 k8s.io/kube-aggregator/pkg/apis/apiregistration
