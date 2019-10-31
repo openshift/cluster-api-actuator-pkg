@@ -211,7 +211,7 @@ func dumpClusterAutoscalerLogs(client runtimeclient.Client, restClient *rest.RES
 	caLabels := map[string]string{
 		"app": "cluster-autoscaler",
 	}
-	if err := client.List(context.TODO(), &pods, []runtimeclient.ListOptionFunc{runtimeclient.MatchingLabels(caLabels)}...); err != nil {
+	if err := client.List(context.TODO(), &pods, runtimeclient.MatchingLabels(caLabels)); err != nil {
 		glog.Errorf("Error querying api for clusterAutoscaler pod object: %v", err)
 		return
 	}
@@ -231,6 +231,8 @@ func dumpClusterAutoscalerLogs(client runtimeclient.Client, restClient *rest.RES
 }
 
 var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
+	cascadeDelete := metav1.DeletePropagationForeground
+
 	g.It("scale up and down", func() {
 		defer g.GinkgoRecover()
 
@@ -251,9 +253,8 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 			case *caov1.ClusterAutoscaler:
 				dumpClusterAutoscalerLogs(client, restClient)
 			}
-			return client.Delete(context.TODO(), obj, func(opt *runtimeclient.DeleteOptions) {
-				cascadeDelete := metav1.DeletePropagationForeground
-				opt.PropagationPolicy = &cascadeDelete
+			return client.Delete(context.TODO(), obj, &runtimeclient.DeleteOptions{
+				PropagationPolicy: &cascadeDelete,
 			})
 		}
 

@@ -444,7 +444,7 @@ func LoadRestClient() (*rest.RESTClient, error) {
 	gv := corev1.SchemeGroupVersion
 	configShallowCopy.GroupVersion = &gv
 	configShallowCopy.APIPath = "/api"
-	configShallowCopy.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: scheme.Codecs}
+	configShallowCopy.NegotiatedSerializer = serializer.WithoutConversionCodecFactory{CodecFactory: scheme.Codecs}
 
 	rc, err := rest.RESTClientFor(&configShallowCopy)
 	if err != nil {

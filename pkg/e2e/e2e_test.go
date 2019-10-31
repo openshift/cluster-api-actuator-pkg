@@ -10,7 +10,7 @@ import (
 	osconfigv1 "github.com/openshift/api/config/v1"
 	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	caov1alpha1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis"
-	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
+	mhcv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1beta1"
 	"k8s.io/client-go/kubernetes/scheme"
 
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/autoscaler"
@@ -31,7 +31,7 @@ func init() {
 		glog.Fatal(err)
 	}
 
-	if err := healthcheckingv1alpha1.AddToScheme(scheme.Scheme); err != nil {
+	if err := mhcv1beta1.AddToScheme(scheme.Scheme); err != nil {
 		glog.Fatal(err)
 	}
 }
