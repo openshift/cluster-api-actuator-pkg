@@ -11,7 +11,6 @@ import (
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/types"
 	machinev1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
-	controllernode "github.com/openshift/cluster-api/pkg/controller/node"
 
 	apiv1 "k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -24,6 +23,8 @@ import (
 
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+const MachineAnnotationKey = "machine.openshift.io/machine"
 
 func (f *Framework) DeleteMachineAndWait(machine *machinev1beta1.Machine, client types.CloudProviderClient) {
 	f.By(fmt.Sprintf("Deleting %q machine", machine.Name))
@@ -252,9 +253,9 @@ func (f *Framework) WaitForNodesToGetReady(count int) error {
 
 // GetMachineFromNode returns the machine referenced by the "controllernode.MachineAnnotationKey" annotation in the given node
 func GetMachineFromNode(client runtimeclient.Client, node *corev1.Node) (*mapiv1beta1.Machine, error) {
-	machineNamespaceKey, ok := node.Annotations[controllernode.MachineAnnotationKey]
+	machineNamespaceKey, ok := node.Annotations[MachineAnnotationKey]
 	if !ok {
-		return nil, fmt.Errorf("node %q does not have a MachineAnnotationKey %q", node.Name, controllernode.MachineAnnotationKey)
+		return nil, fmt.Errorf("node %q does not have a MachineAnnotationKey %q", node.Name, MachineAnnotationKey)
 	}
 	namespace, machineName, err := cache.SplitMetaNamespaceKey(machineNamespaceKey)
 	if err != nil {

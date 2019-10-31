@@ -2,7 +2,7 @@
 
 // Package v1alpha1 contains API Schema definitions for the healthchecking v1alpha1 API group
 // +k8s:deepcopy-gen=package,register
-// +groupName=healthchecking.openshift.io
+// +groupName=machine.openshift.io
 package v1alpha1
 
 import (
@@ -34,8 +34,6 @@ var (
 // Adds the list of known types to Scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
-		&MachineHealthCheck{},
-		&MachineHealthCheckList{},
 		&MachineDisruptionBudget{},
 		&MachineDisruptionBudgetList{},
 	)

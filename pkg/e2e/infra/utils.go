@@ -10,7 +10,6 @@ import (
 	"github.com/golang/glog"
 	e2e "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/framework"
 	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
-	controllernode "github.com/openshift/cluster-api/pkg/controller/node"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -51,11 +50,11 @@ func isOneMachinePerNode(client runtimeclient.Client) bool {
 
 		nodeNameToMachineAnnotation := make(map[string]string)
 		for _, node := range nodeList.Items {
-			if _, ok := node.Annotations[controllernode.MachineAnnotationKey]; !ok {
-				glog.Errorf("Node %q does not have a MachineAnnotationKey %q, retrying...", node.Name, controllernode.MachineAnnotationKey)
+			if _, ok := node.Annotations[e2e.MachineAnnotationKey]; !ok {
+				glog.Errorf("Node %q does not have a MachineAnnotationKey %q, retrying...", node.Name, e2e.MachineAnnotationKey)
 				return false, nil
 			}
-			nodeNameToMachineAnnotation[node.Name] = node.Annotations[controllernode.MachineAnnotationKey]
+			nodeNameToMachineAnnotation[node.Name] = node.Annotations[e2e.MachineAnnotationKey]
 		}
 		for _, machine := range machineList.Items {
 			if machine.Status.NodeRef == nil {
@@ -316,11 +315,11 @@ func machineFromMachineset(machineset *mapiv1beta1.MachineSet) *mapiv1beta1.Mach
 	return machine
 }
 
-func waitUntilNodesAreReady(client runtimeclient.Client, listOptFncs []runtimeclient.ListOptionFunc, nodeCount int) error {
+func waitUntilNodesAreReady(client runtimeclient.Client, listOpts []runtimeclient.ListOption, nodeCount int) error {
 	endTime := time.Now().Add(time.Duration(e2e.WaitLong))
 	return wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
 		nodes := corev1.NodeList{}
-		if err := client.List(context.TODO(), &nodes, listOptFncs...); err != nil {
+		if err := client.List(context.TODO(), &nodes, listOpts...); err != nil {
 			glog.Errorf("Error querying api for Node object: %v, retrying...", err)
 			return false, nil
 		}
@@ -348,11 +347,11 @@ func waitUntilNodesAreReady(client runtimeclient.Client, listOptFncs []runtimecl
 	})
 }
 
-func waitUntilNodesAreDeleted(client runtimeclient.Client, listOptFncs []runtimeclient.ListOptionFunc) error {
+func waitUntilNodesAreDeleted(client runtimeclient.Client, listOpts []runtimeclient.ListOption) error {
 	endTime := time.Now().Add(time.Duration(e2e.WaitLong))
 	return wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
 		nodes := corev1.NodeList{}
-		if err := client.List(context.TODO(), &nodes, listOptFncs...); err != nil {
+		if err := client.List(context.TODO(), &nodes, listOpts...); err != nil {
 			glog.Errorf("Error querying api for Node object: %v, retrying...", err)
 			return false, nil
 		}

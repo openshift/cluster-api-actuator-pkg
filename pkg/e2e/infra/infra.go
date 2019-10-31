@@ -127,9 +127,9 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 	defer g.GinkgoRecover()
 
 	deleteObject := func(client runtimeclient.Client, obj runtime.Object) error {
-		return client.Delete(context.TODO(), obj, func(opt *runtimeclient.DeleteOptions) {
-			cascadeDelete := metav1.DeletePropagationForeground
-			opt.PropagationPolicy = &cascadeDelete
+		cascadeDelete := metav1.DeletePropagationForeground
+		return client.Delete(context.TODO(), obj, &runtimeclient.DeleteOptions{
+			PropagationPolicy: &cascadeDelete,
 		})
 	}
 
@@ -364,7 +364,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 			// TODO(jchaloup): we need to make sure this gets called no matter what
 			// and waits until all labeled nodes are gone. Though, it it does not
 			// happend in the timeout set, it will not happen ever.
-			err := waitUntilNodesAreDeleted(client, []runtimeclient.ListOptionFunc{runtimeclient.MatchingLabels(nodeDrainLabels)})
+			err := waitUntilNodesAreDeleted(client, []runtimeclient.ListOption{runtimeclient.MatchingLabels(nodeDrainLabels)})
 			o.Expect(err).NotTo(o.HaveOccurred())
 		}()
 
@@ -408,7 +408,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("Waiting until both new nodes are ready")
-		err = waitUntilNodesAreReady(client, []runtimeclient.ListOptionFunc{runtimeclient.MatchingLabels(nodeDrainLabels)}, 2)
+		err = waitUntilNodesAreReady(client, []runtimeclient.ListOption{runtimeclient.MatchingLabels(nodeDrainLabels)}, 2)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("Creating RC with workload")

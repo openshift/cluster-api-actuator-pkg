@@ -4,16 +4,29 @@ import (
 	"context"
 
 	corev1 "k8s.io/api/core/v1"
-	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// AddNodeCondition adds a condition in the given Node's status.
+func AddNodeCondition(c client.Client, node *corev1.Node, cond corev1.NodeCondition) error {
+	nodeCopy := node.DeepCopy()
+	nodeCopy.Status.Conditions = append(nodeCopy.Status.Conditions, cond)
+
+	return c.Status().Patch(context.Background(), nodeCopy, client.MergeFrom(node))
+}
+
 // GetWorkerNodes returns all nodes with the nodeWorkerRoleLabel label
-func GetWorkerNodes(client runtimeclient.Client) ([]corev1.Node, error) {
+func GetWorkerNodes(c client.Client) ([]corev1.Node, error) {
 	workerNodes := &corev1.NodeList{}
-	err := client.List(context.TODO(), workerNodes, runtimeclient.InNamespace(TestContext.MachineApiNamespace), runtimeclient.MatchingLabels(map[string]string{WorkerNodeRoleLabel: ""}))
+	err := c.List(context.TODO(), workerNodes,
+		client.InNamespace(TestContext.MachineApiNamespace),
+		client.MatchingLabels(map[string]string{WorkerNodeRoleLabel: ""}),
+	)
+
 	if err != nil {
 		return nil, err
 	}
+
 	return workerNodes.Items, nil
 }
 

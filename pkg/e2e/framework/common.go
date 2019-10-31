@@ -28,29 +28,53 @@ const (
 
 // GetNodes gets a list of nodes from a running cluster
 // Optionaly, labels may be used to constrain listed nodes.
-func GetNodes(client runtimeclient.Client, labels ...map[string]string) ([]corev1.Node, error) {
-	var listOptFuncs []runtimeclient.ListOptionFunc
+func GetNodes(client runtimeclient.Client, selectors ...*metav1.LabelSelector) ([]corev1.Node, error) {
+	var listOpts []runtimeclient.ListOption
+
 	nodeList := corev1.NodeList{}
-	if len(labels) > 0 && len(labels[0]) > 0 {
-		listOptFuncs = append(listOptFuncs, runtimeclient.MatchingLabels(labels[0]))
+
+	for _, selector := range selectors {
+		s, err := metav1.LabelSelectorAsSelector(selector)
+		if err != nil {
+			return nil, err
+		}
+
+		listOpts = append(listOpts,
+			runtimeclient.MatchingLabelsSelector{Selector: s},
+		)
 	}
-	if err := client.List(context.TODO(), &nodeList, listOptFuncs...); err != nil {
+
+	if err := client.List(context.TODO(), &nodeList, listOpts...); err != nil {
 		return nil, fmt.Errorf("error querying api for nodeList object: %v", err)
 	}
+
 	return nodeList.Items, nil
 }
 
 // GetMachineSets gets a list of machinesets from the default machine API namespace.
 // Optionaly, labels may be used to constrain listed machinesets.
-func GetMachineSets(ctx context.Context, client runtimeclient.Client, labels ...map[string]string) ([]mapiv1beta1.MachineSet, error) {
+func GetMachineSets(ctx context.Context, client runtimeclient.Client, selectors ...*metav1.LabelSelector) ([]mapiv1beta1.MachineSet, error) {
 	machineSetList := &mapiv1beta1.MachineSetList{}
-	listOptFuncs := append([]runtimeclient.ListOptionFunc{}, runtimeclient.InNamespace(TestContext.MachineApiNamespace))
-	if len(labels) > 0 && len(labels[0]) > 0 {
-		listOptFuncs = append(listOptFuncs, runtimeclient.MatchingLabels(labels[0]))
+
+	listOpts := append([]runtimeclient.ListOption{},
+		runtimeclient.InNamespace(TestContext.MachineApiNamespace),
+	)
+
+	for _, selector := range selectors {
+		s, err := metav1.LabelSelectorAsSelector(selector)
+		if err != nil {
+			return nil, err
+		}
+
+		listOpts = append(listOpts,
+			runtimeclient.MatchingLabelsSelector{Selector: s},
+		)
 	}
-	if err := client.List(ctx, machineSetList, listOptFuncs...); err != nil {
+
+	if err := client.List(ctx, machineSetList, listOpts...); err != nil {
 		return nil, fmt.Errorf("error querying api for machineSetList object: %v", err)
 	}
+
 	return machineSetList.Items, nil
 }
 
@@ -65,15 +89,28 @@ func GetMachineSet(ctx context.Context, client runtimeclient.Client, machineSetN
 
 // GetMachines gets a list of machinesets from the default machine API namespace.
 // Optionaly, labels may be used to constrain listed machinesets.
-func GetMachines(ctx context.Context, client runtimeclient.Client, labels ...map[string]string) ([]mapiv1beta1.Machine, error) {
+func GetMachines(ctx context.Context, client runtimeclient.Client, selectors ...*metav1.LabelSelector) ([]mapiv1beta1.Machine, error) {
 	machineList := &mapiv1beta1.MachineList{}
-	listOptFuncs := append([]runtimeclient.ListOptionFunc{}, runtimeclient.InNamespace(TestContext.MachineApiNamespace))
-	if len(labels) > 0 && len(labels[0]) > 0 {
-		listOptFuncs = append(listOptFuncs, runtimeclient.MatchingLabels(labels[0]))
+
+	listOpts := append([]runtimeclient.ListOption{},
+		runtimeclient.InNamespace(TestContext.MachineApiNamespace),
+	)
+
+	for _, selector := range selectors {
+		s, err := metav1.LabelSelectorAsSelector(selector)
+		if err != nil {
+			return nil, err
+		}
+
+		listOpts = append(listOpts,
+			runtimeclient.MatchingLabelsSelector{Selector: s},
+		)
 	}
-	if err := client.List(ctx, machineList, listOptFuncs...); err != nil {
+
+	if err := client.List(ctx, machineList, listOpts...); err != nil {
 		return nil, fmt.Errorf("error querying api for machineList object: %v", err)
 	}
+
 	return machineList.Items, nil
 }
 
@@ -118,8 +155,8 @@ func DeleteObjectsByLabels(ctx context.Context, client runtimeclient.Client, lab
 
 	cascadeDelete := metav1.DeletePropagationForeground
 	for _, obj := range objs {
-		if err := client.Delete(ctx, obj, func(opt *runtimeclient.DeleteOptions) {
-			opt.PropagationPolicy = &cascadeDelete
+		if err := client.Delete(ctx, obj, &runtimeclient.DeleteOptions{
+			PropagationPolicy: &cascadeDelete,
 		}); err != nil {
 			return fmt.Errorf("error deleting object: %v", err)
 		}
