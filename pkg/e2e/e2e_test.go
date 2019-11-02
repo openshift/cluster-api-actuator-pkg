@@ -15,6 +15,7 @@ import (
 
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/autoscaler"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/infra"
+	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/machinehealthcheck"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/operators"
 )
 

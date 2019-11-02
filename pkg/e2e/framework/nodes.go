@@ -2,7 +2,9 @@ package framework
 
 import (
 	"context"
+	"fmt"
 
+	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -13,6 +15,22 @@ func AddNodeCondition(c client.Client, node *corev1.Node, cond corev1.NodeCondit
 	nodeCopy.Status.Conditions = append(nodeCopy.Status.Conditions, cond)
 
 	return c.Status().Patch(context.Background(), nodeCopy, client.MergeFrom(node))
+}
+
+// GetNodeForMachine retrieves the node backing the given Machine.
+func GetNodeForMachine(c client.Client, m *mapiv1beta1.Machine) (*corev1.Node, error) {
+	if m.Status.NodeRef == nil {
+		return nil, fmt.Errorf("%s: machine has no NodeRef", m.Name)
+	}
+
+	node := &corev1.Node{}
+	nodeName := client.ObjectKey{Name: m.Status.NodeRef.Name}
+
+	if err := c.Get(context.Background(), nodeName, node); err != nil {
+		return nil, err
+	}
+
+	return node, nil
 }
 
 // GetWorkerNodes returns all nodes with the nodeWorkerRoleLabel label
