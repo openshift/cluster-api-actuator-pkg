@@ -1,3 +1,5 @@
+BUILD_DEST ?= bin/cluster-api-e2e
+
 GO111MODULE = on
 export GO111MODULE
 GOFLAGS += -mod=vendor
@@ -57,7 +59,7 @@ vet: ## Apply go vet to all go files
 
 .PHONY: build-e2e
 build-e2e:
-	go test -c -o bin/e2e github.com/openshift/cluster-api-actuator-pkg/pkg/e2e
+	go test -c -o "$(BUILD_DEST)" github.com/openshift/cluster-api-actuator-pkg/pkg/e2e
 
 .PHONY: test-e2e
 test-e2e: ## Run openshift specific e2e test
