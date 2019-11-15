@@ -16,7 +16,7 @@ import (
 
 func isStatusAvailable(client runtimeclient.Client, name string) bool {
 	key := types.NamespacedName{
-		Namespace: e2e.TestContext.MachineApiNamespace,
+		Namespace: e2e.MachineAPINamespace,
 		Name:      name,
 	}
 	clusterOperator := &osconfigv1.ClusterOperator{}

@@ -27,7 +27,7 @@ func CreateMHC(c client.Client, params MachineHealthCheckParams) (*mhcv1beta1.Ma
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      params.Name,
-			Namespace: TestContext.MachineApiNamespace,
+			Namespace: MachineAPINamespace,
 		},
 		Spec: mhcv1beta1.MachineHealthCheckSpec{
 			Selector: metav1.LabelSelector{

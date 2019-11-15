@@ -22,74 +22,32 @@ import (
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// Various constants used by E2E tests.
 const (
-	// Default timeout for pools
-	PoolTimeout = 5 * time.Minute
-	// Default waiting interval for pools
-	PollInterval = 5 * time.Second
-	// Node waiting internal
-	PollNodeInterval = 5 * time.Second
-	// Pool timeout for cluster API deployment
-	PoolClusterAPIDeploymentTimeout = 10 * time.Minute
-	PoolDeletionTimeout             = 1 * time.Minute
-	// Pool timeout for kubeconfig
-	PoolKubeConfigTimeout = 10 * time.Minute
-	PoolNodesReadyTimeout = 10 * time.Minute
-	// Instances are running timeout
-	TimeoutPoolMachineRunningInterval = 10 * time.Minute
-
-	ClusterKey    = "machine.openshift.io/cluster-api-cluster"
-	MachineSetKey = "machine.openshift.io/cluster-api-machineset"
+	PollNodesReadyTimeout = 10 * time.Minute
+	ClusterKey            = "machine.openshift.io/cluster-api-cluster"
+	MachineSetKey         = "machine.openshift.io/cluster-api-machineset"
+	MachineAPINamespace   = "openshift-machine-api"
 )
 
-// ClusterID set by -cluster-id flag
-var ClusterID string
-
-// Path to private ssh to connect to instances (e.g. to download kubeconfig or copy docker images)
-var sshkey string
-
-// Default ssh user
-var sshuser string
-
-var machineControllerImage string
-var machineManagerImage string
-var nodelinkControllerImage string
-
-var libvirtURI string
-var libvirtPK string
-
-type TestContextType struct {
-	KubeConfig          string
-	MachineApiNamespace string
-	Host                string
-}
-
-var TestContext TestContextType
+// The path to the kubeconfig file.
+//
+// TODO(bison): We should use the methods in controller-runtime,
+// e.g. GetConfig(), that handle this for us.
+var kubeConfig string
 
 func init() {
-	flag.StringVar(&TestContext.KubeConfig, "kubeconfig", "", "kubeconfig file")
-	flag.StringVar(&TestContext.MachineApiNamespace, "machine-api-namespace", "openshift-machine-api", "Default machine API namespace")
-	flag.StringVar(&ClusterID, "cluster-id", "", "cluster ID")
-	flag.StringVar(&sshkey, "ssh-key", "", "Path to private ssh to connect to instances (e.g. to download kubeconfig or copy docker images)")
-	flag.StringVar(&sshuser, "ssh-user", "ec2-user", "Ssh user to connect to instances")
-	flag.StringVar(&machineControllerImage, "machine-controller-image", "gcr.io/k8s-cluster-api/machine-controller:0.0.1", "Machine controller (actuator) image to run")
-	flag.StringVar(&machineManagerImage, "machine-manager-image", "gcr.io/k8s-cluster-api/machine-controller:0.0.1", "Machine manager image to run")
-	flag.StringVar(&nodelinkControllerImage, "nodelink-controller-image", "gcr.io/k8s-cluster-api/machine-controller:0.0.1", "Nodelink controller image to run")
-
-	// libvirt specific flags
-	flag.StringVar(&libvirtURI, "libvirt-uri", "", "Libvirt URI to connect to libvirt from within machine controller container")
-	flag.StringVar(&libvirtPK, "libvirt-pk", "", "Private key to connect to qemu+ssh libvirt uri")
-
+	flag.StringVar(&kubeConfig, "kubeconfig", "", "kubeconfig file")
 	flag.Parse()
 }
 
 // RestclientConfig builds a REST client config
 func RestclientConfig() (*clientcmdapi.Config, error) {
-	glog.Infof(">>> kubeConfig: %s", TestContext.KubeConfig)
-	if TestContext.KubeConfig == "" {
+	glog.Infof(">>> kubeConfig: %s", kubeConfig)
+	if kubeConfig == "" {
 		return nil, fmt.Errorf("KubeConfig must be specified to load client config")
 	}
-	c, err := clientcmd.LoadFromFile(TestContext.KubeConfig)
+	c, err := clientcmd.LoadFromFile(kubeConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error loading KubeConfig: %v", err.Error())
 	}
@@ -100,12 +58,12 @@ func RestclientConfig() (*clientcmdapi.Config, error) {
 func LoadConfig() (*rest.Config, error) {
 	c, err := RestclientConfig()
 	if err != nil {
-		if TestContext.KubeConfig == "" {
+		if kubeConfig == "" {
 			return rest.InClusterConfig()
 		}
 		return nil, err
 	}
-	return clientcmd.NewDefaultClientConfig(*c, &clientcmd.ConfigOverrides{ClusterInfo: clientcmdapi.Cluster{Server: TestContext.Host}}).ClientConfig()
+	return clientcmd.NewDefaultClientConfig(*c, &clientcmd.ConfigOverrides{}).ClientConfig()
 }
 
 // LoadClient builds controller runtime client that accepts any registered type
@@ -153,7 +111,7 @@ func IsNodeReady(node *corev1.Node) bool {
 }
 
 func WaitUntilAllNodesAreReady(client runtimeclient.Client) error {
-	return wait.PollImmediate(1*time.Second, PoolNodesReadyTimeout, func() (bool, error) {
+	return wait.PollImmediate(1*time.Second, PollNodesReadyTimeout, func() (bool, error) {
 		nodeList := corev1.NodeList{}
 		if err := client.List(context.TODO(), &nodeList); err != nil {
 			glog.Errorf("error querying api for nodeList object: %v, retrying...", err)

@@ -79,7 +79,6 @@ Run it:
 go test -timeout 30m \
     -v github.com/openshift/cluster-api-actuator-pkg/pkg/e2e \
     -kubeconfig $${KUBECONFIG:-~/.kube/config} \
-    -machine-api-namespace $${NAMESPACE:-kube-system} \
     -ginkgo.v \
     -args -v 5 -logtostderr
 ```

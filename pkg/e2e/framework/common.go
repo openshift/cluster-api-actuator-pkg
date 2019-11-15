@@ -66,7 +66,7 @@ func GetMachineSets(ctx context.Context, client runtimeclient.Client, selectors 
 	machineSetList := &mapiv1beta1.MachineSetList{}
 
 	listOpts := append([]runtimeclient.ListOption{},
-		runtimeclient.InNamespace(TestContext.MachineApiNamespace),
+		runtimeclient.InNamespace(MachineAPINamespace),
 	)
 
 	for _, selector := range selectors {
@@ -90,7 +90,7 @@ func GetMachineSets(ctx context.Context, client runtimeclient.Client, selectors 
 // GetMachineSet gets a machineset by its name from the default machine API namespace.
 func GetMachineSet(ctx context.Context, client runtimeclient.Client, machineSetName string) (*mapiv1beta1.MachineSet, error) {
 	machineSet := &mapiv1beta1.MachineSet{}
-	if err := client.Get(ctx, runtimeclient.ObjectKey{Namespace: TestContext.MachineApiNamespace, Name: machineSetName}, machineSet); err != nil {
+	if err := client.Get(ctx, runtimeclient.ObjectKey{Namespace: MachineAPINamespace, Name: machineSetName}, machineSet); err != nil {
 		return nil, fmt.Errorf("error querying api for machineSet object: %v", err)
 	}
 	return machineSet, nil
@@ -102,7 +102,7 @@ func GetMachines(ctx context.Context, client runtimeclient.Client, selectors ...
 	machineList := &mapiv1beta1.MachineList{}
 
 	listOpts := append([]runtimeclient.ListOption{},
-		runtimeclient.InNamespace(TestContext.MachineApiNamespace),
+		runtimeclient.InNamespace(MachineAPINamespace),
 	)
 
 	for _, selector := range selectors {
@@ -126,7 +126,7 @@ func GetMachines(ctx context.Context, client runtimeclient.Client, selectors ...
 // GetMachine get a machine by its name from the default machine API namespace.
 func GetMachine(ctx context.Context, client runtimeclient.Client, machineName string) (*mapiv1beta1.Machine, error) {
 	machine := &mapiv1beta1.Machine{}
-	if err := client.Get(ctx, runtimeclient.ObjectKey{Namespace: TestContext.MachineApiNamespace, Name: machineName}, machine); err != nil {
+	if err := client.Get(ctx, runtimeclient.ObjectKey{Namespace: MachineAPINamespace, Name: machineName}, machine); err != nil {
 		return nil, fmt.Errorf("error querying api for machine object: %v", err)
 	}
 	return machine, nil
@@ -246,7 +246,7 @@ func CreateMachineSet(c client.Client, params MachineSetParams) (*mapiv1beta1.Ma
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      params.Name,
-			Namespace: TestContext.MachineApiNamespace,
+			Namespace: MachineAPINamespace,
 			Labels:    params.Labels,
 		},
 		Spec: mapiv1beta1.MachineSetSpec{

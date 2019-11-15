@@ -37,7 +37,7 @@ func GetNodeForMachine(c client.Client, m *mapiv1beta1.Machine) (*corev1.Node, e
 func GetWorkerNodes(c client.Client) ([]corev1.Node, error) {
 	workerNodes := &corev1.NodeList{}
 	err := c.List(context.TODO(), workerNodes,
-		client.InNamespace(TestContext.MachineApiNamespace),
+		client.InNamespace(MachineAPINamespace),
 		client.MatchingLabels(map[string]string{WorkerNodeRoleLabel: ""}),
 	)
 

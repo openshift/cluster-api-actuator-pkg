@@ -25,8 +25,8 @@ func GetMachineFromNode(client runtimeclient.Client, node *corev1.Node) (*mapiv1
 		return nil, fmt.Errorf("machine annotation format is incorrect %v: %v", machineNamespaceKey, err)
 	}
 
-	if namespace != TestContext.MachineApiNamespace {
-		return nil, fmt.Errorf("Machine %q is forbidden to live outside of default %v namespace", machineNamespaceKey, TestContext.MachineApiNamespace)
+	if namespace != MachineAPINamespace {
+		return nil, fmt.Errorf("Machine %q is forbidden to live outside of default %v namespace", machineNamespaceKey, MachineAPINamespace)
 	}
 
 	machine, err := GetMachine(context.TODO(), client, machineName)

@@ -100,7 +100,7 @@ func clusterAutoscalerResource(maxNodesTotal int) *caov1.ClusterAutoscaler {
 	return &caov1.ClusterAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "default",
-			Namespace: e2e.TestContext.MachineApiNamespace,
+			Namespace: e2e.MachineAPINamespace,
 			Labels: map[string]string{
 				autoscalingTestLabel: "",
 			},
@@ -129,7 +129,7 @@ func machineAutoscalerResource(targetMachineSet *mapiv1beta1.MachineSet, minRepl
 	return &caov1beta1.MachineAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: fmt.Sprintf("autoscale-%s", targetMachineSet.Name),
-			Namespace:    e2e.TestContext.MachineApiNamespace,
+			Namespace:    e2e.MachineAPINamespace,
 			Labels: map[string]string{
 				autoscalingTestLabel: "",
 			},
@@ -219,7 +219,7 @@ func dumpClusterAutoscalerLogs(client runtimeclient.Client, restClient *rest.RES
 	// are found. If we see more than one that's indicative of
 	// some unexpected problem and we may as well dump its logs.
 	for i, pod := range pods.Items {
-		req := restClient.Get().Namespace(e2e.TestContext.MachineApiNamespace).Resource("pods").Name(pod.Name).SubResource("log")
+		req := restClient.Get().Namespace(e2e.MachineAPINamespace).Resource("pods").Name(pod.Name).SubResource("log")
 		res := req.Do()
 		raw, err := res.Raw()
 		if err != nil {
