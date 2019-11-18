@@ -15,7 +15,7 @@ import (
 // GetDeployment gets deployment object by name
 func GetDeployment(client runtimeclient.Client, name string) (*kappsapi.Deployment, error) {
 	key := types.NamespacedName{
-		Namespace: TestContext.MachineApiNamespace,
+		Namespace: MachineAPINamespace,
 		Name:      name,
 	}
 	d := &kappsapi.Deployment{}

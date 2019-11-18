@@ -34,11 +34,11 @@ func isOneMachinePerNode(client runtimeclient.Client) bool {
 	nodeList := corev1.NodeList{}
 	endTime := time.Now().Add(time.Duration(e2e.WaitMedium))
 	if err := wait.PollImmediate(5*time.Second, e2e.WaitMedium, func() (bool, error) {
-		if err := client.List(context.TODO(), &machineList, runtimeclient.InNamespace(e2e.TestContext.MachineApiNamespace)); err != nil {
+		if err := client.List(context.TODO(), &machineList, runtimeclient.InNamespace(e2e.MachineAPINamespace)); err != nil {
 			glog.Errorf("Error querying api for machineList object: %v, retrying...", err)
 			return false, nil
 		}
-		if err := client.List(context.TODO(), &nodeList, runtimeclient.InNamespace(e2e.TestContext.MachineApiNamespace)); err != nil {
+		if err := client.List(context.TODO(), &nodeList, runtimeclient.InNamespace(e2e.MachineAPINamespace)); err != nil {
 			glog.Errorf("Error querying api for nodeList object: %v, retrying...", err)
 			return false, nil
 		}
@@ -62,7 +62,7 @@ func isOneMachinePerNode(client runtimeclient.Client) bool {
 				return false, nil
 			}
 			nodeName := machine.Status.NodeRef.Name
-			if nodeNameToMachineAnnotation[nodeName] != fmt.Sprintf("%s/%s", e2e.TestContext.MachineApiNamespace, machine.Name) {
+			if nodeNameToMachineAnnotation[nodeName] != fmt.Sprintf("%s/%s", e2e.MachineAPINamespace, machine.Name) {
 				glog.Errorf("Node name %q does not match expected machine name %q, retrying...", nodeName, machine.Name)
 				return false, nil
 			}
@@ -185,14 +185,14 @@ func scaleMachineSet(name string, replicas int) error {
 		return fmt.Errorf("error calling getScaleClient %v", err)
 	}
 
-	scale, err := scaleClient.Scales(e2e.TestContext.MachineApiNamespace).Get(schema.GroupResource{Group: machineAPIGroup, Resource: "MachineSet"}, name)
+	scale, err := scaleClient.Scales(e2e.MachineAPINamespace).Get(schema.GroupResource{Group: machineAPIGroup, Resource: "MachineSet"}, name)
 	if err != nil {
 		return fmt.Errorf("error calling scaleClient.Scales get: %v", err)
 	}
 
 	scaleUpdate := scale.DeepCopy()
 	scaleUpdate.Spec.Replicas = int32(replicas)
-	_, err = scaleClient.Scales(e2e.TestContext.MachineApiNamespace).Update(schema.GroupResource{Group: machineAPIGroup, Resource: "MachineSet"}, scaleUpdate)
+	_, err = scaleClient.Scales(e2e.MachineAPINamespace).Update(schema.GroupResource{Group: machineAPIGroup, Resource: "MachineSet"}, scaleUpdate)
 	if err != nil {
 		return fmt.Errorf("error calling scaleClient.Scales update: %v", err)
 	}

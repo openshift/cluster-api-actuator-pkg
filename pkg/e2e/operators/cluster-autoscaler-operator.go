@@ -54,7 +54,7 @@ var _ = g.Describe("[Feature:Operators] Cluster autoscaler operator should", fun
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      fmt.Sprintf("test-%d", time.Now().Unix()),
-				Namespace: e2e.TestContext.MachineApiNamespace,
+				Namespace: e2e.MachineAPINamespace,
 			},
 			Spec: caov1beta1.MachineAutoscalerSpec{
 				// Min is greater than max, which is invalid.

@@ -73,15 +73,6 @@ test-e2e: ## Run openshift specific e2e test
 test-e2e-tech-preview:
 	hack/ci-integration.sh $(GINKGO_ARGS) -ginkgo.v -ginkgo.noColor=true -ginkgo.focus "TechPreview" -ginkgo.failFast
 
-.PHONY: k8s-e2e
-k8s-e2e: ## Run k8s specific e2e test
-	# Run operator tests first to preserve logs for troubleshooting test
-	# failures and flakes.
-	# Feature:Operator tests remove deployments. Thus loosing all the logs
-	# previously acquired.
-	NAMESPACE=kube-system hack/ci-integration.sh $(GINKGO_ARGS) -ginkgo.v -ginkgo.noColor=true -ginkgo.focus "Feature:Operators" -ginkgo.failFast
-	NAMESPACE=kube-system hack/ci-integration.sh $(GINKGO_ARGS) -ginkgo.v -ginkgo.noColor=true -ginkgo.skip "Feature:Operators|TechPreview" -ginkgo.failFast -ginkgo.seed=1
-
 .PHONY: help
 help:
 	@grep -E '^[a-zA-Z/0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'

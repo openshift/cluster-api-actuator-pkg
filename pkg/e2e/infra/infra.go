@@ -98,7 +98,7 @@ func invalidMachinesetWithEmptyProviderConfig() *mapiv1beta1.MachineSet {
 	return &mapiv1beta1.MachineSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "invalid-machineset",
-			Namespace: e2e.TestContext.MachineApiNamespace,
+			Namespace: e2e.MachineAPINamespace,
 		},
 		Spec: mapiv1beta1.MachineSetSpec{
 			Replicas: &oneReplicas,
