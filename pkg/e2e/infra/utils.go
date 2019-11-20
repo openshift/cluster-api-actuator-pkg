@@ -22,6 +22,7 @@ import (
 	"k8s.io/utils/pointer"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
 const (
@@ -201,7 +202,7 @@ func scaleMachineSet(name string, replicas int) error {
 
 // getScaleClient returns a ScalesGetter object to manipulate scale subresources
 func getScaleClient() (scale.ScalesGetter, error) {
-	cfg, err := e2e.LoadConfig()
+	cfg, err := config.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("error getting config %v", err)
 	}

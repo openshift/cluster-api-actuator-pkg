@@ -2,8 +2,6 @@ package framework
 
 import (
 	"context"
-	"flag"
-	"fmt"
 	"time"
 
 	"github.com/golang/glog"
@@ -11,15 +9,12 @@ import (
 	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/utils/pointer"
-	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
 // Various constants used by E2E tests.
@@ -30,77 +25,42 @@ const (
 	MachineAPINamespace   = "openshift-machine-api"
 )
 
-// The path to the kubeconfig file.
-//
-// TODO(bison): We should use the methods in controller-runtime,
-// e.g. GetConfig(), that handle this for us.
-var kubeConfig string
-
-func init() {
-	flag.StringVar(&kubeConfig, "kubeconfig", "", "kubeconfig file")
-	flag.Parse()
-}
-
-// RestclientConfig builds a REST client config
-func RestclientConfig() (*clientcmdapi.Config, error) {
-	glog.Infof(">>> kubeConfig: %s", kubeConfig)
-	if kubeConfig == "" {
-		return nil, fmt.Errorf("KubeConfig must be specified to load client config")
-	}
-	c, err := clientcmd.LoadFromFile(kubeConfig)
+// LoadClient returns a new controller-runtime client.
+func LoadClient() (client.Client, error) {
+	cfg, err := config.GetConfig()
 	if err != nil {
-		return nil, fmt.Errorf("error loading KubeConfig: %v", err.Error())
-	}
-	return c, nil
-}
-
-// LoadConfig builds config from kubernetes config
-func LoadConfig() (*rest.Config, error) {
-	c, err := RestclientConfig()
-	if err != nil {
-		if kubeConfig == "" {
-			return rest.InClusterConfig()
-		}
 		return nil, err
 	}
-	return clientcmd.NewDefaultClientConfig(*c, &clientcmd.ConfigOverrides{}).ClientConfig()
+
+	return client.New(cfg, client.Options{})
 }
 
-// LoadClient builds controller runtime client that accepts any registered type
-func LoadClient() (runtimeclient.Client, error) {
-	config, err := LoadConfig()
-	if err != nil {
-		return nil, fmt.Errorf("error creating client: %v", err.Error())
-	}
-	return runtimeclient.New(config, runtimeclient.Options{})
-}
-
+// LoadRestClient returns a new RESTClient.
 func LoadRestClient() (*rest.RESTClient, error) {
-	config, err := LoadConfig()
+	cfg, err := config.GetConfig()
 	if err != nil {
-		return nil, fmt.Errorf("error creating client: %v", err.Error())
+		return nil, err
 	}
-	configShallowCopy := *config
-	gv := corev1.SchemeGroupVersion
-	configShallowCopy.GroupVersion = &gv
-	configShallowCopy.APIPath = "/api"
-	configShallowCopy.NegotiatedSerializer = serializer.WithoutConversionCodecFactory{CodecFactory: scheme.Codecs}
 
-	rc, err := rest.RESTClientFor(&configShallowCopy)
+	rc, err := rest.UnversionedRESTClientFor(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("unable to build rest client: %v", err)
+		return nil, err
 	}
+
 	return rc, nil
 }
 
+// LoadClientset returns a new Kubernetes Clientset.
 func LoadClientset() (*kubernetes.Clientset, error) {
-	config, err := LoadConfig()
+	cfg, err := config.GetConfig()
 	if err != nil {
-		return nil, fmt.Errorf("error creating client: %v", err.Error())
+		return nil, err
 	}
-	return kubernetes.NewForConfig(config)
+
+	return kubernetes.NewForConfig(cfg)
 }
 
+// IsNodeReady returns true if the given node is ready.
 func IsNodeReady(node *corev1.Node) bool {
 	for _, c := range node.Status.Conditions {
 		if c.Type == corev1.NodeReady {
@@ -110,10 +70,11 @@ func IsNodeReady(node *corev1.Node) bool {
 	return false
 }
 
-func WaitUntilAllNodesAreReady(client runtimeclient.Client) error {
+// WaitUntilAllNodesAreReady lists all nodes and waits until they are ready.
+func WaitUntilAllNodesAreReady(c client.Client) error {
 	return wait.PollImmediate(1*time.Second, PollNodesReadyTimeout, func() (bool, error) {
 		nodeList := corev1.NodeList{}
-		if err := client.List(context.TODO(), &nodeList); err != nil {
+		if err := c.List(context.TODO(), &nodeList); err != nil {
 			glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
 			return false, nil
 		}
@@ -128,6 +89,7 @@ func WaitUntilAllNodesAreReady(client runtimeclient.Client) error {
 	})
 }
 
+// NewMachineSet returns a new MachineSet object.
 func NewMachineSet(
 	clusterName, namespace, name string,
 	selectorLabels map[string]string,
