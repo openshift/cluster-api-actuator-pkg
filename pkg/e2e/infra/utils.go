@@ -90,7 +90,7 @@ func getClusterSize(client runtimeclient.Client) (int, error) {
 
 // machineSetsSnapShotLogs logs the state of all the machineSets in the cluster
 func machineSetsSnapShotLogs(client runtimeclient.Client) error {
-	machineSets, err := e2e.GetMachineSets(context.TODO(), client)
+	machineSets, err := e2e.GetMachineSets(client)
 	if err != nil {
 		return fmt.Errorf("error getting machines: %v", err)
 	}
@@ -107,7 +107,7 @@ func machineSetsSnapShotLogs(client runtimeclient.Client) error {
 
 // getMachinesFromMachineSet returns an array of machines owned by a given machineSet
 func getMachinesFromMachineSet(client runtimeclient.Client, machineSet mapiv1beta1.MachineSet) ([]mapiv1beta1.Machine, error) {
-	machines, err := e2e.GetMachines(context.TODO(), client)
+	machines, err := e2e.GetMachines(client)
 	if err != nil {
 		return nil, fmt.Errorf("error getting machines: %v", err)
 	}

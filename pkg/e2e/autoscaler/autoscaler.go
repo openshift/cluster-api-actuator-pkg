@@ -270,12 +270,12 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 		}()
 
 		g.By("Getting existing machinesets")
-		existingMachineSets, err := e2e.GetMachineSets(context.TODO(), client)
+		existingMachineSets, err := e2e.GetMachineSets(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(len(existingMachineSets)).To(o.BeNumerically(">=", 1))
 
 		g.By("Getting existing machines")
-		existingMachines, err := e2e.GetMachines(context.TODO(), client)
+		existingMachines, err := e2e.GetMachines(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(len(existingMachines)).To(o.BeNumerically(">=", 1))
 
@@ -475,7 +475,7 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 			glog.Infof("Scaling transient machineset %q to zero", machineSets[i].Name)
 			var freshMachineSet *mapiv1beta1.MachineSet
 			err := retry.RetryOnConflict(retry.DefaultRetry, func() (err error) {
-				freshMachineSet, err = e2e.GetMachineSet(context.TODO(), client, machineSets[i].Name)
+				freshMachineSet, err = e2e.GetMachineSet(client, machineSets[i].Name)
 				return
 			})
 			o.Expect(err).NotTo(o.HaveOccurred())
@@ -497,7 +497,7 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 		g.By("Waiting for scaled up machines to be deleted")
 		testDuration = time.Now().Add(time.Duration(e2e.WaitLong))
 		o.Eventually(func() int {
-			currentMachines, err := e2e.GetMachines(context.TODO(), client)
+			currentMachines, err := e2e.GetMachines(client)
 			o.Expect(err).NotTo(o.HaveOccurred())
 			glog.Infof("[%s remaining] Waiting for cluster to reach original machine count of %v; currently have %v",
 				remaining(testDuration), len(existingMachines), len(currentMachines))

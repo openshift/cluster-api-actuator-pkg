@@ -147,7 +147,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		client, err := e2e.LoadClient()
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		machines, err := e2e.GetMachines(context.TODO(), client)
+		machines, err := e2e.GetMachines(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(len(machines)).To(o.BeNumerically(">", 0))
 		machine := &machines[0]
@@ -199,7 +199,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		}, e2e.WaitMedium, 5*time.Second).Should(o.BeTrue())
 
 		g.By("Getting the latest version of the original machine")
-		machine, err = e2e.GetMachine(context.TODO(), client, machine.Name)
+		machine, err = e2e.GetMachine(client, machine.Name)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("Setting back the original machine taints")
@@ -284,7 +284,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("getting worker machineSets")
-		existingMachineSets, err := e2e.GetMachineSets(context.TODO(), client)
+		existingMachineSets, err := e2e.GetMachineSets(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(len(existingMachineSets)).To(o.BeNumerically(">=", 1))
 

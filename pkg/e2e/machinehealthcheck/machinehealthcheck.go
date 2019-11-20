@@ -80,7 +80,7 @@ var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck", func() {
 		By("Setting conditions on a Node")
 
 		selector := machineSet.Spec.Selector
-		machines, err := e2e.GetMachines(context.Background(), client, &selector)
+		machines, err := e2e.GetMachines(client, &selector)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(machines).ToNot(BeEmpty())
 
