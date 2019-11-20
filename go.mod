@@ -4,7 +4,6 @@ go 1.12
 
 require (
 	github.com/emicklei/go-restful v2.9.6+incompatible // indirect
-	github.com/ghodss/yaml v0.0.0-20150909031657-73d445a93680
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/mailru/easyjson v0.0.0-20190626092158-b2ccc519800e // indirect
 	github.com/onsi/ginkgo v1.8.0
@@ -14,13 +13,12 @@ require (
 	github.com/openshift/cluster-autoscaler-operator v0.0.0-20190627103136-350eb7249737
 	github.com/openshift/library-go v0.0.0-20190626092134-16a370625b52
 	github.com/openshift/machine-api-operator v0.2.1-0.20191025120018-fb3724fc7bdf
-	golang.org/x/crypto v0.0.0-20190621222207-cc06ce4a13d4
 	k8s.io/api v0.0.0-20190918195907-bd6ac527cfd2
 	k8s.io/apiextensions-apiserver v0.0.0-20190918201827-3de75813f604
 	k8s.io/apimachinery v0.0.0-20190913080033-27d36303b655
 	k8s.io/client-go v11.0.1-0.20190409021438-1a26190bd76a+incompatible
 	k8s.io/utils v0.0.0-20190801114015-581e00157fb1
-	sigs.k8s.io/controller-runtime v0.3.1-0.20191016212439-2df793d02076
+	sigs.k8s.io/controller-runtime v0.4.0
 )
 
 replace github.com/prometheus/client_golang => github.com/prometheus/client_golang v0.9.2
