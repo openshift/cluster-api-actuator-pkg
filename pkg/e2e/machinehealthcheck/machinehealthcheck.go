@@ -84,7 +84,7 @@ var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(machines).ToNot(BeEmpty())
 
-		machine := &machines[0]
+		machine := machines[0]
 		node, err := e2e.GetNodeForMachine(client, machine)
 		Expect(err).ToNot(HaveOccurred())
 
