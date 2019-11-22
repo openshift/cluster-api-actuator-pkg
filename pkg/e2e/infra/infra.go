@@ -385,8 +385,9 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 
 		g.By("Creating two new machines, one for node about to be drained, other for moving workload from drained node")
 		// Create two machines
+		randID := e2e.RandomString()
 		machine1 := machineFromMachineset(&machinesets.Items[0])
-		machine1.Name = "machine1"
+		machine1.Name = "machine1-" + randID
 
 		var machine2 *mapiv1beta1.Machine
 		err = func() error {
@@ -396,7 +397,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 			delObjects["machine1"] = machine1
 
 			machine2 = machineFromMachineset(&machinesets.Items[0])
-			machine2.Name = "machine2"
+			machine2.Name = "machine2" + randID
 
 			if err := client.Create(context.TODO(), machine2); err != nil {
 				return fmt.Errorf("unable to create machine %q: %v", machine2.Name, err)
