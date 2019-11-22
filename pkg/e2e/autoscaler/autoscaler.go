@@ -21,8 +21,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/uuid"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/pointer"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -206,30 +204,6 @@ func remaining(t time.Time) time.Duration {
 	return t.Sub(time.Now()).Round(time.Second)
 }
 
-func dumpClusterAutoscalerLogs(client runtimeclient.Client, restClient *rest.RESTClient) {
-	pods := corev1.PodList{}
-	caLabels := map[string]string{
-		"app": "cluster-autoscaler",
-	}
-	if err := client.List(context.TODO(), &pods, runtimeclient.MatchingLabels(caLabels)); err != nil {
-		glog.Errorf("Error querying api for clusterAutoscaler pod object: %v", err)
-		return
-	}
-	// We're only expecting one pod but let's log from all that
-	// are found. If we see more than one that's indicative of
-	// some unexpected problem and we may as well dump its logs.
-	for i, pod := range pods.Items {
-		req := restClient.Get().Namespace(e2e.MachineAPINamespace).Resource("pods").Name(pod.Name).SubResource("log")
-		res := req.Do()
-		raw, err := res.Raw()
-		if err != nil {
-			glog.Errorf("Unable to get pod logs: %v", err)
-			continue
-		}
-		glog.Infof("\n\nDumping pod logs: %d/%d, logs from %q:\n%v", i, len(pods.Items), pod.Name, string(raw))
-	}
-}
-
 var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 	cascadeDelete := metav1.DeletePropagationForeground
 
@@ -243,16 +217,8 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 		client, err = e2e.LoadClient()
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		var restClient *rest.RESTClient
-		restClient, err = e2e.LoadRestClient()
-		o.Expect(err).NotTo(o.HaveOccurred())
-
 		deleteObject := func(name string, obj runtime.Object) error {
 			glog.Infof("[cleanup] %q (%T)", name, obj)
-			switch obj.(type) {
-			case *caov1.ClusterAutoscaler:
-				dumpClusterAutoscalerLogs(client, restClient)
-			}
 			return client.Delete(context.TODO(), obj, &runtimeclient.DeleteOptions{
 				PropagationPolicy: &cascadeDelete,
 			})
@@ -270,12 +236,12 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 		}()
 
 		g.By("Getting existing machinesets")
-		existingMachineSets, err := e2e.GetMachineSets(context.TODO(), client)
+		existingMachineSets, err := e2e.GetMachineSets(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(len(existingMachineSets)).To(o.BeNumerically(">=", 1))
 
 		g.By("Getting existing machines")
-		existingMachines, err := e2e.GetMachines(context.TODO(), client)
+		existingMachines, err := e2e.GetMachines(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(len(existingMachines)).To(o.BeNumerically(">=", 1))
 
@@ -334,13 +300,16 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(len(nodes)).To(o.BeNumerically(">=", 1))
 
+		var machineAutoscalers []*caov1beta1.MachineAutoscaler
+
 		g.By(fmt.Sprintf("Creating %v machineautoscalers", len(machineSets)))
 		var clusterExpansionSize int
 		for i := range machineSets {
-			clusterExpansionSize += 1
+			clusterExpansionSize++
 			glog.Infof("Create MachineAutoscaler backed by MachineSet %s/%s - min:%v, max:%v", machineSets[i].Namespace, machineSets[i].Name, 1, 2)
 			asr := machineAutoscalerResource(machineSets[i], 1, 2)
 			o.Expect(client.Create(context.TODO(), asr)).Should(o.Succeed())
+			machineAutoscalers = append(machineAutoscalers, asr)
 			cleanupObjects[asr.Name] = runtime.Object(asr)
 		}
 		o.Expect(clusterExpansionSize).To(o.BeNumerically(">", 1))
@@ -366,7 +335,6 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 		g.By(fmt.Sprintf("Creating ClusterAutoscaler configured with maxNodesTotal:%v", maxNodesTotal))
 		clusterAutoscaler := clusterAutoscalerResource(maxNodesTotal)
 		o.Expect(client.Create(context.TODO(), clusterAutoscaler)).Should(o.Succeed())
-		cleanupObjects[clusterAutoscaler.Name] = runtime.Object(clusterAutoscaler)
 
 		g.By(fmt.Sprintf("Deriving Memory capacity from machine %q", existingMachineSets[0].Name))
 		workerNodes, err := e2e.GetWorkerNodes(client)
@@ -450,58 +418,21 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 			return true
 		}, e2e.WaitMedium, pollingInterval).Should(o.BeZero())
 
-		o.Expect(deleteObject(clusterAutoscaler.Name, cleanupObjects[clusterAutoscaler.Name])).Should(o.Succeed())
-		delete(cleanupObjects, clusterAutoscaler.Name)
-		o.Eventually(func() bool {
-			podList := corev1.PodList{}
-			err = client.List(context.TODO(), &podList, runtimeclient.InNamespace(""))
-			o.Expect(err).NotTo(o.HaveOccurred())
-			for i := range podList.Items {
-				// This needs to disappear before we
-				// start scaling the machinesets to
-				// zero because we don't want it
-				// scaling anything up as we are
-				// trying to scale down.
-				if strings.Contains(podList.Items[i].Name, "cluster-autoscaler-default") {
-					glog.Infof("Waiting for cluster-autoscaler POD %q to disappear", podList.Items[i].Name)
-					return true
-				}
-			}
-			return false
-		}, e2e.WaitMedium, pollingInterval).Should(o.BeTrue())
-
-		g.By("Scaling transient machinesets to zero")
-		for i := 0; i < len(machineSets); i++ {
-			glog.Infof("Scaling transient machineset %q to zero", machineSets[i].Name)
-			var freshMachineSet *mapiv1beta1.MachineSet
-			err := retry.RetryOnConflict(retry.DefaultRetry, func() (err error) {
-				freshMachineSet, err = e2e.GetMachineSet(context.TODO(), client, machineSets[i].Name)
-				return
-			})
-			o.Expect(err).NotTo(o.HaveOccurred())
-			freshMachineSet.Spec.Replicas = pointer.Int32Ptr(0)
-			err = client.Update(context.TODO(), freshMachineSet)
+		// Delete MachineAutoscalers to prevent scaling while we manually
+		// scale-down the recently created MachineSets.
+		for _, ma := range machineAutoscalers {
+			err := deleteObject(ma.Name, ma)
 			o.Expect(err).NotTo(o.HaveOccurred())
 		}
 
-		g.By("Waiting for scaled up nodes to be deleted")
-		testDuration = time.Now().Add(time.Duration(e2e.WaitLong))
-		o.Eventually(func() int {
-			currentNodes, err := e2e.GetNodes(client)
+		// Delete the transient MachinSets.
+		for _, ms := range machineSets {
+			err := deleteObject(ms.Name, ms)
 			o.Expect(err).NotTo(o.HaveOccurred())
-			glog.Infof("[%s remaining] Waiting for cluster to reach original node count of %v; currently have %v",
-				remaining(testDuration), len(existingNodes), len(currentNodes))
-			return len(currentNodes)
-		}, e2e.WaitLong, pollingInterval).Should(o.Equal(len(existingNodes)))
 
-		g.By("Waiting for scaled up machines to be deleted")
-		testDuration = time.Now().Add(time.Duration(e2e.WaitLong))
-		o.Eventually(func() int {
-			currentMachines, err := e2e.GetMachines(context.TODO(), client)
-			o.Expect(err).NotTo(o.HaveOccurred())
-			glog.Infof("[%s remaining] Waiting for cluster to reach original machine count of %v; currently have %v",
-				remaining(testDuration), len(existingMachines), len(currentMachines))
-			return len(currentMachines)
-		}, e2e.WaitLong, pollingInterval).Should(o.Equal(len(existingMachines)))
+			delete(cleanupObjects, ms.Name)
+
+			e2e.WaitForMachineSetDelete(client, ms)
+		}
 	})
 })

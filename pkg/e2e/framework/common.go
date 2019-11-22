@@ -17,7 +17,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -37,8 +36,8 @@ const (
 
 // GetNodes gets a list of nodes from a running cluster
 // Optionaly, labels may be used to constrain listed nodes.
-func GetNodes(client runtimeclient.Client, selectors ...*metav1.LabelSelector) ([]corev1.Node, error) {
-	var listOpts []runtimeclient.ListOption
+func GetNodes(c client.Client, selectors ...*metav1.LabelSelector) ([]corev1.Node, error) {
+	var listOpts []client.ListOption
 
 	nodeList := corev1.NodeList{}
 
@@ -49,11 +48,11 @@ func GetNodes(client runtimeclient.Client, selectors ...*metav1.LabelSelector) (
 		}
 
 		listOpts = append(listOpts,
-			runtimeclient.MatchingLabelsSelector{Selector: s},
+			client.MatchingLabelsSelector{Selector: s},
 		)
 	}
 
-	if err := client.List(context.TODO(), &nodeList, listOpts...); err != nil {
+	if err := c.List(context.TODO(), &nodeList, listOpts...); err != nil {
 		return nil, fmt.Errorf("error querying api for nodeList object: %v", err)
 	}
 
@@ -62,11 +61,11 @@ func GetNodes(client runtimeclient.Client, selectors ...*metav1.LabelSelector) (
 
 // GetMachineSets gets a list of machinesets from the default machine API namespace.
 // Optionaly, labels may be used to constrain listed machinesets.
-func GetMachineSets(ctx context.Context, client runtimeclient.Client, selectors ...*metav1.LabelSelector) ([]mapiv1beta1.MachineSet, error) {
+func GetMachineSets(c client.Client, selectors ...*metav1.LabelSelector) ([]mapiv1beta1.MachineSet, error) {
 	machineSetList := &mapiv1beta1.MachineSetList{}
 
-	listOpts := append([]runtimeclient.ListOption{},
-		runtimeclient.InNamespace(MachineAPINamespace),
+	listOpts := append([]client.ListOption{},
+		client.InNamespace(MachineAPINamespace),
 	)
 
 	for _, selector := range selectors {
@@ -76,11 +75,11 @@ func GetMachineSets(ctx context.Context, client runtimeclient.Client, selectors 
 		}
 
 		listOpts = append(listOpts,
-			runtimeclient.MatchingLabelsSelector{Selector: s},
+			client.MatchingLabelsSelector{Selector: s},
 		)
 	}
 
-	if err := client.List(ctx, machineSetList, listOpts...); err != nil {
+	if err := c.List(context.Background(), machineSetList, listOpts...); err != nil {
 		return nil, fmt.Errorf("error querying api for machineSetList object: %v", err)
 	}
 
@@ -88,21 +87,24 @@ func GetMachineSets(ctx context.Context, client runtimeclient.Client, selectors 
 }
 
 // GetMachineSet gets a machineset by its name from the default machine API namespace.
-func GetMachineSet(ctx context.Context, client runtimeclient.Client, machineSetName string) (*mapiv1beta1.MachineSet, error) {
+func GetMachineSet(c client.Client, name string) (*mapiv1beta1.MachineSet, error) {
 	machineSet := &mapiv1beta1.MachineSet{}
-	if err := client.Get(ctx, runtimeclient.ObjectKey{Namespace: MachineAPINamespace, Name: machineSetName}, machineSet); err != nil {
+	key := client.ObjectKey{Namespace: MachineAPINamespace, Name: name}
+
+	if err := c.Get(context.Background(), key, machineSet); err != nil {
 		return nil, fmt.Errorf("error querying api for machineSet object: %v", err)
 	}
+
 	return machineSet, nil
 }
 
 // GetMachines gets a list of machinesets from the default machine API namespace.
 // Optionaly, labels may be used to constrain listed machinesets.
-func GetMachines(ctx context.Context, client runtimeclient.Client, selectors ...*metav1.LabelSelector) ([]mapiv1beta1.Machine, error) {
+func GetMachines(c client.Client, selectors ...*metav1.LabelSelector) ([]mapiv1beta1.Machine, error) {
 	machineList := &mapiv1beta1.MachineList{}
 
-	listOpts := append([]runtimeclient.ListOption{},
-		runtimeclient.InNamespace(MachineAPINamespace),
+	listOpts := append([]client.ListOption{},
+		client.InNamespace(MachineAPINamespace),
 	)
 
 	for _, selector := range selectors {
@@ -112,11 +114,11 @@ func GetMachines(ctx context.Context, client runtimeclient.Client, selectors ...
 		}
 
 		listOpts = append(listOpts,
-			runtimeclient.MatchingLabelsSelector{Selector: s},
+			client.MatchingLabelsSelector{Selector: s},
 		)
 	}
 
-	if err := client.List(ctx, machineList, listOpts...); err != nil {
+	if err := c.List(context.Background(), machineList, listOpts...); err != nil {
 		return nil, fmt.Errorf("error querying api for machineList object: %v", err)
 	}
 
@@ -124,11 +126,14 @@ func GetMachines(ctx context.Context, client runtimeclient.Client, selectors ...
 }
 
 // GetMachine get a machine by its name from the default machine API namespace.
-func GetMachine(ctx context.Context, client runtimeclient.Client, machineName string) (*mapiv1beta1.Machine, error) {
+func GetMachine(c client.Client, name string) (*mapiv1beta1.Machine, error) {
 	machine := &mapiv1beta1.Machine{}
-	if err := client.Get(ctx, runtimeclient.ObjectKey{Namespace: MachineAPINamespace, Name: machineName}, machine); err != nil {
+	key := client.ObjectKey{Namespace: MachineAPINamespace, Name: name}
+
+	if err := c.Get(context.Background(), key, machine); err != nil {
 		return nil, fmt.Errorf("error querying api for machine object: %v", err)
 	}
+
 	return machine, nil
 }
 
@@ -137,8 +142,8 @@ func GetMachine(ctx context.Context, client runtimeclient.Client, machineName st
 // - caov1beta1.MachineAutoscalerList
 // - caov1.ClusterAutoscalerList
 // - batchv1.JobList
-func DeleteObjectsByLabels(ctx context.Context, client runtimeclient.Client, labels map[string]string, list runtime.Object) error {
-	if err := client.List(ctx, list, runtimeclient.MatchingLabels(labels)); err != nil {
+func DeleteObjectsByLabels(c client.Client, labels map[string]string, list runtime.Object) error {
+	if err := c.List(context.Background(), list, client.MatchingLabels(labels)); err != nil {
 		return fmt.Errorf("Unable to list objects: %v", err)
 	}
 
@@ -164,7 +169,7 @@ func DeleteObjectsByLabels(ctx context.Context, client runtimeclient.Client, lab
 
 	cascadeDelete := metav1.DeletePropagationForeground
 	for _, obj := range objs {
-		if err := client.Delete(ctx, obj, &runtimeclient.DeleteOptions{
+		if err := c.Delete(context.Background(), obj, &client.DeleteOptions{
 			PropagationPolicy: &cascadeDelete,
 		}); err != nil {
 			return fmt.Errorf("error deleting object: %v", err)
@@ -276,13 +281,13 @@ func CreateMachineSet(c client.Client, params MachineSetParams) (*mapiv1beta1.Ma
 // MachineSet to enter the "Running" phase, and for all nodes belonging to those
 // Machines to be ready.
 func WaitForMachineSet(c client.Client, name string) {
-	machineSet, err := GetMachineSet(context.Background(), c, name)
+	machineSet, err := GetMachineSet(c, name)
 	Expect(err).ToNot(HaveOccurred())
 
 	selector := machineSet.Spec.Selector
 
 	Eventually(func() error {
-		machines, err := GetMachines(context.Background(), c, &selector)
+		machines, err := GetMachines(c, &selector)
 		if err != nil {
 			return err
 		}
@@ -322,7 +327,7 @@ func WaitForMachineSetDelete(c client.Client, machineSet *mapiv1beta1.MachineSet
 	Eventually(func() bool {
 		selector := machineSet.Spec.Selector
 
-		machines, err := GetMachines(context.Background(), c, &selector)
+		machines, err := GetMachines(c, &selector)
 		if err != nil || len(machines) != 0 {
 			return false // Still have Machines, or other error.
 		}
