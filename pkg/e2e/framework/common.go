@@ -15,6 +15,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -33,6 +34,13 @@ const (
 	MachineRoleLabel    = "machine.openshift.io/cluster-api-machine-role"
 	MachineTypeLabel    = "machine.openshift.io/cluster-api-machine-type"
 )
+
+// RandomString returns a random 6 character string.
+func RandomString() string {
+	randID := string(uuid.NewUUID())
+
+	return randID[:6]
+}
 
 // GetNodes gets a list of nodes from a running cluster
 // Optionaly, labels may be used to constrain listed nodes.
