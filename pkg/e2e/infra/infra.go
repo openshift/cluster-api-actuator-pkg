@@ -150,7 +150,7 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		machines, err := e2e.GetMachines(client)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(len(machines)).To(o.BeNumerically(">", 0))
-		machine := &machines[0]
+		machine := machines[0]
 		originalMachineTaints := machine.Spec.Taints
 		g.By(fmt.Sprintf("getting machine %q", machine.Name))
 
@@ -319,11 +319,11 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		o.Eventually(func() bool {
-			nodes0, err := GetNodesFromMachineSet(client, *machineSets[0])
+			nodes0, err := GetNodesFromMachineSet(client, machineSets[0])
 			if err != nil {
 				return false
 			}
-			nodes1, err := GetNodesFromMachineSet(client, *machineSets[1])
+			nodes1, err := GetNodesFromMachineSet(client, machineSets[1])
 			if err != nil {
 				return false
 			}

@@ -284,7 +284,7 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 				remaining(testDuration), len(machineSets)))
 			var allNewNodes []*corev1.Node
 			for i := 0; i < len(machineSets); i++ {
-				nodes, err := infra.GetNodesFromMachineSet(client, *machineSets[i])
+				nodes, err := infra.GetNodesFromMachineSet(client, machineSets[i])
 				if err != nil {
 					return false
 				}

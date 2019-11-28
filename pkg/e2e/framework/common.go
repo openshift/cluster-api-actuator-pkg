@@ -16,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/uuid"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -30,9 +31,10 @@ const (
 	// if MachineSet.Spec.Replicas field is set to nil
 	DefaultMachineSetReplicas = 0
 
-	MachinePhaseRunning = "Running"
-	MachineRoleLabel    = "machine.openshift.io/cluster-api-machine-role"
-	MachineTypeLabel    = "machine.openshift.io/cluster-api-machine-type"
+	MachinePhaseRunning  = "Running"
+	MachineRoleLabel     = "machine.openshift.io/cluster-api-machine-role"
+	MachineTypeLabel     = "machine.openshift.io/cluster-api-machine-type"
+	MachineAnnotationKey = "machine.openshift.io/machine"
 )
 
 // RandomString returns a random 6 character string.
@@ -65,6 +67,32 @@ func GetNodes(c client.Client, selectors ...*metav1.LabelSelector) ([]corev1.Nod
 	}
 
 	return nodeList.Items, nil
+}
+
+// GetMachineFromNode returns the Machine associated with the given node.
+func GetMachineFromNode(c client.Client, node *corev1.Node) (*mapiv1beta1.Machine, error) {
+	machineNamespaceKey, ok := node.Annotations[MachineAnnotationKey]
+	if !ok {
+		return nil, fmt.Errorf("node %q does not have a MachineAnnotationKey %q",
+			node.Name, MachineAnnotationKey)
+	}
+	namespace, machineName, err := cache.SplitMetaNamespaceKey(machineNamespaceKey)
+	if err != nil {
+		return nil, fmt.Errorf("machine annotation format is incorrect %v: %v",
+			machineNamespaceKey, err)
+	}
+
+	if namespace != MachineAPINamespace {
+		return nil, fmt.Errorf("Machine %q is forbidden to live outside of default %v namespace",
+			machineNamespaceKey, MachineAPINamespace)
+	}
+
+	machine, err := GetMachine(c, machineName)
+	if err != nil {
+		return nil, fmt.Errorf("error querying api for machine object: %v", err)
+	}
+
+	return machine, nil
 }
 
 // GetMachineSets gets a list of machinesets from the default machine API namespace.
@@ -108,7 +136,7 @@ func GetMachineSet(c client.Client, name string) (*mapiv1beta1.MachineSet, error
 
 // GetMachines gets a list of machinesets from the default machine API namespace.
 // Optionaly, labels may be used to constrain listed machinesets.
-func GetMachines(c client.Client, selectors ...*metav1.LabelSelector) ([]mapiv1beta1.Machine, error) {
+func GetMachines(c client.Client, selectors ...*metav1.LabelSelector) ([]*mapiv1beta1.Machine, error) {
 	machineList := &mapiv1beta1.MachineList{}
 
 	listOpts := append([]client.ListOption{},
@@ -130,7 +158,13 @@ func GetMachines(c client.Client, selectors ...*metav1.LabelSelector) ([]mapiv1b
 		return nil, fmt.Errorf("error querying api for machineList object: %v", err)
 	}
 
-	return machineList.Items, nil
+	var machines []*mapiv1beta1.Machine
+
+	for i := range machineList.Items {
+		machines = append(machines, &machineList.Items[i])
+	}
+
+	return machines, nil
 }
 
 // GetMachine get a machine by its name from the default machine API namespace.
@@ -189,14 +223,12 @@ func DeleteObjectsByLabels(c client.Client, labels map[string]string, list runti
 
 // FilterRunningMachines returns a slice of only those Machines in the input
 // that are in the "Running" phase.
-func FilterRunningMachines(machines []mapiv1beta1.Machine) []*mapiv1beta1.Machine {
-	// TODO(bison): This function should probably take a slice of pointers, but
-	// GetMachines() doesn't return that for whatever reason now.
+func FilterRunningMachines(machines []*mapiv1beta1.Machine) []*mapiv1beta1.Machine {
 	var result []*mapiv1beta1.Machine
 
 	for i, m := range machines {
 		if m.Status.Phase != nil && *m.Status.Phase == MachinePhaseRunning {
-			result = append(result, &machines[i])
+			result = append(result, machines[i])
 		}
 	}
 

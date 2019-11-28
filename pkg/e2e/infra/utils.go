@@ -106,14 +106,14 @@ func machineSetsSnapShotLogs(client runtimeclient.Client) error {
 }
 
 // getMachinesFromMachineSet returns an array of machines owned by a given machineSet
-func getMachinesFromMachineSet(client runtimeclient.Client, machineSet mapiv1beta1.MachineSet) ([]mapiv1beta1.Machine, error) {
+func getMachinesFromMachineSet(client runtimeclient.Client, machineSet *mapiv1beta1.MachineSet) ([]*mapiv1beta1.Machine, error) {
 	machines, err := e2e.GetMachines(client)
 	if err != nil {
 		return nil, fmt.Errorf("error getting machines: %v", err)
 	}
-	var machinesForSet []mapiv1beta1.Machine
+	var machinesForSet []*mapiv1beta1.Machine
 	for key := range machines {
-		if metav1.IsControlledBy(&machines[key], &machineSet) {
+		if metav1.IsControlledBy(machines[key], machineSet) {
 			machinesForSet = append(machinesForSet, machines[key])
 		}
 	}
@@ -132,7 +132,7 @@ func deleteMachine(client runtimeclient.Client, machine *mapiv1beta1.Machine) er
 }
 
 // GetNodesFromMachineSet returns an array of nodes backed by machines owned by a given machineSet
-func GetNodesFromMachineSet(client runtimeclient.Client, machineSet mapiv1beta1.MachineSet) ([]*corev1.Node, error) {
+func GetNodesFromMachineSet(client runtimeclient.Client, machineSet *mapiv1beta1.MachineSet) ([]*corev1.Node, error) {
 	machines, err := getMachinesFromMachineSet(client, machineSet)
 	if err != nil {
 		return nil, fmt.Errorf("error calling getMachinesFromMachineSet %v", err)
@@ -140,7 +140,7 @@ func GetNodesFromMachineSet(client runtimeclient.Client, machineSet mapiv1beta1.
 
 	var nodes []*corev1.Node
 	for key := range machines {
-		node, err := getNodeFromMachine(client, &machines[key])
+		node, err := getNodeFromMachine(client, machines[key])
 		if err != nil {
 			return nil, fmt.Errorf("error getting node from machine %q: %v", machines[key].Name, err)
 		}
