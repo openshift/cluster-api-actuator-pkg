@@ -14,7 +14,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -29,64 +28,6 @@ const (
 	machineRoleLabel = "machine.openshift.io/cluster-api-machine-role"
 	machineAPIGroup  = "machine.openshift.io"
 )
-
-func isOneMachinePerNode(client runtimeclient.Client) bool {
-	machineList := mapiv1beta1.MachineList{}
-	nodeList := corev1.NodeList{}
-	endTime := time.Now().Add(time.Duration(e2e.WaitMedium))
-	if err := wait.PollImmediate(5*time.Second, e2e.WaitMedium, func() (bool, error) {
-		if err := client.List(context.TODO(), &machineList, runtimeclient.InNamespace(e2e.MachineAPINamespace)); err != nil {
-			glog.Errorf("Error querying api for machineList object: %v, retrying...", err)
-			return false, nil
-		}
-		if err := client.List(context.TODO(), &nodeList, runtimeclient.InNamespace(e2e.MachineAPINamespace)); err != nil {
-			glog.Errorf("Error querying api for nodeList object: %v, retrying...", err)
-			return false, nil
-		}
-
-		glog.Infof("[remaining %s] Expecting the same number of machines and nodes, have %d nodes and %d machines", remainingTime(endTime), len(nodeList.Items), len(machineList.Items))
-		if len(machineList.Items) != len(nodeList.Items) {
-			return false, nil
-		}
-
-		nodeNameToMachineAnnotation := make(map[string]string)
-		for _, node := range nodeList.Items {
-			if _, ok := node.Annotations[e2e.MachineAnnotationKey]; !ok {
-				glog.Errorf("Node %q does not have a MachineAnnotationKey %q, retrying...", node.Name, e2e.MachineAnnotationKey)
-				return false, nil
-			}
-			nodeNameToMachineAnnotation[node.Name] = node.Annotations[e2e.MachineAnnotationKey]
-		}
-		for _, machine := range machineList.Items {
-			if machine.Status.NodeRef == nil {
-				glog.Errorf("Machine %q has no NodeRef, retrying...", machine.Name)
-				return false, nil
-			}
-			nodeName := machine.Status.NodeRef.Name
-			if nodeNameToMachineAnnotation[nodeName] != fmt.Sprintf("%s/%s", e2e.MachineAPINamespace, machine.Name) {
-				glog.Errorf("Node name %q does not match expected machine name %q, retrying...", nodeName, machine.Name)
-				return false, nil
-			}
-			glog.Infof("[remaining %s] Machine %q is linked to node %q", remainingTime(endTime), machine.Name, nodeName)
-		}
-		return true, nil
-	}); err != nil {
-		glog.Errorf("Error checking isOneMachinePerNode: %v", err)
-		return false
-	}
-	return true
-}
-
-// getClusterSize returns the number of nodes of the cluster
-func getClusterSize(client runtimeclient.Client) (int, error) {
-	nodes, err := e2e.GetNodes(client)
-	if err != nil {
-		return 0, fmt.Errorf("error getting nodes: %v", err)
-	}
-
-	glog.Infof("Cluster size is %d nodes", len(nodes))
-	return len(nodes), nil
-}
 
 // machineSetsSnapShotLogs logs the state of all the machineSets in the cluster
 func machineSetsSnapShotLogs(client runtimeclient.Client) error {
@@ -233,45 +174,6 @@ func nodesSnapShotLogs(client runtimeclient.Client) error {
 	return nil
 }
 
-func waitForClusterSizeToBeHealthy(client runtimeclient.Client, targetSize int) error {
-	endTime := time.Now().Add(time.Duration(e2e.WaitLong))
-	if err := wait.PollImmediate(5*time.Second, e2e.WaitLong, func() (bool, error) {
-		glog.Infof("[remaining %s] Cluster size expected to be %d nodes", remainingTime(endTime), targetSize)
-		if err := machineSetsSnapShotLogs(client); err != nil {
-			return false, err
-		}
-
-		if err := nodesSnapShotLogs(client); err != nil {
-			return false, err
-		}
-
-		finalClusterSize, err := getClusterSize(client)
-		if err != nil {
-			return false, err
-		}
-		return finalClusterSize == targetSize, nil
-	}); err != nil {
-		return fmt.Errorf("Did not reach expected number of nodes: %v", err)
-	}
-
-	glog.Infof("waiting for all nodes to be ready")
-	if err := e2e.WaitUntilAllNodesAreReady(client); err != nil {
-		return err
-	}
-
-	glog.Infof("waiting for all nodes to be schedulable")
-	if err := waitUntilAllNodesAreSchedulable(client); err != nil {
-		return err
-	}
-
-	glog.Infof("waiting for each node to be backed by a machine")
-	if !isOneMachinePerNode(client) {
-		return fmt.Errorf("One machine per node condition violated")
-	}
-
-	return nil
-}
-
 // waitUntilAllNodesAreSchedulable waits for all cluster nodes to be schedulable and returns an error otherwise
 func waitUntilAllNodesAreSchedulable(client runtimeclient.Client) error {
 	endTime := time.Now().Add(time.Duration(time.Minute))
@@ -289,93 +191,6 @@ func waitUntilAllNodesAreSchedulable(client runtimeclient.Client) error {
 			}
 			glog.Infof("[remaining %s] Node %q is schedulable", remainingTime(endTime), node.Name)
 		}
-		return true, nil
-	})
-}
-
-func machineFromMachineset(machineset *mapiv1beta1.MachineSet) *mapiv1beta1.Machine {
-	randomUUID := string(uuid.NewUUID())
-
-	machine := &mapiv1beta1.Machine{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: machineset.Namespace,
-			Name:      "machine-" + randomUUID[:6],
-			Labels:    machineset.Labels,
-		},
-		Spec: machineset.Spec.Template.Spec,
-	}
-	if machine.Spec.ObjectMeta.Labels == nil {
-		machine.Spec.ObjectMeta.Labels = map[string]string{}
-	}
-	for key := range nodeDrainLabels {
-		if _, exists := machine.Spec.ObjectMeta.Labels[key]; exists {
-			continue
-		}
-		machine.Spec.ObjectMeta.Labels[key] = nodeDrainLabels[key]
-	}
-	return machine
-}
-
-func waitUntilNodesAreReady(client runtimeclient.Client, listOpts []runtimeclient.ListOption, nodeCount int) error {
-	endTime := time.Now().Add(time.Duration(e2e.WaitLong))
-	return wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
-		nodes := corev1.NodeList{}
-		if err := client.List(context.TODO(), &nodes, listOpts...); err != nil {
-			glog.Errorf("Error querying api for Node object: %v, retrying...", err)
-			return false, nil
-		}
-		// expecting nodeGroupSize nodes
-		readyNodes := 0
-		for _, node := range nodes.Items {
-			if _, exists := node.Labels[e2e.WorkerNodeRoleLabel]; !exists {
-				continue
-			}
-
-			if !e2e.IsNodeReady(&node) {
-				continue
-			}
-
-			readyNodes++
-		}
-
-		if readyNodes < nodeCount {
-			glog.Errorf("[remaining %s] Expecting %v nodes with %#v labels in Ready state, got %v", remainingTime(endTime), nodeCount, nodeDrainLabels, readyNodes)
-			return false, nil
-		}
-
-		glog.Infof("[%s remaining] Expected number (%v) of nodes with %v label in Ready state found", remainingTime(endTime), nodeCount, nodeDrainLabels)
-		return true, nil
-	})
-}
-
-func waitUntilNodesAreDeleted(client runtimeclient.Client, listOpts []runtimeclient.ListOption) error {
-	endTime := time.Now().Add(time.Duration(e2e.WaitLong))
-	return wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
-		nodes := corev1.NodeList{}
-		if err := client.List(context.TODO(), &nodes, listOpts...); err != nil {
-			glog.Errorf("Error querying api for Node object: %v, retrying...", err)
-			return false, nil
-		}
-		// expecting nodeGroupSize nodes
-		nodeCounter := 0
-		for _, node := range nodes.Items {
-			if _, exists := node.Labels[e2e.WorkerNodeRoleLabel]; !exists {
-				continue
-			}
-
-			if !e2e.IsNodeReady(&node) {
-				continue
-			}
-
-			nodeCounter++
-		}
-
-		if nodeCounter > 0 {
-			glog.Errorf("[%s remaining] Expecting to found 0 nodes with %#v labels, got %v", remainingTime(endTime), nodeDrainLabels, nodeCounter)
-			return false, nil
-		}
-
-		glog.Infof("[%s remaining] Found 0 number of nodes with %v label as expected", remainingTime(endTime), nodeDrainLabels)
 		return true, nil
 	})
 }
