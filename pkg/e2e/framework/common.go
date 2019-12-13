@@ -12,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -25,6 +26,13 @@ const (
 	// if MachineSet.Spec.Replicas field is set to nil
 	DefaultMachineSetReplicas = 0
 )
+
+// RandomString returns a random 6 character string.
+func RandomString() string {
+	randID := string(uuid.NewUUID())
+
+	return randID[:6]
+}
 
 // GetNodes gets a list of nodes from a running cluster
 // Optionaly, labels may be used to constrain listed nodes.
