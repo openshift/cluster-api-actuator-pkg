@@ -56,7 +56,7 @@ func replicationControllerWorkload(namespace string) *corev1.ReplicationControll
 							Command: []string{"sleep", "10h"},
 							Resources: corev1.ResourceRequirements{
 								Requests: corev1.ResourceList{
-									"cpu":    resource.MustParse("50m"),
+									"cpu":    resource.MustParse("40m"),
 									"memory": resource.MustParse("50Mi"),
 								},
 							},
