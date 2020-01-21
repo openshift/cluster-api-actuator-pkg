@@ -384,10 +384,17 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("Creating two new machines, one for node about to be drained, other for moving workload from drained node")
+		clusterInfra, err := e2e.GetInfrastructure(client)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		o.Expect(clusterInfra.Status.InfrastructureName).ShouldNot(o.BeEmpty())
+
 		// Create two machines
 		randID := e2e.RandomString()
 		machine1 := machineFromMachineset(&machinesets.Items[0])
-		machine1.Name = "machine1-" + randID
+		machine1.Name = fmt.Sprintf("%s-machine1-%s",
+			clusterInfra.Status.InfrastructureName,
+			randID,
+		)
 
 		var machine2 *mapiv1beta1.Machine
 		err = func() error {
@@ -398,6 +405,10 @@ var _ = g.Describe("[Feature:Machines] Managed cluster should", func() {
 
 			machine2 = machineFromMachineset(&machinesets.Items[0])
 			machine2.Name = "machine2" + randID
+			machine2.Name = fmt.Sprintf("%s-machine2-%s",
+				clusterInfra.Status.InfrastructureName,
+				randID,
+			)
 
 			if err := client.Create(context.TODO(), machine2); err != nil {
 				return fmt.Errorf("unable to create machine %q: %v", machine2.Name, err)
