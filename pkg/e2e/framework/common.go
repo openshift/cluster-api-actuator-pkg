@@ -7,6 +7,7 @@ import (
 
 	. "github.com/onsi/gomega"
 
+	configv1 "github.com/openshift/api/config/v1"
 	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	caov1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1"
 	caov1beta1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1beta1"
@@ -22,11 +23,12 @@ import (
 )
 
 const (
-	WorkerNodeRoleLabel = "node-role.kubernetes.io/worker"
-	WaitShort           = 1 * time.Minute
-	WaitMedium          = 3 * time.Minute
-	WaitLong            = 15 * time.Minute
-	RetryMedium         = 5 * time.Second
+	GlobalInfrastuctureName = "cluster"
+	WorkerNodeRoleLabel     = "node-role.kubernetes.io/worker"
+	WaitShort               = 1 * time.Minute
+	WaitMedium              = 3 * time.Minute
+	WaitLong                = 15 * time.Minute
+	RetryMedium             = 5 * time.Second
 	// DefaultMachineSetReplicas is the default number of replicas of a machineset
 	// if MachineSet.Spec.Replicas field is set to nil
 	DefaultMachineSetReplicas = 0
@@ -42,6 +44,20 @@ func RandomString() string {
 	randID := string(uuid.NewUUID())
 
 	return randID[:6]
+}
+
+// GetInfrastructure fetches the global cluster infrastructure object.
+func GetInfrastructure(c client.Client) (*configv1.Infrastructure, error) {
+	infra := &configv1.Infrastructure{}
+	infraName := client.ObjectKey{
+		Name: GlobalInfrastuctureName,
+	}
+
+	if err := c.Get(context.Background(), infraName, infra); err != nil {
+		return nil, err
+	}
+
+	return infra, nil
 }
 
 // GetNodes gets a list of nodes from a running cluster
