@@ -6,8 +6,8 @@ require (
 	github.com/emicklei/go-restful v2.9.6+incompatible // indirect
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/mailru/easyjson v0.0.0-20190626092158-b2ccc519800e // indirect
-	github.com/onsi/ginkgo v1.8.0
-	github.com/onsi/gomega v1.5.0
+	github.com/onsi/ginkgo v1.11.0
+	github.com/onsi/gomega v1.8.1
 	github.com/openshift/api v3.9.1-0.20190517100836-d5b34b957e91+incompatible
 	github.com/openshift/cluster-api v0.0.0-20191007125355-b2c5ded524d4
 	github.com/openshift/cluster-autoscaler-operator v0.0.0-20190627103136-350eb7249737
