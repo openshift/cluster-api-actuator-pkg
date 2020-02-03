@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/golang/glog"
-	g "github.com/onsi/ginkgo"
-	o "github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
 	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
@@ -38,6 +38,6 @@ func init() {
 }
 
 func TestE2E(t *testing.T) {
-	o.RegisterFailHandler(g.Fail)
-	g.RunSpecs(t, "Machine Suite")
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Machine Suite")
 }
