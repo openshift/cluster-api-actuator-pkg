@@ -3,8 +3,8 @@ package operators
 import (
 	"fmt"
 
-	g "github.com/onsi/ginkgo"
-	o "github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	e2e "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/framework"
 )
 
@@ -12,48 +12,48 @@ var (
 	deploymentDeprecatedName = "clusterapi-manager-controllers"
 )
 
-var _ = g.Describe("[Feature:Operators] Machine API operator deployment should", func() {
-	defer g.GinkgoRecover()
+var _ = Describe("[Feature:Operators] Machine API operator deployment should", func() {
+	defer GinkgoRecover()
 
-	g.It("be available", func() {
+	It("be available", func() {
 		var err error
 		client, err := e2e.LoadClient()
-		o.Expect(err).NotTo(o.HaveOccurred())
-		o.Expect(e2e.IsDeploymentAvailable(client, "machine-api-operator")).To(o.BeTrue())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(e2e.IsDeploymentAvailable(client, "machine-api-operator")).To(BeTrue())
 	})
 
-	g.It("reconcile controllers deployment", func() {
+	It("reconcile controllers deployment", func() {
 		var err error
 		client, err := e2e.LoadClient()
-		o.Expect(err).NotTo(o.HaveOccurred())
+		Expect(err).NotTo(HaveOccurred())
 
 		deploymentName := "machine-api-controllers"
 		initialDeployment, err := e2e.GetDeployment(client, deploymentName)
 		if err != nil {
 			initialDeployment, err = e2e.GetDeployment(client, deploymentDeprecatedName)
-			o.Expect(err).NotTo(o.HaveOccurred())
+			Expect(err).NotTo(HaveOccurred())
 			deploymentName = deploymentDeprecatedName
 		}
 
-		g.By(fmt.Sprintf("checking deployment %q is available", deploymentName))
-		o.Expect(e2e.IsDeploymentAvailable(client, deploymentName)).To(o.BeTrue())
+		By(fmt.Sprintf("checking deployment %q is available", deploymentName))
+		Expect(e2e.IsDeploymentAvailable(client, deploymentName)).To(BeTrue())
 
-		g.By(fmt.Sprintf("deleting deployment %q", deploymentName))
+		By(fmt.Sprintf("deleting deployment %q", deploymentName))
 		err = e2e.DeleteDeployment(client, initialDeployment)
-		o.Expect(err).NotTo(o.HaveOccurred())
+		Expect(err).NotTo(HaveOccurred())
 
-		g.By(fmt.Sprintf("checking deployment %q is available again", deploymentName))
-		o.Expect(e2e.IsDeploymentAvailable(client, deploymentName)).To(o.BeTrue())
+		By(fmt.Sprintf("checking deployment %q is available again", deploymentName))
+		Expect(e2e.IsDeploymentAvailable(client, deploymentName)).To(BeTrue())
 	})
 })
 
-var _ = g.Describe("[Feature:Operators] Machine API cluster operator status should", func() {
-	defer g.GinkgoRecover()
+var _ = Describe("[Feature:Operators] Machine API cluster operator status should", func() {
+	defer GinkgoRecover()
 
-	g.It("be available", func() {
+	It("be available", func() {
 		var err error
 		client, err := e2e.LoadClient()
-		o.Expect(err).NotTo(o.HaveOccurred())
-		o.Expect(isStatusAvailable(client, "machine-api")).To(o.BeTrue())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(isStatusAvailable(client, "machine-api")).To(BeTrue())
 	})
 })

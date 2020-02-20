@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	g "github.com/onsi/ginkgo"
-	o "github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
 	e2e "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/framework"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -15,22 +16,22 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var _ = g.Describe("[Feature:Operators] Cluster autoscaler operator should", func() {
+var _ = Describe("[Feature:Operators] Cluster autoscaler operator should", func() {
 	var client runtimeclient.Client
 
-	defer g.GinkgoRecover()
+	defer GinkgoRecover()
 
-	g.BeforeEach(func() {
+	BeforeEach(func() {
 		var err error
 
 		client, err = e2e.LoadClient()
-		o.Expect(err).NotTo(o.HaveOccurred())
+		Expect(err).NotTo(HaveOccurred())
 
 		ok := waitForValidatingWebhook(client, "autoscaling.openshift.io")
-		o.Expect(ok).To(o.BeTrue())
+		Expect(ok).To(BeTrue())
 	})
 
-	g.It("reject invalid ClusterAutoscaler resources early via webhook", func() {
+	It("reject invalid ClusterAutoscaler resources early via webhook", func() {
 		invalidCA := &caov1.ClusterAutoscaler{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "ClusterAutoscaler",
@@ -43,10 +44,10 @@ var _ = g.Describe("[Feature:Operators] Cluster autoscaler operator should", fun
 		}
 
 		err := client.Create(context.TODO(), invalidCA)
-		o.Expect(err).To(o.HaveOccurred())
+		Expect(err).To(HaveOccurred())
 	})
 
-	g.It("reject invalid MachineAutoscaler resources early via webhook", func() {
+	It("reject invalid MachineAutoscaler resources early via webhook", func() {
 		invalidMA := &caov1beta1.MachineAutoscaler{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "MachineAutoscaler",
@@ -69,28 +70,28 @@ var _ = g.Describe("[Feature:Operators] Cluster autoscaler operator should", fun
 		}
 
 		err := client.Create(context.TODO(), invalidMA)
-		o.Expect(err).To(o.HaveOccurred())
+		Expect(err).To(HaveOccurred())
 	})
 })
 
-var _ = g.Describe("[Feature:Operators] Cluster autoscaler operator deployment should", func() {
-	defer g.GinkgoRecover()
+var _ = Describe("[Feature:Operators] Cluster autoscaler operator deployment should", func() {
+	defer GinkgoRecover()
 
-	g.It("be available", func() {
+	It("be available", func() {
 		var err error
 		client, err := e2e.LoadClient()
-		o.Expect(err).NotTo(o.HaveOccurred())
-		o.Expect(e2e.IsDeploymentAvailable(client, "cluster-autoscaler-operator")).To(o.BeTrue())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(e2e.IsDeploymentAvailable(client, "cluster-autoscaler-operator")).To(BeTrue())
 	})
 })
 
-var _ = g.Describe("[Feature:Operators] Cluster autoscaler cluster operator status should", func() {
-	defer g.GinkgoRecover()
+var _ = Describe("[Feature:Operators] Cluster autoscaler cluster operator status should", func() {
+	defer GinkgoRecover()
 
-	g.It("be available", func() {
+	It("be available", func() {
 		var err error
 		client, err := e2e.LoadClient()
-		o.Expect(err).NotTo(o.HaveOccurred())
-		o.Expect(isStatusAvailable(client, "cluster-autoscaler")).To(o.BeTrue())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(isStatusAvailable(client, "cluster-autoscaler")).To(BeTrue())
 	})
 })
