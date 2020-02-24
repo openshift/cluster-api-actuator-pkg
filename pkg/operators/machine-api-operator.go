@@ -5,7 +5,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	e2e "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/framework"
+	e2e "github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 )
 
 var (

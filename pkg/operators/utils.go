@@ -6,7 +6,7 @@ import (
 
 	"github.com/golang/glog"
 	osconfigv1 "github.com/openshift/api/config/v1"
-	e2e "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/framework"
+	e2e "github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	cov1helpers "github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
 	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	"k8s.io/apimachinery/pkg/types"

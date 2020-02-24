@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	e2e "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/framework"
+	e2e "github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	caov1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1"

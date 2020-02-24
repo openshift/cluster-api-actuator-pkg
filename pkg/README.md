@@ -59,10 +59,10 @@ And force dep to vendor the required deps as it's just used at dev/CI time, e.g:
 
 ```
 required = [
-  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/actuators",
-  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/autoscaler",
-  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/infra",
-  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/operators",
+  "github.com/openshift/cluster-api-actuator-pkg/pkg/actuators",
+  "github.com/openshift/cluster-api-actuator-pkg/pkg/autoscaler",
+  "github.com/openshift/cluster-api-actuator-pkg/pkg/infra",
+  "github.com/openshift/cluster-api-actuator-pkg/pkg/operators",
   "github.com/openshift/cluster-autoscaler-operator/pkg/apis",
   "github.com/onsi/ginkgo",
   "github.com/onsi/gomega",
