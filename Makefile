@@ -35,10 +35,6 @@ vendor:
 .PHONY: check
 check: fmt vet lint test ## Check your code
 
-.PHONY: test
-test: # Run unit test
-	$(DOCKER_CMD) go test -race -cover $$(go list ./... | grep -v github.com/openshift/cluster-api-actuator-pkg/pkg/e2e)
-
 .PHONY: lint
 lint: ## Go lint your code
 	# TODO(spangenberg): This thing was never working beacuse it was using $ instead of $$

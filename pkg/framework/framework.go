@@ -2,36 +2,111 @@ package framework
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/golang/glog"
-
-	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
-	corev1 "k8s.io/api/core/v1"
+	configv1 "github.com/openshift/api/config/v1"
+	caov1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1"
+	caov1beta1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1beta1"
+	cov1helpers "github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
+	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
+	batchv1 "k8s.io/api/batch/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/utils/pointer"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
 // Various constants used by E2E tests.
 const (
-	PollNodesReadyTimeout = 10 * time.Minute
-	ClusterKey            = "machine.openshift.io/cluster-api-cluster"
-	MachineSetKey         = "machine.openshift.io/cluster-api-machineset"
-	MachineAPINamespace   = "openshift-machine-api"
+	PollNodesReadyTimeout   = 10 * time.Minute
+	ClusterKey              = "machine.openshift.io/cluster-api-cluster"
+	MachineSetKey           = "machine.openshift.io/cluster-api-machineset"
+	MachineAPINamespace     = "openshift-machine-api"
+	GlobalInfrastuctureName = "cluster"
+	WorkerNodeRoleLabel     = "node-role.kubernetes.io/worker"
+	WaitShort               = 1 * time.Minute
+	WaitMedium              = 3 * time.Minute
+	WaitLong                = 15 * time.Minute
+	RetryMedium             = 5 * time.Second
+	// DefaultMachineSetReplicas is the default number of replicas of a machineset
+	// if MachineSet.Spec.Replicas field is set to nil
+	DefaultMachineSetReplicas = 0
+	MachinePhaseRunning       = "Running"
+	MachineRoleLabel          = "machine.openshift.io/cluster-api-machine-role"
+	MachineTypeLabel          = "machine.openshift.io/cluster-api-machine-type"
+	MachineAnnotationKey      = "machine.openshift.io/machine"
 )
 
+// DeleteObjectsByLabels list all objects of a given kind by labels and deletes them.
+// Currently supported kinds:
+// - caov1beta1.MachineAutoscalerList
+// - caov1.ClusterAutoscalerList
+// - batchv1.JobList
+func DeleteObjectsByLabels(c runtimeclient.Client, labels map[string]string, list runtime.Object) error {
+	if err := c.List(context.Background(), list, runtimeclient.MatchingLabels(labels)); err != nil {
+		return fmt.Errorf("Unable to list objects: %v", err)
+	}
+
+	// TODO(jchaloup): find a way how to list the items independent of a kind
+	var objs []runtime.Object
+	switch d := list.(type) {
+	case *caov1beta1.MachineAutoscalerList:
+		for _, item := range d.Items {
+			objs = append(objs, runtime.Object(&item))
+		}
+	case *caov1.ClusterAutoscalerList:
+		for _, item := range d.Items {
+			objs = append(objs, runtime.Object(&item))
+		}
+	case *batchv1.JobList:
+		for _, item := range d.Items {
+			objs = append(objs, runtime.Object(&item))
+		}
+
+	default:
+		return fmt.Errorf("List type %#v not recognized", list)
+	}
+
+	cascadeDelete := metav1.DeletePropagationForeground
+	for _, obj := range objs {
+		if err := c.Delete(context.Background(), obj, &runtimeclient.DeleteOptions{
+			PropagationPolicy: &cascadeDelete,
+		}); err != nil {
+			return fmt.Errorf("error deleting object: %v", err)
+		}
+	}
+
+	return nil
+}
+
+// GetInfrastructure fetches the global cluster infrastructure object.
+func GetInfrastructure(c runtimeclient.Client) (*configv1.Infrastructure, error) {
+	infra := &configv1.Infrastructure{}
+	infraName := runtimeclient.ObjectKey{
+		Name: GlobalInfrastuctureName,
+	}
+
+	if err := c.Get(context.Background(), infraName, infra); err != nil {
+		return nil, err
+	}
+
+	return infra, nil
+}
+
 // LoadClient returns a new controller-runtime client.
-func LoadClient() (client.Client, error) {
+func LoadClient() (runtimeclient.Client, error) {
 	cfg, err := config.GetConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	return client.New(cfg, client.Options{})
+	return runtimeclient.New(cfg, runtimeclient.Options{})
 }
 
 // LoadClientset returns a new Kubernetes Clientset.
@@ -44,89 +119,60 @@ func LoadClientset() (*kubernetes.Clientset, error) {
 	return kubernetes.NewForConfig(cfg)
 }
 
-// IsNodeReady returns true if the given node is ready.
-func IsNodeReady(node *corev1.Node) bool {
-	for _, c := range node.Status.Conditions {
-		if c.Type == corev1.NodeReady {
-			return c.Status == corev1.ConditionTrue
-		}
-	}
-	return false
+// RandomString returns a random 6 character string.
+func RandomString(clusterName string) string {
+	randID := string(uuid.NewUUID())
+
+	return fmt.Sprintf("%s-%s", clusterName, randID[:6])
 }
 
-// WaitUntilAllNodesAreReady lists all nodes and waits until they are ready.
-func WaitUntilAllNodesAreReady(c client.Client) error {
-	return wait.PollImmediate(1*time.Second, PollNodesReadyTimeout, func() (bool, error) {
-		nodeList := corev1.NodeList{}
-		if err := c.List(context.TODO(), &nodeList); err != nil {
-			glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
+func IsStatusAvailable(client runtimeclient.Client, name string) bool {
+	key := types.NamespacedName{
+		Namespace: MachineAPINamespace,
+		Name:      name,
+	}
+	clusterOperator := &configv1.ClusterOperator{}
+
+	if err := wait.PollImmediate(1*time.Second, WaitShort, func() (bool, error) {
+		if err := client.Get(context.TODO(), key, clusterOperator); err != nil {
+			glog.Errorf("error querying api for OperatorStatus object: %v, retrying...", err)
 			return false, nil
 		}
-		// All nodes needs to be ready
-		for _, node := range nodeList.Items {
-			if !IsNodeReady(&node) {
-				glog.Errorf("Node %q is not ready", node.Name)
-				return false, nil
-			}
+		if cov1helpers.IsStatusConditionFalse(clusterOperator.Status.Conditions, configv1.OperatorAvailable) {
+			glog.Errorf("Condition: %q is false", configv1.OperatorAvailable)
+			return false, nil
+		}
+		if cov1helpers.IsStatusConditionTrue(clusterOperator.Status.Conditions, configv1.OperatorProgressing) {
+			glog.Errorf("Condition: %q is true", configv1.OperatorProgressing)
+			return false, nil
+		}
+		if cov1helpers.IsStatusConditionTrue(clusterOperator.Status.Conditions, configv1.OperatorDegraded) {
+			glog.Errorf("Condition: %q is true", configv1.OperatorDegraded)
+			return false, nil
 		}
 		return true, nil
-	})
+	}); err != nil {
+		glog.Errorf("Error checking isStatusAvailable: %v", err)
+		return false
+	}
+	return true
 }
 
-// NewMachineSet returns a new MachineSet object.
-func NewMachineSet(
-	clusterName, namespace, name string,
-	selectorLabels map[string]string,
-	templateLabels map[string]string,
-	providerSpec *mapiv1beta1.ProviderSpec,
-	replicas int32,
-) *mapiv1beta1.MachineSet {
-	ms := mapiv1beta1.MachineSet{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "MachineSet",
-			APIVersion: "machine.openshift.io/v1beta1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Labels: map[string]string{
-				ClusterKey: clusterName,
-			},
-		},
-		Spec: mapiv1beta1.MachineSetSpec{
-			Selector: metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					ClusterKey:    clusterName,
-					MachineSetKey: name,
-				},
-			},
-			Template: mapiv1beta1.MachineTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{
-						ClusterKey:    clusterName,
-						MachineSetKey: name,
-					},
-				},
-				Spec: mapiv1beta1.MachineSpec{
-					ProviderSpec: *providerSpec.DeepCopy(),
-				},
-			},
-			Replicas: pointer.Int32Ptr(replicas),
-		},
+func WaitForValidatingWebhook(client runtimeclient.Client, name string) bool {
+	key := types.NamespacedName{Name: name}
+	webhook := &admissionregistrationv1beta1.ValidatingWebhookConfiguration{}
+
+	if err := wait.PollImmediate(1*time.Second, WaitShort, func() (bool, error) {
+		if err := client.Get(context.TODO(), key, webhook); err != nil {
+			glog.Errorf("error querying api for ValidatingWebhookConfiguration: %v, retrying...", err)
+			return false, nil
+		}
+
+		return true, nil
+	}); err != nil {
+		glog.Errorf("Error waiting for ValidatingWebhookConfiguration: %v", err)
+		return false
 	}
 
-	// Copy additional labels but do not overwrite those that
-	// already exist.
-	for k, v := range selectorLabels {
-		if _, exists := ms.Spec.Selector.MatchLabels[k]; !exists {
-			ms.Spec.Selector.MatchLabels[k] = v
-		}
-	}
-	for k, v := range templateLabels {
-		if _, exists := ms.Spec.Template.ObjectMeta.Labels[k]; !exists {
-			ms.Spec.Template.ObjectMeta.Labels[k] = v
-		}
-	}
-
-	return &ms
+	return true
 }
