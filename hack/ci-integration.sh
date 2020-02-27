@@ -7,4 +7,4 @@ go run ./vendor/github.com/onsi/ginkgo/ginkgo \
     --failFast \
     --noColor \
     "$@" \
-    ./pkg/e2e/ -- --alsologtostderr -v 4 -kubeconfig ${KUBECONFIG:-~/.kube/config}
+    ./pkg/ -- --alsologtostderr -v 4 -kubeconfig ${KUBECONFIG:-~/.kube/config}

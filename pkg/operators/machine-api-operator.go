@@ -5,7 +5,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	e2e "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/framework"
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 )
 
 var (
@@ -17,33 +17,33 @@ var _ = Describe("[Feature:Operators] Machine API operator deployment should", f
 
 	It("be available", func() {
 		var err error
-		client, err := e2e.LoadClient()
+		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(e2e.IsDeploymentAvailable(client, "machine-api-operator")).To(BeTrue())
+		Expect(framework.IsDeploymentAvailable(client, "machine-api-operator")).To(BeTrue())
 	})
 
 	It("reconcile controllers deployment", func() {
 		var err error
-		client, err := e2e.LoadClient()
+		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
 
 		deploymentName := "machine-api-controllers"
-		initialDeployment, err := e2e.GetDeployment(client, deploymentName)
+		initialDeployment, err := framework.GetDeployment(client, deploymentName)
 		if err != nil {
-			initialDeployment, err = e2e.GetDeployment(client, deploymentDeprecatedName)
+			initialDeployment, err = framework.GetDeployment(client, deploymentDeprecatedName)
 			Expect(err).NotTo(HaveOccurred())
 			deploymentName = deploymentDeprecatedName
 		}
 
 		By(fmt.Sprintf("checking deployment %q is available", deploymentName))
-		Expect(e2e.IsDeploymentAvailable(client, deploymentName)).To(BeTrue())
+		Expect(framework.IsDeploymentAvailable(client, deploymentName)).To(BeTrue())
 
 		By(fmt.Sprintf("deleting deployment %q", deploymentName))
-		err = e2e.DeleteDeployment(client, initialDeployment)
+		err = framework.DeleteDeployment(client, initialDeployment)
 		Expect(err).NotTo(HaveOccurred())
 
 		By(fmt.Sprintf("checking deployment %q is available again", deploymentName))
-		Expect(e2e.IsDeploymentAvailable(client, deploymentName)).To(BeTrue())
+		Expect(framework.IsDeploymentAvailable(client, deploymentName)).To(BeTrue())
 	})
 })
 
@@ -52,8 +52,8 @@ var _ = Describe("[Feature:Operators] Machine API cluster operator status should
 
 	It("be available", func() {
 		var err error
-		client, err := e2e.LoadClient()
+		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(isStatusAvailable(client, "machine-api")).To(BeTrue())
+		Expect(framework.IsStatusAvailable(client, "machine-api")).To(BeTrue())
 	})
 })

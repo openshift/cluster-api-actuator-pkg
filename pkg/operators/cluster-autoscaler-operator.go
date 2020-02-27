@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	e2e "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/framework"
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	caov1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1"
@@ -24,10 +24,10 @@ var _ = Describe("[Feature:Operators] Cluster autoscaler operator should", func(
 	BeforeEach(func() {
 		var err error
 
-		client, err = e2e.LoadClient()
+		client, err = framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
 
-		ok := waitForValidatingWebhook(client, "autoscaling.openshift.io")
+		ok := framework.WaitForValidatingWebhook(client, "autoscaling.openshift.io")
 		Expect(ok).To(BeTrue())
 	})
 
@@ -55,7 +55,7 @@ var _ = Describe("[Feature:Operators] Cluster autoscaler operator should", func(
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      fmt.Sprintf("test-%d", time.Now().Unix()),
-				Namespace: e2e.MachineAPINamespace,
+				Namespace: framework.MachineAPINamespace,
 			},
 			Spec: caov1beta1.MachineAutoscalerSpec{
 				// Min is greater than max, which is invalid.
@@ -79,9 +79,9 @@ var _ = Describe("[Feature:Operators] Cluster autoscaler operator deployment sho
 
 	It("be available", func() {
 		var err error
-		client, err := e2e.LoadClient()
+		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(e2e.IsDeploymentAvailable(client, "cluster-autoscaler-operator")).To(BeTrue())
+		Expect(framework.IsDeploymentAvailable(client, "cluster-autoscaler-operator")).To(BeTrue())
 	})
 })
 
@@ -90,8 +90,8 @@ var _ = Describe("[Feature:Operators] Cluster autoscaler cluster operator status
 
 	It("be available", func() {
 		var err error
-		client, err := e2e.LoadClient()
+		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(isStatusAvailable(client, "cluster-autoscaler")).To(BeTrue())
+		Expect(framework.IsStatusAvailable(client, "cluster-autoscaler")).To(BeTrue())
 	})
 })

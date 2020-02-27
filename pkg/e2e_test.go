@@ -13,10 +13,10 @@ import (
 	mhcv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1beta1"
 	"k8s.io/client-go/kubernetes/scheme"
 
-	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/autoscaler"
-	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/infra"
-	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/machinehealthcheck"
-	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/operators"
+	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/autoscaler"
+	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/infra"
+	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/machinehealthcheck"
+	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/operators"
 )
 
 func init() {

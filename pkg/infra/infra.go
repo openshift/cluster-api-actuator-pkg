@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/golang/glog"
-	e2e "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/framework"
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	kpolicyapi "k8s.io/api/policy/v1beta1"
@@ -24,8 +24,8 @@ import (
 )
 
 var nodeDrainLabels = map[string]string{
-	e2e.WorkerNodeRoleLabel: "",
-	"node-draining-test":    string(uuid.NewUUID()),
+	framework.WorkerNodeRoleLabel: "",
+	"node-draining-test":          string(uuid.NewUUID()),
 }
 
 func replicationControllerWorkload(namespace string) *corev1.ReplicationController {
@@ -97,7 +97,7 @@ func invalidMachinesetWithEmptyProviderConfig() *mapiv1beta1.MachineSet {
 	return &mapiv1beta1.MachineSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "invalid-machineset",
-			Namespace: e2e.MachineAPINamespace,
+			Namespace: framework.MachineAPINamespace,
 		},
 		Spec: mapiv1beta1.MachineSetSpec{
 			Replicas: &oneReplicas,
@@ -122,28 +122,28 @@ func invalidMachinesetWithEmptyProviderConfig() *mapiv1beta1.MachineSet {
 	}
 }
 
-func buildMachineSetParams(client runtimeclient.Client, replicas int) e2e.MachineSetParams {
+func buildMachineSetParams(client runtimeclient.Client, replicas int) framework.MachineSetParams {
 	// Get the current workers MachineSets so we can copy a ProviderSpec
 	// from one to use with our new dedicated MachineSet.
-	workers, err := e2e.GetWorkerMachineSets(client)
+	workers, err := framework.GetWorkerMachineSets(client)
 	Expect(err).ToNot(HaveOccurred())
 
 	providerSpec := workers[0].Spec.Template.Spec.ProviderSpec.DeepCopy()
-	clusterName := workers[0].Spec.Template.Labels[e2e.ClusterKey]
+	clusterName := workers[0].Spec.Template.Labels[framework.ClusterKey]
 
-	clusterInfra, err := e2e.GetInfrastructure(client)
+	clusterInfra, err := framework.GetInfrastructure(client)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(clusterInfra.Status.InfrastructureName).ShouldNot(BeEmpty())
 
-	msName := e2e.RandomString(clusterInfra.Status.InfrastructureName)
+	msName := framework.RandomString(clusterInfra.Status.InfrastructureName)
 
-	return e2e.MachineSetParams{
+	return framework.MachineSetParams{
 		Name:         msName,
 		Replicas:     int32(replicas),
 		ProviderSpec: providerSpec,
 		Labels: map[string]string{
-			"mhc.e2e.openshift.io": msName,
-			e2e.ClusterKey:         clusterName,
+			"mhc.framework.openshift.io": msName,
+			framework.ClusterKey:         clusterName,
 		},
 	}
 }
@@ -171,21 +171,21 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 
 	var client runtimeclient.Client
 	var machineSet *mapiv1beta1.MachineSet
-	var machineSetParams e2e.MachineSetParams
+	var machineSetParams framework.MachineSetParams
 
 	BeforeEach(func() {
 		var err error
 
-		client, err = e2e.LoadClient()
+		client, err = framework.LoadClient()
 		Expect(err).ToNot(HaveOccurred())
 
 		machineSetParams = buildMachineSetParams(client, 3)
 
 		By("Creating a new MachineSet")
-		machineSet, err = e2e.CreateMachineSet(client, machineSetParams)
+		machineSet, err = framework.CreateMachineSet(client, machineSetParams)
 		Expect(err).ToNot(HaveOccurred())
 
-		e2e.WaitForMachineSet(client, machineSet.GetName())
+		framework.WaitForMachineSet(client, machineSet.GetName())
 	})
 
 	AfterEach(func() {
@@ -193,19 +193,19 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 		err := client.Delete(context.Background(), machineSet)
 		Expect(err).ToNot(HaveOccurred())
 
-		e2e.WaitForMachineSetDelete(client, machineSet)
+		framework.WaitForMachineSetDelete(client, machineSet)
 	})
 
 	It("have ability to additively reconcile taints from machine to nodes", func() {
 		selector := machineSet.Spec.Selector
-		machines, err := e2e.GetMachines(client, &selector)
+		machines, err := framework.GetMachines(client, &selector)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(machines).ToNot(BeEmpty())
 
 		machine := machines[0]
 		By(fmt.Sprintf("getting machine %q", machine.Name))
 
-		node, err := getNodeFromMachine(client, machine)
+		node, err := framework.GetNodeForMachine(client, machine)
 		Expect(err).NotTo(HaveOccurred())
 		By(fmt.Sprintf("getting the backed node %q", node.Name))
 
@@ -232,7 +232,7 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 		var expectedTaints = sets.NewString("not-from-machine", machineTaint.Key)
 		Eventually(func() bool {
 			glog.Info("Getting node from machine again for verification of taints")
-			node, err := getNodeFromMachine(client, machine)
+			node, err := framework.GetNodeForMachine(client, machine)
 			if err != nil {
 				return false
 			}
@@ -246,29 +246,29 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 			}
 			glog.Infof("Did not find all expected taints on the node. Missing: %v", expectedTaints.Difference(observedTaints))
 			return false
-		}, e2e.WaitMedium, 5*time.Second).Should(BeTrue())
+		}, framework.WaitMedium, 5*time.Second).Should(BeTrue())
 	})
 
 	It("recover from deleted worker machines", func() {
 		selector := machineSet.Spec.Selector
-		machines, err := e2e.GetMachines(client, &selector)
+		machines, err := framework.GetMachines(client, &selector)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(machines).ToNot(BeEmpty())
 
 		machine := machines[0]
 
 		By(fmt.Sprintf("deleting machine object %q", machine.Name))
-		err = deleteMachine(client, machine)
+		err = framework.DeleteMachine(client, machine)
 		Expect(err).NotTo(HaveOccurred())
-		e2e.WaitForMachineDelete(client, machine)
+		framework.WaitForMachineDelete(client, machine)
 
-		e2e.WaitForMachineSet(client, machineSet.GetName())
+		framework.WaitForMachineSet(client, machineSet.GetName())
 	})
 
 	It("grow and decrease when scaling different machineSets simultaneously", func() {
 		By("Creating a second MachineSet")
 		machineSetParams := buildMachineSetParams(client, 0)
-		machineSet2, err := e2e.CreateMachineSet(client, machineSetParams)
+		machineSet2, err := framework.CreateMachineSet(client, machineSetParams)
 		Expect(err).ToNot(HaveOccurred())
 
 		// Make sure second machineset gets deleted anyway
@@ -276,21 +276,21 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 			By("Deleting the second MachineSet")
 			err := deleteObject(client, machineSet2)
 			Expect(err).ToNot(HaveOccurred())
-			e2e.WaitForMachineSetDelete(client, machineSet2)
+			framework.WaitForMachineSetDelete(client, machineSet2)
 		}()
 
-		e2e.WaitForMachineSet(client, machineSet2.GetName())
-		scaleMachineSet(machineSet.GetName(), 0)
-		scaleMachineSet(machineSet2.GetName(), 3)
-		e2e.WaitForMachineSet(client, machineSet.GetName())
-		e2e.WaitForMachineSet(client, machineSet2.GetName())
+		framework.WaitForMachineSet(client, machineSet2.GetName())
+		framework.ScaleMachineSet(machineSet.GetName(), 0)
+		framework.ScaleMachineSet(machineSet2.GetName(), 3)
+		framework.WaitForMachineSet(client, machineSet.GetName())
+		framework.WaitForMachineSet(client, machineSet2.GetName())
 	})
 
 	It("drain node before removing machine resource", func() {
 		By("Create a machine for node about to be drained")
 
 		selector := machineSet.Spec.Selector
-		machines, err := e2e.GetMachines(client, &selector)
+		machines, err := framework.GetMachines(client, &selector)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(len(machines)).To(BeNumerically(">=", 2))
 
@@ -329,7 +329,7 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 		delObjects["pdb"] = pdb
 
 		By("Wait until all replicas are ready")
-		err = waitUntilAllRCPodsAreReady(client, rc)
+		err = framework.WaitUntilAllRCPodsAreReady(client, rc)
 		Expect(err).NotTo(HaveOccurred())
 
 		// TODO(jchaloup): delete machine that has at least half of the RC pods
@@ -342,14 +342,14 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 
 		// We still should be able to list the machine as until rc.replicas-1 are running on the other node
 		By("Observing and verifying node draining")
-		drainedNodeName, err := verifyNodeDraining(client, machines[0], rc)
+		drainedNodeName, err := framework.VerifyNodeDraining(client, machines[0], rc)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Validating the machine is deleted")
-		e2e.WaitForMachineDelete(client, machines[0])
+		framework.WaitForMachineDelete(client, machines[0])
 
 		By("Validate underlying node corresponding to machine1 is removed as well")
-		err = waitUntilNodeDoesNotExists(client, drainedNodeName)
+		err = framework.WaitUntilNodeDoesNotExists(client, drainedNodeName)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -362,7 +362,7 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Waiting for ReconcileError MachineSet event")
-		err = wait.PollImmediate(e2e.RetryMedium, e2e.WaitShort, func() (bool, error) {
+		err = wait.PollImmediate(framework.RetryMedium, framework.WaitShort, func() (bool, error) {
 			eventList := corev1.EventList{}
 			if err := client.List(context.TODO(), &eventList); err != nil {
 				glog.Errorf("error querying api for eventList object: %v, retrying...", err)
