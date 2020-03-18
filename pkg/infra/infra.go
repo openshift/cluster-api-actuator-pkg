@@ -280,8 +280,10 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 		}()
 
 		framework.WaitForMachineSet(client, machineSet2.GetName())
-		framework.ScaleMachineSet(machineSet.GetName(), 0)
-		framework.ScaleMachineSet(machineSet2.GetName(), 3)
+
+		Expect(framework.ScaleMachineSet(machineSet.GetName(), 0)).To(Succeed())
+		Expect(framework.ScaleMachineSet(machineSet2.GetName(), 3)).To(Succeed())
+
 		framework.WaitForMachineSet(client, machineSet.GetName())
 		framework.WaitForMachineSet(client, machineSet2.GetName())
 	})
