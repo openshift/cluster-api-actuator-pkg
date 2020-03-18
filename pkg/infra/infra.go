@@ -122,32 +122,6 @@ func invalidMachinesetWithEmptyProviderConfig() *mapiv1beta1.MachineSet {
 	}
 }
 
-func buildMachineSetParams(client runtimeclient.Client, replicas int) framework.MachineSetParams {
-	// Get the current workers MachineSets so we can copy a ProviderSpec
-	// from one to use with our new dedicated MachineSet.
-	workers, err := framework.GetWorkerMachineSets(client)
-	Expect(err).ToNot(HaveOccurred())
-
-	providerSpec := workers[0].Spec.Template.Spec.ProviderSpec.DeepCopy()
-	clusterName := workers[0].Spec.Template.Labels[framework.ClusterKey]
-
-	clusterInfra, err := framework.GetInfrastructure(client)
-	Expect(err).NotTo(HaveOccurred())
-	Expect(clusterInfra.Status.InfrastructureName).ShouldNot(BeEmpty())
-
-	msName := framework.RandomString(clusterInfra.Status.InfrastructureName)
-
-	return framework.MachineSetParams{
-		Name:         msName,
-		Replicas:     int32(replicas),
-		ProviderSpec: providerSpec,
-		Labels: map[string]string{
-			"mhc.framework.openshift.io": msName,
-			framework.ClusterKey:         clusterName,
-		},
-	}
-}
-
 func deleteObject(client runtimeclient.Client, obj runtime.Object) error {
 	cascadeDelete := metav1.DeletePropagationForeground
 	return client.Delete(context.TODO(), obj, &runtimeclient.DeleteOptions{
@@ -179,7 +153,7 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 		client, err = framework.LoadClient()
 		Expect(err).ToNot(HaveOccurred())
 
-		machineSetParams = buildMachineSetParams(client, 3)
+		machineSetParams = framework.BuildMachineSetParams(client, 3)
 
 		By("Creating a new MachineSet")
 		machineSet, err = framework.CreateMachineSet(client, machineSetParams)
@@ -267,7 +241,7 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 
 	It("grow and decrease when scaling different machineSets simultaneously", func() {
 		By("Creating a second MachineSet")
-		machineSetParams := buildMachineSetParams(client, 0)
+		machineSetParams := framework.BuildMachineSetParams(client, 0)
 		machineSet2, err := framework.CreateMachineSet(client, machineSetParams)
 		Expect(err).ToNot(HaveOccurred())
 
