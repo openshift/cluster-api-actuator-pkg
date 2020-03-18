@@ -34,6 +34,32 @@ const (
 	machineAPIGroup = "machine.openshift.io"
 )
 
+func BuildMachineSetParams(client runtimeclient.Client, replicas int) MachineSetParams {
+	// Get the current workers MachineSets so we can copy a ProviderSpec
+	// from one to use with our new dedicated MachineSet.
+	workers, err := GetWorkerMachineSets(client)
+	Expect(err).ToNot(HaveOccurred())
+
+	providerSpec := workers[0].Spec.Template.Spec.ProviderSpec.DeepCopy()
+	clusterName := workers[0].Spec.Template.Labels[ClusterKey]
+
+	clusterInfra, err := GetInfrastructure(client)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(clusterInfra.Status.InfrastructureName).ShouldNot(BeEmpty())
+
+	msName := RandomString(clusterInfra.Status.InfrastructureName)
+
+	return MachineSetParams{
+		Name:         msName,
+		Replicas:     int32(replicas),
+		ProviderSpec: providerSpec,
+		Labels: map[string]string{
+			"mhc.framework.openshift.io": msName,
+			ClusterKey:         clusterName,
+		},
+	}
+}
+
 // CreateMachineSet creates a new MachineSet resource.
 func CreateMachineSet(c client.Client, params MachineSetParams) (*mapiv1beta1.MachineSet, error) {
 	if params.Labels == nil {
