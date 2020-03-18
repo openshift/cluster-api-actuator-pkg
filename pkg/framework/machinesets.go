@@ -55,7 +55,7 @@ func BuildMachineSetParams(client runtimeclient.Client, replicas int) MachineSet
 		ProviderSpec: providerSpec,
 		Labels: map[string]string{
 			"mhc.framework.openshift.io": msName,
-			ClusterKey:         clusterName,
+			ClusterKey:                   clusterName,
 		},
 	}
 }
@@ -90,6 +90,9 @@ func CreateMachineSet(c client.Client, params MachineSetParams) (*mapiv1beta1.Ma
 					Labels: params.Labels,
 				},
 				Spec: mapiv1beta1.MachineSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: params.Labels,
+					},
 					ProviderSpec: *params.ProviderSpec,
 				},
 			},
