@@ -61,32 +61,60 @@ $ make build
 $ ./bin/cluster-autoscaler-operator --kubeconfig=<PATH/TO/YOUR/CLUSTERS/KUBECONFIG> ...
 ```
 
-### Build the e2e tests
-
-```console
-$ make build-e2e 
-go test -c -o bin/e2e github.com/openshift/cluster-api-actuator-pkg/pkg/e2e
-```
-
 ### Run the autoscaler e2e tests
 
+Before running the autoscaler e2e tests, ensure that you have exported the
+`KUBECONFIG` environment variable, or that you have a valid config in
+`$HOME/.kube/config`. By default, these tests will run in the current namespace.
+
+These tests use the [Ginkgo](https://onsi.github.io/ginkgo/) framework, you
+can pass command line options directly through the `ci-integration.sh` script.
+For example, use `-focus` to restrict the tests you are running.
+
 ```console
-$ NAMESPACE=kube-system ./hack/ci-integration.sh -ginkgo.focus "Autoscaler should" -ginkgo.v -ginkgo.dryRun
-=== RUN   TestE2E
-Running Suite: Machine Suite
-============================
-Random Seed: 1562320813
-Will run 1 of 15 specs
+$ ./hack/ci-integration.sh -focus "Autoscaler should" -v -dryRun
+[2] Running Suite: Machine Suite
+[2] ============================
+[2] Random Seed: 1585144111
+[2] Parallel test node 2/4.
+[2]
+[4] Running Suite: Machine Suite
+[4] ============================
+[4] Random Seed: 1585144111
+[4] Parallel test node 4/4.
+[4]
+[2] SSSSS
+[2] ------------------------------
+[2] [Feature:Machines] Autoscaler should
+[2]   scale up and down
+[2]   /home/mike/workspace/go/src/github.com/openshift/cluster-api-actuator-pkg/pkg/autoscaler/autoscaler.go:209
+[4] SSSS
+[4] Ran 0 of 4 Specs in 0.002 seconds
+[4] SUCCESS! -- 0 Passed | 0 Failed | 0 Pending | 4 Skipped
+[4] PASS
+[2] •SSSS
+[2] Ran 1 of 10 Specs in 0.007 seconds
+[2] SUCCESS! -- 0 Passed | 0 Failed | 0 Pending | 9 Skipped
+[2] PASS
+[1] Running Suite: Machine Suite
+[1] ============================
+[1] Random Seed: 1585144111
+[1] Parallel test node 1/4.
+[1]
+[1]
+[1] Ran 0 of 0 Specs in 0.001 seconds
+[1] SUCCESS! -- 0 Passed | 0 Failed | 0 Pending | 0 Skipped
+[1] PASS
+[3] Running Suite: Machine Suite
+[3] ============================
+[3] Random Seed: 1585144111
+[3] Parallel test node 3/4.
+[3]
+[3]
+[3] Ran 0 of 0 Specs in 0.000 seconds
+[3] SUCCESS! -- 0 Passed | 0 Failed | 0 Pending | 0 Skipped
+[3] PASS
 
-[Feature:Machines][Serial] Autoscaler should 
-  scale up and down
-  /home/aim/go-projects/cluster-api-actuator-pkg/src/github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/autoscaler/autoscaler.go:229
-•SSSSSSSSSSSSSS
-Ran 1 of 15 Specs in 0.000 seconds
-SUCCESS! -- 0 Passed | 0 Failed | 0 Pending | 14 Skipped
---- PASS: TestE2E (0.00s)
-PASS
-ok      github.com/openshift/cluster-api-actuator-pkg/pkg/e2e   0.037s
+Ginkgo ran 1 suite in 4.609743815s
+Test Suite Passed
 ```
-
-Adjust `-ginkgo.focus` as appropriate.
