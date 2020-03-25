@@ -450,7 +450,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		}
 	})
 
-	It("It scales from zero", func() {
+	It("It scales from/to zero", func() {
 
 		// Only run in platforms which support autoscaling from/to zero.
 		clusterInfra, err := framework.GetInfrastructure(client)
@@ -515,6 +515,18 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		By("Waiting for the machineSet replicas to become nodes")
 		framework.WaitForMachineSet(client, machineSet.GetName())
 
-		//TODO: Remove workload, drain nodes and validate scale to zero.
+		expectedReplicas = 0
+		By("Deleting the workload")
+		Expect(deleteObject(workload.Name, cleanupObjects[workload.Name])).Should(Succeed())
+		delete(cleanupObjects, workload.Name)
+		Eventually(func() bool {
+			ms, err := framework.GetMachineSet(client, machineSet.GetName())
+			Expect(err).ToNot(HaveOccurred())
+
+			By(fmt.Sprintf("Waiting for machineSet replicas to scale in. Current replicas are %v, expected %v.",
+				*ms.Spec.Replicas, expectedReplicas))
+
+			return *ms.Spec.Replicas == expectedReplicas
+		}, framework.WaitLong, pollingInterval).Should(BeTrue())
 	})
 })
