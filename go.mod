@@ -5,19 +5,16 @@ go 1.13
 require (
 	github.com/emicklei/go-restful v2.9.6+incompatible // indirect
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
-	github.com/mailru/easyjson v0.0.0-20190626092158-b2ccc519800e // indirect
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.8.1
 	github.com/openshift/api v3.9.1-0.20190517100836-d5b34b957e91+incompatible
-	github.com/openshift/cluster-api v0.0.0-20191007125355-b2c5ded524d4
 	github.com/openshift/cluster-autoscaler-operator v0.0.0-20190627103136-350eb7249737
-	github.com/openshift/library-go v0.0.0-20190626092134-16a370625b52
-	github.com/openshift/machine-api-operator v0.2.1-0.20191025120018-fb3724fc7bdf
-	k8s.io/api v0.0.0-20190918195907-bd6ac527cfd2
-	k8s.io/apiextensions-apiserver v0.0.0-20190918201827-3de75813f604
-	k8s.io/apimachinery v0.0.0-20190913080033-27d36303b655
+	github.com/openshift/library-go v0.0.0-20200324092245-db2a8546af81
+	github.com/openshift/machine-api-operator v0.2.1-0.20200402110321-4f3602b96da3
+	k8s.io/api v0.18.0-rc.1
+	k8s.io/apimachinery v0.18.0-rc.1
 	k8s.io/client-go v11.0.1-0.20190409021438-1a26190bd76a+incompatible
-	k8s.io/utils v0.0.0-20190801114015-581e00157fb1
+	k8s.io/utils v0.0.0-20200229041039-0a110f9eb7ab
 	sigs.k8s.io/controller-runtime v0.4.0
 )
 

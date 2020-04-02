@@ -9,8 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
-	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
-	mhcv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1beta1"
+	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -95,7 +94,7 @@ var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck", func() {
 		mhcParams := framework.MachineHealthCheckParams{
 			Name:   machineSetParams.Name,
 			Labels: machineSetParams.Labels,
-			Conditions: []mhcv1beta1.UnhealthyCondition{
+			Conditions: []mapiv1beta1.UnhealthyCondition{
 				{
 					Type:    E2EConditionType,
 					Status:  corev1.ConditionTrue,
