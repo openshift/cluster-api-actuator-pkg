@@ -1,6 +1,6 @@
 module github.com/openshift/cluster-api-actuator-pkg
 
-go 1.12
+go 1.13
 
 require (
 	github.com/emicklei/go-restful v2.9.6+incompatible // indirect
