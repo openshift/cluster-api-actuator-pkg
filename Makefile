@@ -2,7 +2,7 @@ BUILD_DEST ?= bin/cluster-api-e2e
 
 GO111MODULE = on
 export GO111MODULE
-GOFLAGS += -mod=vendor
+GOFLAGS ?= -mod=vendor
 export GOFLAGS
 GOPROXY ?=
 export GOPROXY
