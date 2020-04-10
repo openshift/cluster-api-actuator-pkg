@@ -448,6 +448,20 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 
 			framework.WaitForMachineSetDelete(client, ms)
 		}
+
+		// explicitly delete the ClusterAutoscaler
+		// this is needed due to the autoscaler tests requiring singleton
+		// deployments of the ClusterAutoscaler.
+		caName := clusterAutoscaler.GetName()
+		Expect(deleteObject(caName, cleanupObjects[caName])).Should(Succeed())
+		delete(cleanupObjects, caName)
+		Eventually(func() bool {
+			By(fmt.Sprintf("Waiting for ClusterAutoscaler to delete."))
+			if ca, err := framework.GetClusterAutoscaler(client, caName); ca == nil && err != nil {
+				return true
+			}
+			return false
+		}, framework.WaitLong, pollingInterval).Should(BeTrue())
 	})
 
 	It("It scales from/to zero", func() {
@@ -527,6 +541,20 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 				*ms.Spec.Replicas, expectedReplicas))
 
 			return *ms.Spec.Replicas == expectedReplicas
+		}, framework.WaitLong, pollingInterval).Should(BeTrue())
+
+		// explicitly delete the ClusterAutoscaler
+		// this is needed due to the autoscaler tests requiring singleton
+		// deployments of the ClusterAutoscaler.
+		caName := clusterAutoscaler.GetName()
+		Expect(deleteObject(caName, cleanupObjects[caName])).Should(Succeed())
+		delete(cleanupObjects, caName)
+		Eventually(func() bool {
+			By(fmt.Sprintf("Waiting for ClusterAutoscaler to delete."))
+			if ca, err := framework.GetClusterAutoscaler(client, caName); ca == nil && err != nil {
+				return true
+			}
+			return false
 		}, framework.WaitLong, pollingInterval).Should(BeTrue())
 	})
 })
