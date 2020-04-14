@@ -299,7 +299,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			machineSets[i].Spec.Template.Spec.Labels = map[string]string{
 				autoscalerWorkerNodeRoleLabel: "",
 			}
-			Expect(client.Create(context.TODO(), machineSets[i])).Should(Succeed())
+			Expect(client.Create(ctx, machineSets[i])).Should(Succeed())
 			cleanupObjects[machineSets[i].Name] = runtime.Object(machineSets[i])
 		}
 
@@ -334,7 +334,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			clusterExpansionSize++
 			glog.Infof("Create MachineAutoscaler backed by MachineSet %s/%s - min:%v, max:%v", machineSets[i].Namespace, machineSets[i].Name, 1, 2)
 			asr := machineAutoscalerResource(machineSets[i], 1, 2)
-			Expect(client.Create(context.TODO(), asr)).Should(Succeed())
+			Expect(client.Create(ctx, asr)).Should(Succeed())
 			machineAutoscalers = append(machineAutoscalers, asr)
 			cleanupObjects[asr.Name] = runtime.Object(asr)
 		}
@@ -374,7 +374,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		maxNodesTotalReachedCounter := newMaxNodesTotalReachedCounter(eventWatcher, 0)
 		// +1 to continuously generate the MaxNodesTotalReached
 		workload := newWorkLoad(int32(maxNodesTotal+1), workloadMemRequest, autoscalerWorkerNodeRoleLabel)
-		Expect(client.Create(context.TODO(), workload)).Should(Succeed())
+		Expect(client.Create(ctx, workload)).Should(Succeed())
 		cleanupObjects[workload.Name] = runtime.Object(workload)
 		testDuration = time.Now().Add(time.Duration(framework.WaitLong))
 		Eventually(func() bool {
@@ -421,7 +421,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 
 		Eventually(func() bool {
 			podList := corev1.PodList{}
-			err = client.List(context.TODO(), &podList, runtimeclient.InNamespace(workload.Namespace))
+			err = client.List(ctx, &podList, runtimeclient.InNamespace(workload.Namespace))
 			Expect(err).NotTo(HaveOccurred())
 			for i := range podList.Items {
 				if strings.Contains(podList.Items[i].Name, workloadJobName) {
