@@ -245,8 +245,6 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 	}
 
 	It("scale up and down", func() {
-		defer GinkgoRecover()
-
 		clientset, err := framework.LoadClientset()
 		Expect(err).NotTo(HaveOccurred())
 
