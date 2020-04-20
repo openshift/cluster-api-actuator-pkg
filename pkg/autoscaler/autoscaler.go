@@ -212,6 +212,16 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 	var workloadMemRequest resource.Quantity
 	var client runtimeclient.Client
 	var err error
+	var cleanupObjects map[string]runtime.Object
+
+	ctx := context.Background()
+	cascadeDelete := metav1.DeletePropagationForeground
+	deleteObject := func(name string, obj runtime.Object) error {
+		glog.Infof("[cleanup] %q (%T)", name, obj)
+		return client.Delete(ctx, obj, &runtimeclient.DeleteOptions{
+			PropagationPolicy: &cascadeDelete,
+		})
+	}
 
 	BeforeEach(func() {
 		client, err = framework.LoadClient()
@@ -233,31 +243,20 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		// be used, not enough to have more than 1 pod per
 		// node.
 		workloadMemRequest = resource.MustParse(fmt.Sprintf("%v", 0.7*float32(bytes)))
+
+		// Anything we create we must cleanup
+		cleanupObjects = make(map[string]runtime.Object)
 	})
 
-	ctx := context.Background()
-	cascadeDelete := metav1.DeletePropagationForeground
-	deleteObject := func(name string, obj runtime.Object) error {
-		glog.Infof("[cleanup] %q (%T)", name, obj)
-		return client.Delete(ctx, obj, &runtimeclient.DeleteOptions{
-			PropagationPolicy: &cascadeDelete,
-		})
-	}
+	AfterEach(func() {
+		for name, obj := range cleanupObjects {
+			Expect(deleteObject(name, obj)).To(Succeed())
+		}
+	})
 
 	It("scale up and down", func() {
 		clientset, err := framework.LoadClientset()
 		Expect(err).NotTo(HaveOccurred())
-
-		// Anything we create we must cleanup
-		cleanupObjects := map[string]runtime.Object{}
-
-		defer func() {
-			for name, obj := range cleanupObjects {
-				if err := deleteObject(name, obj); err != nil {
-					glog.Infof("[cleanup] error deleting object %q (%T): %v", name, obj, err)
-				}
-			}
-		}()
 
 		By("Getting existing machinesets")
 		existingMachineSets, err := framework.GetMachineSets(client)
@@ -298,7 +297,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 				autoscalerWorkerNodeRoleLabel: "",
 			}
 			Expect(client.Create(ctx, machineSets[i])).Should(Succeed())
-			cleanupObjects[machineSets[i].Name] = runtime.Object(machineSets[i])
+			cleanupObjects[machineSets[i].Name] = machineSets[i]
 		}
 
 		By(fmt.Sprintf("Creating %v transient machinesets", len(machineSets)))
@@ -334,7 +333,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			asr := machineAutoscalerResource(machineSets[i], 1, 2)
 			Expect(client.Create(ctx, asr)).Should(Succeed())
 			machineAutoscalers = append(machineAutoscalers, asr)
-			cleanupObjects[asr.Name] = runtime.Object(asr)
+			cleanupObjects[asr.Name] = asr
 		}
 		Expect(clusterExpansionSize).To(BeNumerically(">", 1))
 
@@ -373,7 +372,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		// +1 to continuously generate the MaxNodesTotalReached
 		workload := newWorkLoad(int32(maxNodesTotal+1), workloadMemRequest, autoscalerWorkerNodeRoleLabel)
 		Expect(client.Create(ctx, workload)).Should(Succeed())
-		cleanupObjects[workload.Name] = runtime.Object(workload)
+		cleanupObjects[workload.Name] = workload
 		testDuration = time.Now().Add(time.Duration(framework.WaitLong))
 		Eventually(func() bool {
 			v := scaleUpCounter.get()
@@ -435,6 +434,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		for _, ma := range machineAutoscalers {
 			err := deleteObject(ma.Name, ma)
 			Expect(err).NotTo(HaveOccurred())
+			delete(cleanupObjects, ma.Name)
 		}
 
 		// Delete the transient MachinSets.
@@ -475,16 +475,6 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		default:
 			Skip(fmt.Sprintf("Platform %v does not support autoscaling from/to zero, skipping.", platform))
 		}
-
-		// Anything we create we must cleanup
-		cleanupObjects := map[string]runtime.Object{}
-		defer func() {
-			for name, obj := range cleanupObjects {
-				if err := deleteObject(name, obj); err != nil {
-					glog.Infof("[cleanup] error deleting object %q (%T): %v", name, obj, err)
-				}
-			}
-		}()
 
 		By("Creating a new MachineSet with 0 replicas")
 		machineSetParams := framework.BuildMachineSetParams(client, 0)
