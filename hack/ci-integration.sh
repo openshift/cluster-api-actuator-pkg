@@ -2,7 +2,7 @@
 
 go run ./vendor/github.com/onsi/ginkgo/ginkgo \
     -timeout 90m \
-    -p -stream \
+    -stream \
     -v \
     --failFast \
     --noColor \

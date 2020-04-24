@@ -10,6 +10,7 @@ import (
 	"github.com/golang/glog"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	caov1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1"
 	caov1beta1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1beta1"
@@ -36,8 +37,8 @@ const (
 	workloadJobName                       = "e2e-autoscaler-workload"
 )
 
-func newWorkLoad(njobs int32, memoryRequest resource.Quantity) *batchv1.Job {
-	return &batchv1.Job{
+func newWorkLoad(njobs int32, memoryRequest resource.Quantity, nodeSelector string) *batchv1.Job {
+	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      workloadJobName,
 			Namespace: "default",
@@ -67,9 +68,6 @@ func newWorkLoad(njobs int32, memoryRequest resource.Quantity) *batchv1.Job {
 						},
 					},
 					RestartPolicy: corev1.RestartPolicy("Never"),
-					NodeSelector: map[string]string{
-						autoscalerWorkerNodeRoleLabel: "",
-					},
 					Tolerations: []corev1.Toleration{
 						{
 							Key:      "kubemark",
@@ -83,6 +81,12 @@ func newWorkLoad(njobs int32, memoryRequest resource.Quantity) *batchv1.Job {
 			Parallelism:  pointer.Int32Ptr(njobs),
 		},
 	}
+	if nodeSelector != "" {
+		job.Spec.Template.Spec.NodeSelector = map[string]string{
+			nodeSelector: "",
+		}
+	}
+	return job
 }
 
 // Build default CA resource to allow fast scaling up and down
@@ -204,35 +208,55 @@ func remaining(t time.Time) time.Duration {
 }
 
 var _ = Describe("[Feature:Machines] Autoscaler should", func() {
+
+	var workloadMemRequest resource.Quantity
+	var client runtimeclient.Client
+	var err error
+	var cleanupObjects map[string]runtime.Object
+
+	ctx := context.Background()
 	cascadeDelete := metav1.DeletePropagationForeground
+	deleteObject := func(name string, obj runtime.Object) error {
+		glog.Infof("[cleanup] %q (%T)", name, obj)
+		return client.Delete(ctx, obj, &runtimeclient.DeleteOptions{
+			PropagationPolicy: &cascadeDelete,
+		})
+	}
 
-	It("scale up and down", func() {
-		defer GinkgoRecover()
-
-		clientset, err := framework.LoadClientset()
-		Expect(err).NotTo(HaveOccurred())
-
-		var client runtimeclient.Client
+	BeforeEach(func() {
 		client, err = framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
 
-		deleteObject := func(name string, obj runtime.Object) error {
-			glog.Infof("[cleanup] %q (%T)", name, obj)
-			return client.Delete(context.TODO(), obj, &runtimeclient.DeleteOptions{
-				PropagationPolicy: &cascadeDelete,
-			})
-		}
+		workerNodes, err := framework.GetWorkerNodes(client)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(len(workerNodes)).To(BeNumerically(">=", 1))
+
+		memCapacity := workerNodes[0].Status.Capacity[corev1.ResourceMemory]
+		Expect(memCapacity).ShouldNot(BeNil())
+		Expect(memCapacity.String()).ShouldNot(BeEmpty())
+		glog.Infof("Memory capacity of worker node %q is %s", workerNodes[0].Name, memCapacity.String())
+
+		bytes, ok := memCapacity.AsInt64()
+		Expect(ok).Should(BeTrue())
+
+		// 70% - enough that the existing and new nodes will
+		// be used, not enough to have more than 1 pod per
+		// node.
+		workloadMemRequest = resource.MustParse(fmt.Sprintf("%v", 0.7*float32(bytes)))
 
 		// Anything we create we must cleanup
-		cleanupObjects := map[string]runtime.Object{}
+		cleanupObjects = make(map[string]runtime.Object)
+	})
 
-		defer func() {
-			for name, obj := range cleanupObjects {
-				if err := deleteObject(name, obj); err != nil {
-					glog.Infof("[cleanup] error deleting object %q (%T): %v", name, obj, err)
-				}
-			}
-		}()
+	AfterEach(func() {
+		for name, obj := range cleanupObjects {
+			Expect(deleteObject(name, obj)).To(Succeed())
+		}
+	})
+
+	It("scale up and down", func() {
+		clientset, err := framework.LoadClientset()
+		Expect(err).NotTo(HaveOccurred())
 
 		By("Getting existing machinesets")
 		existingMachineSets, err := framework.GetMachineSets(client)
@@ -269,11 +293,11 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 				targetMachineSet.Spec.Template.ObjectMeta.Labels,
 				&targetMachineSet.Spec.Template.Spec.ProviderSpec,
 				1) // one replica
-			machineSets[i].Spec.Template.Spec.ObjectMeta.Labels = map[string]string{
+			machineSets[i].Spec.Template.Spec.Labels = map[string]string{
 				autoscalerWorkerNodeRoleLabel: "",
 			}
-			Expect(client.Create(context.TODO(), machineSets[i])).Should(Succeed())
-			cleanupObjects[machineSets[i].Name] = runtime.Object(machineSets[i])
+			Expect(client.Create(ctx, machineSets[i])).Should(Succeed())
+			cleanupObjects[machineSets[i].Name] = machineSets[i]
 		}
 
 		By(fmt.Sprintf("Creating %v transient machinesets", len(machineSets)))
@@ -307,9 +331,9 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			clusterExpansionSize++
 			glog.Infof("Create MachineAutoscaler backed by MachineSet %s/%s - min:%v, max:%v", machineSets[i].Namespace, machineSets[i].Name, 1, 2)
 			asr := machineAutoscalerResource(machineSets[i], 1, 2)
-			Expect(client.Create(context.TODO(), asr)).Should(Succeed())
+			Expect(client.Create(ctx, asr)).Should(Succeed())
 			machineAutoscalers = append(machineAutoscalers, asr)
-			cleanupObjects[asr.Name] = runtime.Object(asr)
+			cleanupObjects[asr.Name] = asr
 		}
 		Expect(clusterExpansionSize).To(BeNumerically(">", 1))
 
@@ -333,22 +357,10 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 
 		By(fmt.Sprintf("Creating ClusterAutoscaler configured with maxNodesTotal:%v", maxNodesTotal))
 		clusterAutoscaler := clusterAutoscalerResource(maxNodesTotal)
-		Expect(client.Create(context.TODO(), clusterAutoscaler)).Should(Succeed())
+		Expect(client.Create(ctx, clusterAutoscaler)).Should(Succeed())
+		cleanupObjects[clusterAutoscaler.GetName()] = clusterAutoscaler
 
 		By(fmt.Sprintf("Deriving Memory capacity from machine %q", existingMachineSets[0].Name))
-		workerNodes, err := framework.GetWorkerNodes(client)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(len(workerNodes)).To(BeNumerically(">=", 1))
-		memCapacity := workerNodes[0].Status.Capacity[corev1.ResourceMemory]
-		Expect(memCapacity).ShouldNot(BeNil())
-		Expect(memCapacity.String()).ShouldNot(BeEmpty())
-		glog.Infof("Memory capacity of worker node %q is %s", workerNodes[0].Name, memCapacity.String())
-		bytes, ok := memCapacity.AsInt64()
-		Expect(ok).Should(BeTrue())
-		// 70% - enough that the existing and new nodes will
-		// be used, not enough to have more than 1 pod per
-		// node.
-		workloadMemRequest := resource.MustParse(fmt.Sprintf("%v", 0.7*float32(bytes)))
 
 		By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s", maxNodesTotal+1, workloadMemRequest.String()))
 		scaledGroups := map[string]bool{}
@@ -358,9 +370,9 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		scaleUpCounter := newScaleUpCounter(eventWatcher, 0, scaledGroups)
 		maxNodesTotalReachedCounter := newMaxNodesTotalReachedCounter(eventWatcher, 0)
 		// +1 to continuously generate the MaxNodesTotalReached
-		workload := newWorkLoad(int32(maxNodesTotal+1), workloadMemRequest)
-		Expect(client.Create(context.TODO(), workload)).Should(Succeed())
-		cleanupObjects[workload.Name] = runtime.Object(workload)
+		workload := newWorkLoad(int32(maxNodesTotal+1), workloadMemRequest, autoscalerWorkerNodeRoleLabel)
+		Expect(client.Create(ctx, workload)).Should(Succeed())
+		cleanupObjects[workload.Name] = workload
 		testDuration = time.Now().Add(time.Duration(framework.WaitLong))
 		Eventually(func() bool {
 			v := scaleUpCounter.get()
@@ -406,7 +418,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 
 		Eventually(func() bool {
 			podList := corev1.PodList{}
-			err = client.List(context.TODO(), &podList, runtimeclient.InNamespace(workload.Namespace))
+			err = client.List(ctx, &podList, runtimeclient.InNamespace(workload.Namespace))
 			Expect(err).NotTo(HaveOccurred())
 			for i := range podList.Items {
 				if strings.Contains(podList.Items[i].Name, workloadJobName) {
@@ -422,6 +434,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		for _, ma := range machineAutoscalers {
 			err := deleteObject(ma.Name, ma)
 			Expect(err).NotTo(HaveOccurred())
+			delete(cleanupObjects, ma.Name)
 		}
 
 		// Delete the transient MachinSets.
@@ -433,5 +446,103 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 
 			framework.WaitForMachineSetDelete(client, ms)
 		}
+
+		// explicitly delete the ClusterAutoscaler
+		// this is needed due to the autoscaler tests requiring singleton
+		// deployments of the ClusterAutoscaler.
+		caName := clusterAutoscaler.GetName()
+		Expect(deleteObject(caName, cleanupObjects[caName])).Should(Succeed())
+		delete(cleanupObjects, caName)
+		Eventually(func() bool {
+			By(fmt.Sprintf("Waiting for ClusterAutoscaler to delete."))
+			if ca, err := framework.GetClusterAutoscaler(client, caName); ca == nil && err != nil {
+				return true
+			}
+			return false
+		}, framework.WaitLong, pollingInterval).Should(BeTrue())
+	})
+
+	It("It scales from/to zero", func() {
+
+		// Only run in platforms which support autoscaling from/to zero.
+		clusterInfra, err := framework.GetInfrastructure(client)
+		Expect(err).NotTo(HaveOccurred())
+
+		platform := clusterInfra.Status.PlatformStatus.Type
+		switch platform {
+		case configv1.AWSPlatformType, configv1.GCPPlatformType, configv1.AzurePlatformType:
+			glog.Infof("Platform is %v", platform)
+		default:
+			Skip(fmt.Sprintf("Platform %v does not support autoscaling from/to zero, skipping.", platform))
+		}
+
+		By("Creating a new MachineSet with 0 replicas")
+		machineSetParams := framework.BuildMachineSetParams(client, 0)
+		targetedNodeLabel := fmt.Sprintf("%v-scale-from-zero", autoscalerWorkerNodeRoleLabel)
+		machineSetParams.Labels[targetedNodeLabel] = ""
+
+		machineSet, err := framework.CreateMachineSet(client, machineSetParams)
+		Expect(err).ToNot(HaveOccurred())
+		cleanupObjects[machineSet.GetName()] = machineSet
+
+		framework.WaitForMachineSet(client, machineSet.GetName())
+
+		By(fmt.Sprintf("Creating ClusterAutoscaler "))
+		clusterAutoscaler := clusterAutoscalerResource(100)
+		Expect(client.Create(ctx, clusterAutoscaler)).Should(Succeed())
+		cleanupObjects[clusterAutoscaler.GetName()] = clusterAutoscaler
+
+		expectedReplicas := int32(3)
+		By(fmt.Sprintf("Creating a MachineAutoscaler backed by MachineSet %s/%s - min:%v, max:%v",
+			machineSet.GetNamespace(), machineSet.GetName(), 0, expectedReplicas))
+		asr := machineAutoscalerResource(machineSet, 0, expectedReplicas)
+		Expect(client.Create(ctx, asr)).Should(Succeed())
+		cleanupObjects[asr.GetName()] = asr
+
+		By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s", expectedReplicas, workloadMemRequest.String()))
+		workload := newWorkLoad(expectedReplicas, workloadMemRequest, targetedNodeLabel)
+		cleanupObjects[workload.GetName()] = workload
+		Expect(client.Create(ctx, workload)).Should(Succeed())
+
+		Eventually(func() bool {
+			ms, err := framework.GetMachineSet(client, machineSet.GetName())
+			Expect(err).ToNot(HaveOccurred())
+
+			By(fmt.Sprintf("Waiting for machineSet replicas to scale out. Current replicas are %v, expected %v.",
+				*ms.Spec.Replicas, expectedReplicas))
+
+			return *ms.Spec.Replicas == expectedReplicas
+		}, framework.WaitMedium, pollingInterval).Should(BeTrue())
+
+		By("Waiting for the machineSet replicas to become nodes")
+		framework.WaitForMachineSet(client, machineSet.GetName())
+
+		expectedReplicas = 0
+		By("Deleting the workload")
+		Expect(deleteObject(workload.Name, cleanupObjects[workload.Name])).Should(Succeed())
+		delete(cleanupObjects, workload.Name)
+		Eventually(func() bool {
+			ms, err := framework.GetMachineSet(client, machineSet.GetName())
+			Expect(err).ToNot(HaveOccurred())
+
+			By(fmt.Sprintf("Waiting for machineSet replicas to scale in. Current replicas are %v, expected %v.",
+				*ms.Spec.Replicas, expectedReplicas))
+
+			return *ms.Spec.Replicas == expectedReplicas
+		}, framework.WaitLong, pollingInterval).Should(BeTrue())
+
+		// explicitly delete the ClusterAutoscaler
+		// this is needed due to the autoscaler tests requiring singleton
+		// deployments of the ClusterAutoscaler.
+		caName := clusterAutoscaler.GetName()
+		Expect(deleteObject(caName, cleanupObjects[caName])).Should(Succeed())
+		delete(cleanupObjects, caName)
+		Eventually(func() bool {
+			By(fmt.Sprintf("Waiting for ClusterAutoscaler to delete."))
+			if ca, err := framework.GetClusterAutoscaler(client, caName); ca == nil && err != nil {
+				return true
+			}
+			return false
+		}, framework.WaitLong, pollingInterval).Should(BeTrue())
 	})
 })
