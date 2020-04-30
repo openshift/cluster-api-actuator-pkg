@@ -255,14 +255,14 @@ func ScaleMachineSet(name string, replicas int) error {
 		return fmt.Errorf("error calling getScaleClient %v", err)
 	}
 
-	scale, err := scaleClient.Scales(MachineAPINamespace).Get(schema.GroupResource{Group: machineAPIGroup, Resource: "MachineSet"}, name)
+	scale, err := scaleClient.Scales(MachineAPINamespace).Get(context.Background(), schema.GroupResource{Group: machineAPIGroup, Resource: "MachineSet"}, name, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("error calling scaleClient.Scales get: %v", err)
 	}
 
 	scaleUpdate := scale.DeepCopy()
 	scaleUpdate.Spec.Replicas = int32(replicas)
-	_, err = scaleClient.Scales(MachineAPINamespace).Update(schema.GroupResource{Group: machineAPIGroup, Resource: "MachineSet"}, scaleUpdate)
+	_, err = scaleClient.Scales(MachineAPINamespace).Update(context.Background(), schema.GroupResource{Group: machineAPIGroup, Resource: "MachineSet"}, scaleUpdate, metav1.UpdateOptions{})
 	if err != nil {
 		return fmt.Errorf("error calling scaleClient.Scales update: %v", err)
 	}
