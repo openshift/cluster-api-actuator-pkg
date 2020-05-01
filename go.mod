@@ -19,15 +19,5 @@ require (
 	sigs.k8s.io/controller-runtime v0.6.0
 )
 
-// Pinning to origin-4.5-kubernetes-1.18.2
-
-replace k8s.io/apiextensions-apiserver => github.com/openshift/kubernetes-apiextensions-apiserver v0.0.0-20200429130350-415be3581b84
-
-replace k8s.io/apimachinery => github.com/openshift/kubernetes-apimachinery v0.0.0-20200429130350-8b9aa3cf97f9
-
-replace k8s.io/client-go => github.com/openshift/kubernetes-client-go v0.0.0-20200429130350-997c95fd9d76
-
-replace k8s.io/kube-aggregator => github.com/openshift/kubernetes-kube-aggregator v0.0.0-20200429130350-5ceaa97390c1
-
 // Use openshift forks
 replace sigs.k8s.io/cluster-api-provider-aws => github.com/openshift/cluster-api-provider-aws v0.2.1-0.20200429204912-67edca9c65de
