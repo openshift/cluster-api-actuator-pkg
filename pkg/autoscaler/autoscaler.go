@@ -38,6 +38,8 @@ const (
 	autoscalerWorkerNodeRoleLabel         = "machine.openshift.io/autoscaler-e2e-worker"
 	workloadJobName                       = "e2e-autoscaler-workload"
 	machineDeleteAnnotationKey            = "machine.openshift.io/cluster-api-delete-machine"
+	deletionCandidateTaintKey             = "DeletionCandidateOfClusterAutoscaler"
+	toBeDeletedTaintKey                   = "ToBeDeletedByClusterAutoscaler"
 )
 
 func newWorkLoad(njobs int32, memoryRequest resource.Quantity, nodeSelector string) *batchv1.Job {
@@ -667,6 +669,29 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 						}
 						if _, exists := m.ObjectMeta.Annotations[machineDeleteAnnotationKey]; exists {
 							return false, nil
+						}
+						return true, nil
+					}, framework.WaitMedium, pollingInterval).Should(BeTrue())
+				}
+			}
+
+			for _, machineSet := range transientMachineSets {
+				machines, err := framework.GetMachinesFromMachineSet(client, machineSet)
+				Expect(err).NotTo(HaveOccurred())
+				for _, machine := range machines {
+					if machine.Status.NodeRef == nil {
+						continue
+					}
+					By(fmt.Sprintf("Checking Node %s for %s and %s taints", machine.Status.NodeRef.Name, deletionCandidateTaintKey, toBeDeletedTaintKey))
+					Eventually(func() (bool, error) {
+						n, err := framework.GetNodeForMachine(client, machine)
+						if err != nil {
+							return false, err
+						}
+						for _, t := range n.Spec.Taints {
+							if t.Key == deletionCandidateTaintKey || t.Key == toBeDeletedTaintKey {
+								return false, nil
+							}
 						}
 						return true, nil
 					}, framework.WaitMedium, pollingInterval).Should(BeTrue())
