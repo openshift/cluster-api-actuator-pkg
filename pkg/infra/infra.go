@@ -8,7 +8,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/golang/glog"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -20,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/klog"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -133,7 +133,7 @@ func deleteObjects(client runtimeclient.Client, delObjects map[string]runtime.Ob
 	// Remove resources
 	for _, obj := range delObjects {
 		if err := deleteObject(client, obj); err != nil {
-			glog.Errorf("[cleanup] error deleting object: %v", err)
+			klog.Errorf("[cleanup] error deleting object: %v", err)
 			return err
 		}
 	}
@@ -205,7 +205,7 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 
 		var expectedTaints = sets.NewString("not-from-machine", machineTaint.Key)
 		Eventually(func() bool {
-			glog.Info("Getting node from machine again for verification of taints")
+			klog.Info("Getting node from machine again for verification of taints")
 			node, err := framework.GetNodeForMachine(client, machine)
 			if err != nil {
 				return false
@@ -215,10 +215,10 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 				observedTaints.Insert(taint.Key)
 			}
 			if expectedTaints.Difference(observedTaints).HasAny("not-from-machine", machineTaint.Key) == false {
-				glog.Infof("Expected : %v, observed %v , difference %v, ", expectedTaints, observedTaints, expectedTaints.Difference(observedTaints))
+				klog.Infof("Expected : %v, observed %v , difference %v, ", expectedTaints, observedTaints, expectedTaints.Difference(observedTaints))
 				return true
 			}
-			glog.Infof("Did not find all expected taints on the node. Missing: %v", expectedTaints.Difference(observedTaints))
+			klog.Infof("Did not find all expected taints on the node. Missing: %v", expectedTaints.Difference(observedTaints))
 			return false
 		}, framework.WaitMedium, 5*time.Second).Should(BeTrue())
 	})
@@ -341,17 +341,17 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 		err = wait.PollImmediate(framework.RetryMedium, framework.WaitShort, func() (bool, error) {
 			eventList := corev1.EventList{}
 			if err := client.List(context.TODO(), &eventList); err != nil {
-				glog.Errorf("error querying api for eventList object: %v, retrying...", err)
+				klog.Errorf("error querying api for eventList object: %v, retrying...", err)
 				return false, nil
 			}
 
-			glog.Infof("Fetching ReconcileError MachineSet invalid-machineset event")
+			klog.Infof("Fetching ReconcileError MachineSet invalid-machineset event")
 			for _, event := range eventList.Items {
 				if event.Reason != "ReconcileError" || event.InvolvedObject.Kind != "MachineSet" || event.InvolvedObject.Name != invalidMachineSet.Name {
 					continue
 				}
 
-				glog.Infof("Found ReconcileError event for %q machine set with the following message: %v", event.InvolvedObject.Name, event.Message)
+				klog.Infof("Found ReconcileError event for %q machine set with the following message: %v", event.InvolvedObject.Name, event.Message)
 				return true, nil
 			}
 
@@ -367,7 +367,7 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		By(fmt.Sprintf("Verify no machine from %q machineset were created", invalidMachineSet.Name))
-		glog.Infof("Have %v machines generated from %q machineset", len(machineList.Items), invalidMachineSet.Name)
+		klog.Infof("Have %v machines generated from %q machineset", len(machineList.Items), invalidMachineSet.Name)
 		Expect(len(machineList.Items)).To(BeNumerically("==", 0))
 
 		By("Deleting invalid machineset")

@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang/glog"
 	kappsapi "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -22,7 +22,7 @@ func GetDeployment(c client.Client, name, namespace string) (*kappsapi.Deploymen
 
 	if err := wait.PollImmediate(1*time.Second, WaitShort, func() (bool, error) {
 		if err := c.Get(context.TODO(), key, d); err != nil {
-			glog.Errorf("Error querying api for Deployment object %q: %v, retrying...", name, err)
+			klog.Errorf("Error querying api for Deployment object %q: %v, retrying...", name, err)
 			return false, nil
 		}
 		return true, nil
@@ -36,7 +36,7 @@ func GetDeployment(c client.Client, name, namespace string) (*kappsapi.Deploymen
 func DeleteDeployment(c client.Client, deployment *kappsapi.Deployment) error {
 	return wait.PollImmediate(1*time.Second, WaitShort, func() (bool, error) {
 		if err := c.Delete(context.TODO(), deployment); err != nil {
-			glog.Errorf("error querying api for deployment object %q: %v, retrying...", deployment.Name, err)
+			klog.Errorf("error querying api for deployment object %q: %v, retrying...", deployment.Name, err)
 			return false, nil
 		}
 		return true, nil
@@ -48,19 +48,19 @@ func IsDeploymentAvailable(c client.Client, name, namespace string) bool {
 	if err := wait.PollImmediate(1*time.Second, WaitLong, func() (bool, error) {
 		d, err := GetDeployment(c, name, namespace)
 		if err != nil {
-			glog.Errorf("Error getting deployment: %v", err)
+			klog.Errorf("Error getting deployment: %v", err)
 			return false, nil
 		}
 		if d.Status.AvailableReplicas < 1 {
-			glog.Errorf("Deployment %q is not available. Status: %s",
+			klog.Errorf("Deployment %q is not available. Status: %s",
 				d.Name, deploymentInfo(d))
 			return false, nil
 		}
-		glog.Infof("Deployment %q is available. Status: %s",
+		klog.Infof("Deployment %q is available. Status: %s",
 			d.Name, deploymentInfo(d))
 		return true, nil
 	}); err != nil {
-		glog.Errorf("Error checking isDeploymentAvailable: %v", err)
+		klog.Errorf("Error checking isDeploymentAvailable: %v", err)
 		return false
 	}
 	return true

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang/glog"
 	configv1 "github.com/openshift/api/config/v1"
 	caov1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1"
 	caov1beta1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1beta1"
@@ -18,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/klog"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
@@ -135,24 +135,24 @@ func IsStatusAvailable(client runtimeclient.Client, name string) bool {
 
 	if err := wait.PollImmediate(1*time.Second, WaitShort, func() (bool, error) {
 		if err := client.Get(context.TODO(), key, clusterOperator); err != nil {
-			glog.Errorf("error querying api for OperatorStatus object: %v, retrying...", err)
+			klog.Errorf("error querying api for OperatorStatus object: %v, retrying...", err)
 			return false, nil
 		}
 		if cov1helpers.IsStatusConditionFalse(clusterOperator.Status.Conditions, configv1.OperatorAvailable) {
-			glog.Errorf("Condition: %q is false", configv1.OperatorAvailable)
+			klog.Errorf("Condition: %q is false", configv1.OperatorAvailable)
 			return false, nil
 		}
 		if cov1helpers.IsStatusConditionTrue(clusterOperator.Status.Conditions, configv1.OperatorProgressing) {
-			glog.Errorf("Condition: %q is true", configv1.OperatorProgressing)
+			klog.Errorf("Condition: %q is true", configv1.OperatorProgressing)
 			return false, nil
 		}
 		if cov1helpers.IsStatusConditionTrue(clusterOperator.Status.Conditions, configv1.OperatorDegraded) {
-			glog.Errorf("Condition: %q is true", configv1.OperatorDegraded)
+			klog.Errorf("Condition: %q is true", configv1.OperatorDegraded)
 			return false, nil
 		}
 		return true, nil
 	}); err != nil {
-		glog.Errorf("Error checking isStatusAvailable: %v", err)
+		klog.Errorf("Error checking isStatusAvailable: %v", err)
 		return false
 	}
 	return true
@@ -164,13 +164,13 @@ func WaitForValidatingWebhook(client runtimeclient.Client, name string) bool {
 
 	if err := wait.PollImmediate(1*time.Second, WaitShort, func() (bool, error) {
 		if err := client.Get(context.TODO(), key, webhook); err != nil {
-			glog.Errorf("error querying api for ValidatingWebhookConfiguration: %v, retrying...", err)
+			klog.Errorf("error querying api for ValidatingWebhookConfiguration: %v, retrying...", err)
 			return false, nil
 		}
 
 		return true, nil
 	}); err != nil {
-		glog.Errorf("Error waiting for ValidatingWebhookConfiguration: %v", err)
+		klog.Errorf("Error waiting for ValidatingWebhookConfiguration: %v", err)
 		return false
 	}
 
