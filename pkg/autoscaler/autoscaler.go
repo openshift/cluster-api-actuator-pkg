@@ -262,21 +262,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		existingMachineSets, err := framework.GetMachineSets(client)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(len(existingMachineSets)).To(BeNumerically(">=", 1))
-
-		By("Getting existing machines")
-		existingMachines, err := framework.GetMachines(client)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(len(existingMachines)).To(BeNumerically(">=", 1))
-
-		By("Getting existing nodes")
-		existingNodes, err := framework.GetNodes(client)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(len(existingNodes)).To(BeNumerically(">=", 1))
-
 		klog.Infof("Have %v existing machinesets", len(existingMachineSets))
-		klog.Infof("Have %v existing machines", len(existingMachines))
-		klog.Infof("Have %v existing nodes", len(existingNodes))
-		Expect(len(existingNodes) == len(existingMachines)).To(BeTrue())
 
 		// The remainder of the logic in this test requires 3
 		// machinesets.
@@ -322,6 +308,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		nodes, err := framework.GetNodes(client)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(len(nodes)).To(BeNumerically(">=", 1))
+		klog.Infof("Found %q nodes", len(nodes))
 
 		var machineAutoscalers []*caov1beta1.MachineAutoscaler
 
@@ -338,7 +325,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		Expect(clusterExpansionSize).To(BeNumerically(">", 1))
 
 		// The total size of our cluster is
-		// len(existingMachineSets) + clusterExpansionSize. We
+		// len(nodes) + clusterExpansionSize. We
 		// cap that to $max-1 because we want to test that the
 		// maxNodesTotal flag is respected by the
 		// cluster-autoscaler
@@ -359,8 +346,6 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		clusterAutoscaler := clusterAutoscalerResource(maxNodesTotal)
 		Expect(client.Create(ctx, clusterAutoscaler)).Should(Succeed())
 		cleanupObjects[clusterAutoscaler.GetName()] = clusterAutoscaler
-
-		By(fmt.Sprintf("Deriving Memory capacity from machine %q", existingMachineSets[0].Name))
 
 		By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s", maxNodesTotal+1, workloadMemRequest.String()))
 		scaledGroups := map[string]bool{}
