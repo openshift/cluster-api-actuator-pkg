@@ -9,6 +9,7 @@ import (
 const (
 	cmaDeployment      = "machine-approver"
 	cmaClusterOperator = "machine-approver"
+	cmaNamespace       = "openshift-cluster-machine-approver"
 )
 
 var _ = Describe("[Feature:Operators] Cluster Machine Approver deployment", func() {
@@ -16,7 +17,7 @@ var _ = Describe("[Feature:Operators] Cluster Machine Approver deployment", func
 		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(framework.IsDeploymentAvailable(client, cmaDeployment)).To(BeTrue())
+		Expect(framework.IsDeploymentAvailable(client, cmaDeployment, cmaNamespace)).To(BeTrue())
 	})
 })
 

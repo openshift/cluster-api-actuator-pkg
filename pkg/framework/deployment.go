@@ -12,10 +12,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// GetDeployment gets deployment object by name
-func GetDeployment(c client.Client, name string) (*kappsapi.Deployment, error) {
+// GetDeployment gets deployment object by name and namespace.
+func GetDeployment(c client.Client, name, namespace string) (*kappsapi.Deployment, error) {
 	key := types.NamespacedName{
-		Namespace: MachineAPINamespace,
+		Namespace: namespace,
 		Name:      name,
 	}
 	d := &kappsapi.Deployment{}
@@ -44,9 +44,9 @@ func DeleteDeployment(c client.Client, deployment *kappsapi.Deployment) error {
 }
 
 // IsDeploymentAvailable returns true if the deployment has one or more availabe replicas
-func IsDeploymentAvailable(c client.Client, name string) bool {
+func IsDeploymentAvailable(c client.Client, name, namespace string) bool {
 	if err := wait.PollImmediate(1*time.Second, WaitLong, func() (bool, error) {
-		d, err := GetDeployment(c, name)
+		d, err := GetDeployment(c, name, namespace)
 		if err != nil {
 			glog.Errorf("Error getting deployment: %v", err)
 			return false, nil
