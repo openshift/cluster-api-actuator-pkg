@@ -26,6 +26,7 @@ import (
 const junitDirEnvVar = "JUNIT_DIR"
 
 func init() {
+	klog.InitFlags(nil)
 	klog.SetOutput(GinkgoWriter)
 
 	if err := mapiv1beta1.AddToScheme(scheme.Scheme); err != nil {
