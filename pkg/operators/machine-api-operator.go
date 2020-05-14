@@ -9,9 +9,9 @@ import (
 )
 
 var (
-	deploymentDeprecatedName = "clusterapi-manager-controllers"
+	maoDeployment        = "machine-api-operator"
+	maoManagedDeployment = "machine-api-controllers"
 )
-
 var _ = Describe("[Feature:Operators] Machine API operator deployment should", func() {
 	defer GinkgoRecover()
 
@@ -19,7 +19,7 @@ var _ = Describe("[Feature:Operators] Machine API operator deployment should", f
 		var err error
 		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(framework.IsDeploymentAvailable(client, "machine-api-operator", framework.MachineAPINamespace)).To(BeTrue())
+		Expect(framework.IsDeploymentAvailable(client, maoDeployment, framework.MachineAPINamespace)).To(BeTrue())
 	})
 
 	It("reconcile controllers deployment", func() {
@@ -27,23 +27,18 @@ var _ = Describe("[Feature:Operators] Machine API operator deployment should", f
 		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
 
-		deploymentName := "machine-api-controllers"
-		initialDeployment, err := framework.GetDeployment(client, deploymentName, framework.MachineAPINamespace)
-		if err != nil {
-			initialDeployment, err = framework.GetDeployment(client, deploymentDeprecatedName, "")
-			Expect(err).NotTo(HaveOccurred())
-			deploymentName = deploymentDeprecatedName
-		}
+		initialDeployment, err := framework.GetDeployment(client, maoManagedDeployment, framework.MachineAPINamespace)
+		Expect(err).NotTo(HaveOccurred())
 
-		By(fmt.Sprintf("checking deployment %q is available", deploymentName))
-		Expect(framework.IsDeploymentAvailable(client, deploymentName, framework.MachineAPINamespace)).To(BeTrue())
+		By(fmt.Sprintf("checking deployment %q is available", maoManagedDeployment))
+		Expect(framework.IsDeploymentAvailable(client, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
 
-		By(fmt.Sprintf("deleting deployment %q", deploymentName))
+		By(fmt.Sprintf("deleting deployment %q", maoManagedDeployment))
 		err = framework.DeleteDeployment(client, initialDeployment)
 		Expect(err).NotTo(HaveOccurred())
 
-		By(fmt.Sprintf("checking deployment %q is available again", deploymentName))
-		Expect(framework.IsDeploymentAvailable(client, deploymentName, framework.MachineAPINamespace)).To(BeTrue())
+		By(fmt.Sprintf("checking deployment %q is available again", maoManagedDeployment))
+		Expect(framework.IsDeploymentAvailable(client, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
 	})
 })
 
