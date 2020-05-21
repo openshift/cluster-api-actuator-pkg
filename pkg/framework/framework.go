@@ -50,7 +50,7 @@ const (
 // - batchv1.JobList
 func DeleteObjectsByLabels(c runtimeclient.Client, labels map[string]string, list runtime.Object) error {
 	if err := c.List(context.Background(), list, runtimeclient.MatchingLabels(labels)); err != nil {
-		return fmt.Errorf("Unable to list objects: %v", err)
+		return fmt.Errorf("Unable to list objects: %w", err)
 	}
 
 	// TODO(jchaloup): find a way how to list the items independent of a kind
@@ -78,7 +78,7 @@ func DeleteObjectsByLabels(c runtimeclient.Client, labels map[string]string, lis
 		if err := c.Delete(context.Background(), obj, &runtimeclient.DeleteOptions{
 			PropagationPolicy: &cascadeDelete,
 		}); err != nil {
-			return fmt.Errorf("error deleting object: %v", err)
+			return fmt.Errorf("error deleting object: %w", err)
 		}
 	}
 

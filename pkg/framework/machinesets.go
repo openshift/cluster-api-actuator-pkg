@@ -128,7 +128,7 @@ func GetMachineSets(client runtimeclient.Client, selectors ...*metav1.LabelSelec
 	}
 
 	if err := client.List(context.Background(), machineSetList, listOpts...); err != nil {
-		return nil, fmt.Errorf("error querying api for machineSetList object: %v", err)
+		return nil, fmt.Errorf("error querying api for machineSetList object: %w", err)
 	}
 
 	return machineSetList.Items, nil
@@ -140,7 +140,7 @@ func GetMachineSet(client runtimeclient.Client, name string) (*mapiv1beta1.Machi
 	key := runtimeclient.ObjectKey{Namespace: MachineAPINamespace, Name: name}
 
 	if err := client.Get(context.Background(), key, machineSet); err != nil {
-		return nil, fmt.Errorf("error querying api for machineSet object: %v", err)
+		return nil, fmt.Errorf("error querying api for machineSet object: %w", err)
 	}
 
 	return machineSet, nil
@@ -179,7 +179,7 @@ func GetWorkerMachineSets(client runtimeclient.Client) ([]*mapiv1beta1.MachineSe
 func GetMachinesFromMachineSet(client runtimeclient.Client, machineSet *mapiv1beta1.MachineSet) ([]*mapiv1beta1.Machine, error) {
 	machines, err := GetMachines(client)
 	if err != nil {
-		return nil, fmt.Errorf("error getting machines: %v", err)
+		return nil, fmt.Errorf("error getting machines: %w", err)
 	}
 	var machinesForSet []*mapiv1beta1.Machine
 	for key := range machines {
@@ -252,19 +252,19 @@ func NewMachineSet(
 func ScaleMachineSet(name string, replicas int) error {
 	scaleClient, err := getScaleClient()
 	if err != nil {
-		return fmt.Errorf("error calling getScaleClient %v", err)
+		return fmt.Errorf("error calling getScaleClient %w", err)
 	}
 
 	scale, err := scaleClient.Scales(MachineAPINamespace).Get(context.Background(), schema.GroupResource{Group: machineAPIGroup, Resource: "MachineSet"}, name, metav1.GetOptions{})
 	if err != nil {
-		return fmt.Errorf("error calling scaleClient.Scales get: %v", err)
+		return fmt.Errorf("error calling scaleClient.Scales get: %w", err)
 	}
 
 	scaleUpdate := scale.DeepCopy()
 	scaleUpdate.Spec.Replicas = int32(replicas)
 	_, err = scaleClient.Scales(MachineAPINamespace).Update(context.Background(), schema.GroupResource{Group: machineAPIGroup, Resource: "MachineSet"}, scaleUpdate, metav1.UpdateOptions{})
 	if err != nil {
-		return fmt.Errorf("error calling scaleClient.Scales update: %v", err)
+		return fmt.Errorf("error calling scaleClient.Scales update: %w", err)
 	}
 	return nil
 }
@@ -273,18 +273,18 @@ func ScaleMachineSet(name string, replicas int) error {
 func getScaleClient() (scale.ScalesGetter, error) {
 	cfg, err := config.GetConfig()
 	if err != nil {
-		return nil, fmt.Errorf("error getting config %v", err)
+		return nil, fmt.Errorf("error getting config %w", err)
 	}
 	mapper, err := apiutil.NewDiscoveryRESTMapper(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("error calling NewDiscoveryRESTMapper %v", err)
+		return nil, fmt.Errorf("error calling NewDiscoveryRESTMapper %w", err)
 	}
 
 	discovery := discovery.NewDiscoveryClientForConfigOrDie(cfg)
 	scaleKindResolver := scale.NewDiscoveryScaleKindResolver(discovery)
 	scaleClient, err := scale.NewForConfig(cfg, mapper, dynamic.LegacyAPIPathResolverFunc, scaleKindResolver)
 	if err != nil {
-		return nil, fmt.Errorf("error calling building scale client %v", err)
+		return nil, fmt.Errorf("error calling building scale client %w", err)
 	}
 	return scaleClient, nil
 }
