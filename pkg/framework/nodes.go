@@ -55,7 +55,7 @@ func GetNodes(c client.Client, selectors ...*metav1.LabelSelector) ([]corev1.Nod
 	}
 
 	if err := c.List(context.TODO(), &nodeList, listOpts...); err != nil {
-		return nil, fmt.Errorf("error querying api for nodeList object: %v", err)
+		return nil, fmt.Errorf("error querying api for nodeList object: %w", err)
 	}
 
 	return nodeList.Items, nil
@@ -65,14 +65,14 @@ func GetNodes(c client.Client, selectors ...*metav1.LabelSelector) ([]corev1.Nod
 func GetNodesFromMachineSet(client runtimeclient.Client, machineSet *mapiv1beta1.MachineSet) ([]*corev1.Node, error) {
 	machines, err := GetMachinesFromMachineSet(client, machineSet)
 	if err != nil {
-		return nil, fmt.Errorf("error calling getMachinesFromMachineSet %v", err)
+		return nil, fmt.Errorf("error calling getMachinesFromMachineSet %w", err)
 	}
 
 	var nodes []*corev1.Node
 	for key := range machines {
 		node, err := GetNodeForMachine(client, machines[key])
 		if err != nil {
-			return nil, fmt.Errorf("error getting node from machine %q: %v", machines[key].Name, err)
+			return nil, fmt.Errorf("error getting node from machine %q: %w", machines[key].Name, err)
 		}
 		nodes = append(nodes, node)
 	}

@@ -14,7 +14,7 @@ func GetClusterAutoscaler(client runtimeclient.Client, name string) (*caov1.Clus
 	key := runtimeclient.ObjectKey{Namespace: MachineAPINamespace, Name: name}
 
 	if err := client.Get(context.Background(), key, clusterAutoscaler); err != nil {
-		return nil, fmt.Errorf("error querying api for ClusterAutoscaler object: %v", err)
+		return nil, fmt.Errorf("error querying api for ClusterAutoscaler object: %w", err)
 	}
 
 	return clusterAutoscaler, nil

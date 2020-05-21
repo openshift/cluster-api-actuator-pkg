@@ -38,7 +38,7 @@ func GetMachine(c client.Client, name string) (*mapiv1beta1.Machine, error) {
 	key := client.ObjectKey{Namespace: MachineAPINamespace, Name: name}
 
 	if err := c.Get(context.Background(), key, machine); err != nil {
-		return nil, fmt.Errorf("error querying api for machine object: %v", err)
+		return nil, fmt.Errorf("error querying api for machine object: %w", err)
 	}
 
 	return machine, nil
@@ -65,7 +65,7 @@ func GetMachines(client runtimeclient.Client, selectors ...*metav1.LabelSelector
 	}
 
 	if err := client.List(context.Background(), machineList, listOpts...); err != nil {
-		return nil, fmt.Errorf("error querying api for machineList object: %v", err)
+		return nil, fmt.Errorf("error querying api for machineList object: %w", err)
 	}
 
 	var machines []*mapiv1beta1.Machine
@@ -97,7 +97,7 @@ func GetMachineFromNode(client runtimeclient.Client, node *corev1.Node) (*mapiv1
 
 	machine, err := GetMachine(client, machineName)
 	if err != nil {
-		return nil, fmt.Errorf("error querying api for machine object: %v", err)
+		return nil, fmt.Errorf("error querying api for machine object: %w", err)
 	}
 
 	return machine, nil
