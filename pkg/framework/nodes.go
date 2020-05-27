@@ -288,7 +288,7 @@ func WaitUntilNodeDoesNotExists(client runtimeclient.Client, nodeName string) er
 
 // WaitUntilAllNodesAreReady lists all nodes and waits until they are ready.
 func WaitUntilAllNodesAreReady(client runtimeclient.Client) error {
-	return wait.PollImmediate(1*time.Second, PollNodesReadyTimeout, func() (bool, error) {
+	return wait.PollImmediate(RetryShort, PollNodesReadyTimeout, func() (bool, error) {
 		nodeList := corev1.NodeList{}
 		if err := client.List(context.TODO(), &nodeList); err != nil {
 			klog.Errorf("error querying api for nodeList object: %v, retrying...", err)
