@@ -229,12 +229,10 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(machines).ToNot(BeEmpty())
 
-		machine := machines[0]
-
-		By(fmt.Sprintf("deleting machine object %q", machine.Name))
-		err = framework.DeleteMachine(client, machine)
+		By(fmt.Sprint("deleting all machines"))
+		err = framework.DeleteMachines(client, machines...)
 		Expect(err).NotTo(HaveOccurred())
-		framework.WaitForMachineDelete(client, machine)
+		framework.WaitForMachinesDeleted(client, machines...)
 
 		framework.WaitForMachineSet(client, machineSet.GetName())
 	})
@@ -322,7 +320,7 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Validating the machine is deleted")
-		framework.WaitForMachineDelete(client, machines[0])
+		framework.WaitForMachinesDeleted(client, machines[0])
 
 		By("Validate underlying node corresponding to machine1 is removed as well")
 		err = framework.WaitUntilNodeDoesNotExists(client, drainedNodeName)
