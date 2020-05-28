@@ -47,14 +47,12 @@ func BuildMachineSetParams(client runtimeclient.Client, replicas int) MachineSet
 	Expect(err).NotTo(HaveOccurred())
 	Expect(clusterInfra.Status.InfrastructureName).ShouldNot(BeEmpty())
 
-	msName := RandomString(clusterInfra.Status.InfrastructureName)
-
 	return MachineSetParams{
-		Name:         msName,
+		Name:         clusterInfra.Status.InfrastructureName,
 		Replicas:     int32(replicas),
 		ProviderSpec: providerSpec,
 		Labels: map[string]string{
-			"mhc.framework.openshift.io": msName,
+			"mhc.framework.openshift.io": clusterInfra.Status.InfrastructureName,
 			ClusterKey:                   clusterName,
 		},
 	}
@@ -77,9 +75,9 @@ func CreateMachineSet(c client.Client, params MachineSetParams) (*mapiv1beta1.Ma
 			APIVersion: "machine.openshift.io/v1beta1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      params.Name,
-			Namespace: MachineAPINamespace,
-			Labels:    params.Labels,
+			GenerateName: params.Name,
+			Namespace:    MachineAPINamespace,
+			Labels:       params.Labels,
 		},
 		Spec: mapiv1beta1.MachineSetSpec{
 			Selector: metav1.LabelSelector{

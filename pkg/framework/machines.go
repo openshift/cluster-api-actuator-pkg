@@ -11,6 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog"
@@ -42,6 +43,24 @@ func GetMachine(c client.Client, name string) (*mapiv1beta1.Machine, error) {
 	}
 
 	return machine, nil
+}
+
+// MachinesPresent search for each provided machine in `machines` argument in the predefined `existingMachines` list
+// and returns true when all of them were found
+func MachinesPresent(existingMachines []*mapiv1beta1.Machine, machines ...*mapiv1beta1.Machine) bool {
+	if len(existingMachines) < len(machines) {
+		return false
+	}
+	existingMachinesMap := map[types.UID]struct{}{}
+	for _, existing := range existingMachines {
+		existingMachinesMap[existing.UID] = struct{}{}
+	}
+	for _, machine := range machines {
+		if _, found := existingMachinesMap[machine.UID]; !found {
+			return false
+		}
+	}
+	return true
 }
 
 // GetMachines gets a list of machinesets from the default machine API namespace.
