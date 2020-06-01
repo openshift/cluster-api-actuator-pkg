@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/glog"
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/config"
 	"github.com/onsi/ginkgo/reporters"
 	. "github.com/onsi/gomega"
+	"k8s.io/klog"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
 	caov1alpha1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis"
@@ -26,16 +26,19 @@ import (
 const junitDirEnvVar = "JUNIT_DIR"
 
 func init() {
+	klog.InitFlags(nil)
+	klog.SetOutput(GinkgoWriter)
+
 	if err := mapiv1beta1.AddToScheme(scheme.Scheme); err != nil {
-		glog.Fatal(err)
+		klog.Fatal(err)
 	}
 
 	if err := caov1alpha1.AddToScheme(scheme.Scheme); err != nil {
-		glog.Fatal(err)
+		klog.Fatal(err)
 	}
 
 	if err := osconfigv1.AddToScheme(scheme.Scheme); err != nil {
-		glog.Fatal(err)
+		klog.Fatal(err)
 	}
 }
 

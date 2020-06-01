@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang/glog"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
@@ -21,6 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/uuid"
+	"k8s.io/klog"
 	"k8s.io/utils/pointer"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -217,7 +217,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 	ctx := context.Background()
 	cascadeDelete := metav1.DeletePropagationForeground
 	deleteObject := func(name string, obj runtime.Object) error {
-		glog.Infof("[cleanup] %q (%T)", name, obj)
+		klog.Infof("[cleanup] %q (%T)", name, obj)
 		return client.Delete(ctx, obj, &runtimeclient.DeleteOptions{
 			PropagationPolicy: &cascadeDelete,
 		})
@@ -234,7 +234,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		memCapacity := workerNodes[0].Status.Capacity[corev1.ResourceMemory]
 		Expect(memCapacity).ShouldNot(BeNil())
 		Expect(memCapacity.String()).ShouldNot(BeEmpty())
-		glog.Infof("Memory capacity of worker node %q is %s", workerNodes[0].Name, memCapacity.String())
+		klog.Infof("Memory capacity of worker node %q is %s", workerNodes[0].Name, memCapacity.String())
 
 		bytes, ok := memCapacity.AsInt64()
 		Expect(ok).Should(BeTrue())
@@ -273,9 +273,9 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(len(existingNodes)).To(BeNumerically(">=", 1))
 
-		glog.Infof("Have %v existing machinesets", len(existingMachineSets))
-		glog.Infof("Have %v existing machines", len(existingMachines))
-		glog.Infof("Have %v existing nodes", len(existingNodes))
+		klog.Infof("Have %v existing machinesets", len(existingMachineSets))
+		klog.Infof("Have %v existing machines", len(existingMachines))
+		klog.Infof("Have %v existing nodes", len(existingNodes))
 		Expect(len(existingNodes) == len(existingMachines)).To(BeTrue())
 
 		// The remainder of the logic in this test requires 3
@@ -329,7 +329,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		var clusterExpansionSize int
 		for i := range machineSets {
 			clusterExpansionSize++
-			glog.Infof("Create MachineAutoscaler backed by MachineSet %s/%s - min:%v, max:%v", machineSets[i].Namespace, machineSets[i].Name, 1, 2)
+			klog.Infof("Create MachineAutoscaler backed by MachineSet %s/%s - min:%v, max:%v", machineSets[i].Namespace, machineSets[i].Name, 1, 2)
 			asr := machineAutoscalerResource(machineSets[i], 1, 2)
 			Expect(client.Create(ctx, asr)).Should(Succeed())
 			machineAutoscalers = append(machineAutoscalers, asr)
@@ -351,7 +351,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		// Log cluster-autoscaler events
 		eventWatcher.onEvent(matchAnyEvent, func(e *corev1.Event) {
 			if e.Source.Component == clusterAutoscalerComponent {
-				glog.Infof("%s: %s", e.InvolvedObject.Name, e.Message)
+				klog.Infof("%s: %s", e.InvolvedObject.Name, e.Message)
 			}
 		}).enable()
 
@@ -376,7 +376,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		testDuration = time.Now().Add(time.Duration(framework.WaitLong))
 		Eventually(func() bool {
 			v := scaleUpCounter.get()
-			glog.Infof("[%s remaining] Expecting %v %q events; observed %v",
+			klog.Infof("[%s remaining] Expecting %v %q events; observed %v",
 				remaining(testDuration), clusterExpansionSize-1, clusterAutoscalerScaledUpGroup, v)
 			return v == uint32(clusterExpansionSize-1)
 		}, framework.WaitLong, pollingInterval).Should(BeTrue())
@@ -391,7 +391,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		testDuration = time.Now().Add(time.Duration(framework.WaitShort))
 		Eventually(func() uint32 {
 			v := maxNodesTotalReachedCounter.get()
-			glog.Infof("[%s remaining] Waiting for %s to generate a %q event; observed %v",
+			klog.Infof("[%s remaining] Waiting for %s to generate a %q event; observed %v",
 				remaining(testDuration), clusterAutoscalerComponent, clusterAutoscalerMaxNodesTotalReached, v)
 			return v
 		}, framework.WaitShort, pollingInterval).Should(BeNumerically(">=", 1))
@@ -399,7 +399,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		testDuration = time.Now().Add(time.Duration(framework.WaitShort))
 		Consistently(func() bool {
 			v := scaleUpCounter.get()
-			glog.Infof("[%s remaining] At max cluster size and expecting no more %q events; currently have %v, max=%v",
+			klog.Infof("[%s remaining] At max cluster size and expecting no more %q events; currently have %v, max=%v",
 				remaining(testDuration), clusterAutoscalerScaledUpGroup, v, clusterExpansionSize-1)
 			return v == uint32(clusterExpansionSize-1)
 		}, framework.WaitShort, pollingInterval).Should(BeTrue())
@@ -411,7 +411,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		testDuration = time.Now().Add(time.Duration(framework.WaitLong))
 		Eventually(func() bool {
 			v := scaleDownCounter.get()
-			glog.Infof("[%s remaining] Expecting %v %q events; observed %v",
+			klog.Infof("[%s remaining] Expecting %v %q events; observed %v",
 				remaining(testDuration), clusterExpansionSize-1, clusterAutoscalerScaleDownEmpty, v)
 			return v == uint32(clusterExpansionSize-1)
 		}, framework.WaitLong, pollingInterval).Should(BeTrue())
@@ -422,7 +422,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			Expect(err).NotTo(HaveOccurred())
 			for i := range podList.Items {
 				if strings.Contains(podList.Items[i].Name, workloadJobName) {
-					glog.Infof("still have workload POD: %q", podList.Items[i].Name)
+					klog.Infof("still have workload POD: %q", podList.Items[i].Name)
 					return false
 				}
 			}
@@ -471,7 +471,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		platform := clusterInfra.Status.PlatformStatus.Type
 		switch platform {
 		case configv1.AWSPlatformType, configv1.GCPPlatformType, configv1.AzurePlatformType:
-			glog.Infof("Platform is %v", platform)
+			klog.Infof("Platform is %v", platform)
 		default:
 			Skip(fmt.Sprintf("Platform %v does not support autoscaling from/to zero, skipping.", platform))
 		}

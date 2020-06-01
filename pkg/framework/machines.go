@@ -7,13 +7,13 @@ import (
 
 	. "github.com/onsi/gomega"
 
-	"github.com/golang/glog"
 	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -107,7 +107,7 @@ func GetMachineFromNode(client runtimeclient.Client, node *corev1.Node) (*mapiv1
 func DeleteMachine(client runtimeclient.Client, machine *mapiv1beta1.Machine) error {
 	return wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
 		if err := client.Delete(context.TODO(), machine); err != nil {
-			glog.Errorf("Error querying api for machine object %q: %v, retrying...", machine.Name, err)
+			klog.Errorf("Error querying api for machine object %q: %v, retrying...", machine.Name, err)
 			return false, err
 		}
 		return true, nil
