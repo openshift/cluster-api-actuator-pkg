@@ -108,7 +108,7 @@ var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck", func() {
 		Expect(mhc).ToNot(BeNil())
 
 		By("Verifying the matching Machine is deleted")
-		framework.WaitForMachineDelete(client, machine)
+		framework.WaitForMachinesDeleted(client, machine)
 
 		By("Verifying the MachineSet recovers")
 		framework.WaitForMachineSet(client, machineSet.GetName())

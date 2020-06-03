@@ -103,26 +103,27 @@ func GetMachineFromNode(client runtimeclient.Client, node *corev1.Node) (*mapiv1
 	return machine, nil
 }
 
-// DeleteMachine deletes a specific machine and returns an error otherwise
-func DeleteMachine(client runtimeclient.Client, machine *mapiv1beta1.Machine) error {
+// DeleteMachines deletes the specified machines and returns an error on failure.
+func DeleteMachines(client runtimeclient.Client, machines ...*mapiv1beta1.Machine) error {
 	return wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
-		if err := client.Delete(context.TODO(), machine); err != nil {
-			klog.Errorf("Error querying api for machine object %q: %v, retrying...", machine.Name, err)
-			return false, err
+		for _, machine := range machines {
+			if err := client.Delete(context.TODO(), machine); err != nil {
+				klog.Errorf("Error querying api for machine object %q: %v, retrying...", machine.Name, err)
+				return false, err
+			}
 		}
 		return true, nil
 	})
 }
 
-// WaitForMachineDelete polls until the given Machines are not found.
-func WaitForMachineDelete(c client.Client, machines ...*mapiv1beta1.Machine) {
+// WaitForMachinesDeleted polls until the given Machines are not found.
+func WaitForMachinesDeleted(c client.Client, machines ...*mapiv1beta1.Machine) {
 	Eventually(func() bool {
 		for _, m := range machines {
 			err := c.Get(context.Background(), client.ObjectKey{
 				Name:      m.GetName(),
 				Namespace: m.GetNamespace(),
 			}, &mapiv1beta1.Machine{})
-
 			if !apierrors.IsNotFound(err) {
 				return false // Not deleted, or other error.
 			}
