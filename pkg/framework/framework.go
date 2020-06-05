@@ -33,6 +33,7 @@ const (
 	WaitShort               = 1 * time.Minute
 	WaitMedium              = 3 * time.Minute
 	WaitLong                = 15 * time.Minute
+	RetryShort              = 1 * time.Second
 	RetryMedium             = 5 * time.Second
 	// DefaultMachineSetReplicas is the default number of replicas of a machineset
 	// if MachineSet.Spec.Replicas field is set to nil
@@ -133,7 +134,7 @@ func IsStatusAvailable(client runtimeclient.Client, name string) bool {
 	}
 	clusterOperator := &configv1.ClusterOperator{}
 
-	if err := wait.PollImmediate(1*time.Second, WaitShort, func() (bool, error) {
+	if err := wait.PollImmediate(RetryShort, WaitShort, func() (bool, error) {
 		if err := client.Get(context.TODO(), key, clusterOperator); err != nil {
 			klog.Errorf("error querying api for OperatorStatus object: %v, retrying...", err)
 			return false, nil
@@ -162,7 +163,7 @@ func WaitForValidatingWebhook(client runtimeclient.Client, name string) bool {
 	key := types.NamespacedName{Name: name}
 	webhook := &admissionregistrationv1beta1.ValidatingWebhookConfiguration{}
 
-	if err := wait.PollImmediate(1*time.Second, WaitShort, func() (bool, error) {
+	if err := wait.PollImmediate(RetryShort, WaitShort, func() (bool, error) {
 		if err := client.Get(context.TODO(), key, webhook); err != nil {
 			klog.Errorf("error querying api for ValidatingWebhookConfiguration: %v, retrying...", err)
 			return false, nil

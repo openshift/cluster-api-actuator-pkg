@@ -105,7 +105,7 @@ func GetMachineFromNode(client runtimeclient.Client, node *corev1.Node) (*mapiv1
 
 // DeleteMachines deletes the specified machines and returns an error on failure.
 func DeleteMachines(client runtimeclient.Client, machines ...*mapiv1beta1.Machine) error {
-	return wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
+	return wait.PollImmediate(RetryShort, time.Minute, func() (bool, error) {
 		for _, machine := range machines {
 			if err := client.Delete(context.TODO(), machine); err != nil {
 				klog.Errorf("Error querying api for machine object %q: %v, retrying...", machine.Name, err)
