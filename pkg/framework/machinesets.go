@@ -3,8 +3,8 @@ package framework
 import (
 	"context"
 	"fmt"
-	"time"
 
+	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
 
 	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
@@ -47,39 +47,31 @@ func BuildMachineSetParams(client runtimeclient.Client, replicas int) MachineSet
 	Expect(err).NotTo(HaveOccurred())
 	Expect(clusterInfra.Status.InfrastructureName).ShouldNot(BeEmpty())
 
-	msName := RandomString(clusterInfra.Status.InfrastructureName)
+	uid, err := uuid.NewUUID()
+	Expect(err).NotTo(HaveOccurred())
 
 	return MachineSetParams{
-		Name:         msName,
+		Name:         clusterInfra.Status.InfrastructureName,
 		Replicas:     int32(replicas),
 		ProviderSpec: providerSpec,
 		Labels: map[string]string{
-			"mhc.framework.openshift.io": msName,
-			ClusterKey:                   clusterName,
+			"e2e.openshift.io": uid.String(),
+			ClusterKey:         clusterName,
 		},
 	}
 }
 
 // CreateMachineSet creates a new MachineSet resource.
 func CreateMachineSet(c client.Client, params MachineSetParams) (*mapiv1beta1.MachineSet, error) {
-	if params.Labels == nil {
-		params.Labels = make(map[string]string)
-	}
-
-	// TODO(bison): It would be nice to automatically set the Cluster ID / name
-	// in the labels here, but I'm not sure how to easily find it.
-	params.Labels["e2e.openshift.io"] =
-		fmt.Sprintf("%s-%d", params.Name, time.Now().Unix())
-
 	ms := &mapiv1beta1.MachineSet{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "MachineSet",
 			APIVersion: "machine.openshift.io/v1beta1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      params.Name,
-			Namespace: MachineAPINamespace,
-			Labels:    params.Labels,
+			GenerateName: params.Name,
+			Namespace:    MachineAPINamespace,
+			Labels:       params.Labels,
 		},
 		Spec: mapiv1beta1.MachineSetSpec{
 			Selector: metav1.LabelSelector{
@@ -308,7 +300,7 @@ func WaitForMachineSet(c client.Client, name string) {
 
 		if len(machines) != int(replicas) {
 			return fmt.Errorf("found %d Machines, but MachineSet has %d replicas",
-				len(machines), machineSet.Spec.Replicas)
+				len(machines), int(replicas))
 		}
 
 		running := FilterRunningMachines(machines)

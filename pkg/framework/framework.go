@@ -11,10 +11,10 @@ import (
 	cov1helpers "github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
 	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
@@ -120,13 +120,6 @@ func LoadClientset() (*kubernetes.Clientset, error) {
 	return kubernetes.NewForConfig(cfg)
 }
 
-// RandomString returns a random 6 character string.
-func RandomString(clusterName string) string {
-	randID := string(uuid.NewUUID())
-
-	return fmt.Sprintf("%s-%s", clusterName, randID[:6])
-}
-
 func IsStatusAvailable(client runtimeclient.Client, name string) bool {
 	key := types.NamespacedName{
 		Namespace: MachineAPINamespace,
@@ -176,4 +169,27 @@ func WaitForValidatingWebhook(client runtimeclient.Client, name string) bool {
 	}
 
 	return true
+}
+
+// WaitForEvent expects to find the given event
+func WaitForEvent(c runtimeclient.Client, kind, name, reason string) error {
+	return wait.PollImmediate(RetryMedium, WaitMedium, func() (bool, error) {
+		eventList := corev1.EventList{}
+		if err := c.List(context.Background(), &eventList); err != nil {
+			klog.Errorf("error querying api for eventList object: %v, retrying...", err)
+			return false, nil
+		}
+
+		for _, event := range eventList.Items {
+			if event.Reason != reason ||
+				event.InvolvedObject.Kind != kind ||
+				event.InvolvedObject.Name != name {
+				continue
+			}
+
+			return true, nil
+		}
+
+		return false, nil
+	})
 }
