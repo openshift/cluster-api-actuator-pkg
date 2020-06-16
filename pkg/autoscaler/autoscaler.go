@@ -216,6 +216,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 	var client runtimeclient.Client
 	var err error
 	var cleanupObjects map[string]runtime.Object
+	var caEventWatcher *eventWatcher
 
 	ctx := context.Background()
 	cascadeDelete := metav1.DeletePropagationForeground
@@ -247,11 +248,26 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		// node.
 		workloadMemRequest = resource.MustParse(fmt.Sprintf("%v", 0.7*float32(bytes)))
 
+		By("Starting Cluster Autoscaler event watcher")
+		clientset, err := framework.LoadClientset()
+		Expect(err).NotTo(HaveOccurred())
+		caEventWatcher = newEventWatcher(clientset)
+		Expect(caEventWatcher.run()).Should(BeTrue())
+		// Log cluster-autoscaler events
+		caEventWatcher.onEvent(matchAnyEvent, func(e *corev1.Event) {
+			if e.Source.Component == clusterAutoscalerComponent {
+				klog.Infof("%s: %s", e.InvolvedObject.Name, e.Message)
+			}
+		}).enable()
+
 		// Anything we create we must cleanup
 		cleanupObjects = make(map[string]runtime.Object)
 	})
 
 	AfterEach(func() {
+		By("Stopping Cluster Autoscaler event watcher")
+		caEventWatcher.stop()
+
 		for name, obj := range cleanupObjects {
 			Expect(deleteObject(name, obj)).To(Succeed())
 		}
@@ -260,7 +276,6 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 	Context("use a ClusterAutoscaler that has a derived maximum total nodes count", func() {
 
 		It("scale up and down", func() {
-			clientset, err := framework.LoadClientset()
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Getting existing machinesets")
@@ -350,17 +365,6 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			// cluster-autoscaler
 			maxNodesTotal := len(nodes) + clusterExpansionSize - 1
 
-			eventWatcher := newEventWatcher(clientset)
-			Expect(eventWatcher.run()).Should(BeTrue())
-			defer eventWatcher.stop()
-
-			// Log cluster-autoscaler events
-			eventWatcher.onEvent(matchAnyEvent, func(e *corev1.Event) {
-				if e.Source.Component == clusterAutoscalerComponent {
-					klog.Infof("%s: %s", e.InvolvedObject.Name, e.Message)
-				}
-			}).enable()
-
 			By(fmt.Sprintf("Creating ClusterAutoscaler configured with maxNodesTotal:%v", maxNodesTotal))
 			clusterAutoscaler := clusterAutoscalerResource(maxNodesTotal)
 			Expect(client.Create(ctx, clusterAutoscaler)).Should(Succeed())
@@ -373,8 +377,8 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			for i := range machineSets {
 				scaledGroups[path.Join(machineSets[i].Namespace, machineSets[i].Name)] = false
 			}
-			scaleUpCounter := newScaleUpCounter(eventWatcher, 0, scaledGroups)
-			maxNodesTotalReachedCounter := newMaxNodesTotalReachedCounter(eventWatcher, 0)
+			scaleUpCounter := newScaleUpCounter(caEventWatcher, 0, scaledGroups)
+			maxNodesTotalReachedCounter := newMaxNodesTotalReachedCounter(caEventWatcher, 0)
 			// +1 to continuously generate the MaxNodesTotalReached
 			workload := newWorkLoad(int32(maxNodesTotal+1), workloadMemRequest, autoscalerWorkerNodeRoleLabel)
 			Expect(client.Create(ctx, workload)).Should(Succeed())
@@ -411,7 +415,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			}, framework.WaitShort, pollingInterval).Should(BeTrue())
 
 			By("Deleting workload")
-			scaleDownCounter := newScaleDownCounter(eventWatcher, uint32(clusterExpansionSize-1))
+			scaleDownCounter := newScaleDownCounter(caEventWatcher, uint32(clusterExpansionSize-1))
 			Expect(deleteObject(workload.Name, cleanupObjects[workload.Name])).Should(Succeed())
 			delete(cleanupObjects, workload.Name)
 			testDuration = time.Now().Add(time.Duration(framework.WaitLong))
@@ -471,31 +475,15 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 
 	Context("use a ClusterAutoscaler that has 100 maximum total nodes count", func() {
 		var clusterAutoscaler *caov1.ClusterAutoscaler
-		var caEventWatcher *eventWatcher
 
 		BeforeEach(func() {
 			By("Creating ClusterAutoscaler")
 			clusterAutoscaler = clusterAutoscalerResource(100)
 			Expect(client.Create(ctx, clusterAutoscaler)).Should(Succeed())
 			cleanupObjects[clusterAutoscaler.GetName()] = clusterAutoscaler
-
-			By("Starting Cluster Autoscaler event watcher")
-			clientset, err := framework.LoadClientset()
-			Expect(err).NotTo(HaveOccurred())
-			caEventWatcher = newEventWatcher(clientset)
-			Expect(caEventWatcher.run()).Should(BeTrue())
-			// Log cluster-autoscaler events
-			caEventWatcher.onEvent(matchAnyEvent, func(e *corev1.Event) {
-				if e.Source.Component == clusterAutoscalerComponent {
-					klog.Infof("%s: %s", e.InvolvedObject.Name, e.Message)
-				}
-			}).enable()
 		})
 
 		AfterEach(func() {
-			By("Stopping Cluster Autoscaler event watcher")
-			caEventWatcher.stop()
-
 			// explicitly delete the ClusterAutoscaler
 			// this is needed due to the autoscaler tests requiring singleton
 			// deployments of the ClusterAutoscaler.
