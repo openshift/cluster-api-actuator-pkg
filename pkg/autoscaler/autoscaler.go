@@ -231,10 +231,10 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(len(workerNodes)).To(BeNumerically(">=", 1))
 
-		memCapacity := workerNodes[0].Status.Capacity[corev1.ResourceMemory]
+		memCapacity := workerNodes[0].Status.Allocatable[corev1.ResourceMemory]
 		Expect(memCapacity).ShouldNot(BeNil())
 		Expect(memCapacity.String()).ShouldNot(BeEmpty())
-		klog.Infof("Memory capacity of worker node %q is %s", workerNodes[0].Name, memCapacity.String())
+		klog.Infof("Allocatable memory capacity of worker node %q is %s", workerNodes[0].Name, memCapacity.String())
 
 		bytes, ok := memCapacity.AsInt64()
 		Expect(ok).Should(BeTrue())
