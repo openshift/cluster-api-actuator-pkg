@@ -328,12 +328,22 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 	})
 
 	It("reject invalid machinesets", func() {
-		var err error
 		By("Creating invalid machineset")
 		invalidMachineSet := invalidMachinesetWithEmptyProviderConfig()
 
-		err = client.Create(context.TODO(), invalidMachineSet)
-		Expect(err).NotTo(HaveOccurred())
+		// TODO: Update this test once webhooks are merged
+		err := client.Create(context.TODO(), invalidMachineSet)
+		Expect(err).To(SatisfyAny(
+			// No webhooks installed
+			Not(HaveOccurred()),
+
+			// Webhook installed, should reject create completely
+			MatchError("admission webhook \"default.machineset.machine.openshift.io\" denied the request: providerSpec.value: Required value: a value must be provided"),
+		))
+		// If the error is not nil, it matched the webhook error so the test is complete
+		if err != nil {
+			return
+		}
 
 		By("Waiting for ReconcileError MachineSet event")
 		err = wait.PollImmediate(framework.RetryMedium, framework.WaitShort, func() (bool, error) {
