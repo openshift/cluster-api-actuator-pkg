@@ -9,6 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
+	gcproviderconfigv1 "github.com/openshift/cluster-api-provider-gcp/pkg/apis/gcpprovider/v1beta1"
 	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	corev1 "k8s.io/api/core/v1"
@@ -36,7 +37,7 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 		Expect(err).NotTo(HaveOccurred())
 		platform = clusterInfra.Status.PlatformStatus.Type
 		switch platform {
-		case configv1.AWSPlatformType:
+		case configv1.AWSPlatformType, configv1.GCPPlatformType:
 			// Do Nothing
 		default:
 			Skip(fmt.Sprintf("Platform %s does not support Spot, skipping.", platform))
@@ -128,6 +129,8 @@ func setSpotOnProviderSpec(platform configv1.PlatformType, params framework.Mach
 	switch platform {
 	case configv1.AWSPlatformType:
 		return setSpotOnAWSProviderSpec(params, maxPrice)
+	case configv1.GCPPlatformType:
+		return setSpotOnGCPProviderSpec(params)
 	default:
 		return fmt.Errorf("unsupported platform: %s", platform)
 	}
@@ -144,6 +147,24 @@ func setSpotOnAWSProviderSpec(params framework.MachineSetParams, maxPrice string
 	spec.SpotMarketOptions = &awsproviderconfigv1.SpotMarketOptions{
 		MaxPrice: &maxPrice,
 	}
+
+	params.ProviderSpec.Value.Raw, err = json.Marshal(spec)
+	if err != nil {
+		return fmt.Errorf("error marshalling providerspec: %v", err)
+	}
+
+	return nil
+}
+
+func setSpotOnGCPProviderSpec(params framework.MachineSetParams) error {
+	spec := gcproviderconfigv1.GCPMachineProviderSpec{}
+
+	err := json.Unmarshal(params.ProviderSpec.Value.Raw, &spec)
+	if err != nil {
+		return fmt.Errorf("error unmarshalling providerspec: %v", err)
+	}
+
+	spec.Preemptible = true
 
 	params.ProviderSpec.Value.Raw, err = json.Marshal(spec)
 	if err != nil {
