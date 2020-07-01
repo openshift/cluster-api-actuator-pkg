@@ -65,7 +65,7 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 		Expect(machines).To(HaveLen(3))
 
 		for _, machine := range machines {
-			Expect(machine.Spec.GetLabels()).To(HaveKeyWithValue(machinecontroller.MachineInterruptibleInstanceLabelName, ""))
+			Expect(machine.Spec.ObjectMeta.Labels).To(HaveKeyWithValue(machinecontroller.MachineInterruptibleInstanceLabelName, ""))
 		}
 	})
 

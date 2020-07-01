@@ -107,7 +107,7 @@ func invalidMachinesetWithEmptyProviderConfig() *mapiv1beta1.MachineSet {
 				},
 			},
 			Template: mapiv1beta1.MachineTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
+				ObjectMeta: mapiv1beta1.ObjectMeta{
 					Labels: map[string]string{
 						"big-kitty": "i-am-bit-kitty",
 					},

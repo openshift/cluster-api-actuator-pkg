@@ -79,11 +79,11 @@ func CreateMachineSet(c client.Client, params MachineSetParams) (*mapiv1beta1.Ma
 				MatchLabels: params.Labels,
 			},
 			Template: mapiv1beta1.MachineTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
+				ObjectMeta: mapiv1beta1.ObjectMeta{
 					Labels: params.Labels,
 				},
 				Spec: mapiv1beta1.MachineSpec{
-					ObjectMeta: metav1.ObjectMeta{
+					ObjectMeta: mapiv1beta1.ObjectMeta{
 						Labels: params.Labels,
 					},
 					ProviderSpec: *params.ProviderSpec,
@@ -160,7 +160,7 @@ func GetWorkerMachineSets(client runtimeclient.Client) ([]*mapiv1beta1.MachineSe
 	// but the Machines themselves are labled as such via the template., so we
 	// can reach into the template and check the lables there.
 	for i, ms := range machineSets.Items {
-		labels := ms.Spec.Template.GetLabels()
+		labels := ms.Spec.Template.ObjectMeta.Labels
 
 		if labels[MachineRoleLabel] == "worker" {
 			result = append(result, &machineSets.Items[i])
@@ -217,7 +217,7 @@ func NewMachineSet(
 				},
 			},
 			Template: mapiv1beta1.MachineTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
+				ObjectMeta: mapiv1beta1.ObjectMeta{
 					Labels: map[string]string{
 						ClusterKey:    clusterName,
 						MachineSetKey: name,
