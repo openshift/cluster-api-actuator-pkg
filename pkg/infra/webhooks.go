@@ -24,14 +24,11 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 	var client runtimeclient.Client
 	var platform configv1.PlatformType
 	var machineSetParams framework.MachineSetParams
-
-	var delObjects map[string]runtime.Object
+	var testSelector *metav1.LabelSelector
 
 	var ctx = context.Background()
 
 	BeforeEach(func() {
-		delObjects = make(map[string]runtime.Object)
-
 		var err error
 		client, err = framework.LoadClient()
 		Expect(err).ToNot(HaveOccurred())
@@ -51,10 +48,23 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 		ps, err := createMinimalProviderSpec(platform, machineSetParams.ProviderSpec)
 		Expect(err).ToNot(HaveOccurred())
 		machineSetParams.ProviderSpec = ps
+
+		// All machines/machinesets created in this test should match these labels
+		testSelector = &metav1.LabelSelector{
+			MatchLabels: machineSetParams.Labels,
+		}
 	})
 
 	AfterEach(func() {
-		Expect(deleteObjects(client, delObjects)).To(Succeed())
+		machineSets, err := framework.GetMachineSets(client, testSelector)
+		Expect(err).ToNot(HaveOccurred())
+		framework.DeleteMachineSets(client, machineSets...)
+		framework.WaitForMachineSetsDeleted(client, machineSets...)
+
+		machines, err := framework.GetMachines(client, testSelector)
+		Expect(err).ToNot(HaveOccurred())
+		framework.DeleteMachines(client, machines...)
+		framework.WaitForMachinesDeleted(client, machines...)
 	})
 
 	It("should be able to create a machine from a minimal providerSpec", func() {

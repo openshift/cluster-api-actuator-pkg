@@ -14,6 +14,7 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/scale"
+	"k8s.io/klog"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -101,7 +102,7 @@ func CreateMachineSet(c client.Client, params MachineSetParams) (*mapiv1beta1.Ma
 
 // GetMachineSets gets a list of machinesets from the default machine API namespace.
 // Optionaly, labels may be used to constrain listed machinesets.
-func GetMachineSets(client runtimeclient.Client, selectors ...*metav1.LabelSelector) ([]mapiv1beta1.MachineSet, error) {
+func GetMachineSets(client runtimeclient.Client, selectors ...*metav1.LabelSelector) ([]*mapiv1beta1.MachineSet, error) {
 	machineSetList := &mapiv1beta1.MachineSetList{}
 
 	listOpts := append([]runtimeclient.ListOption{},
@@ -123,7 +124,13 @@ func GetMachineSets(client runtimeclient.Client, selectors ...*metav1.LabelSelec
 		return nil, fmt.Errorf("error querying api for machineSetList object: %w", err)
 	}
 
-	return machineSetList.Items, nil
+	machineSets := []*mapiv1beta1.MachineSet{}
+	for _, ms := range machineSetList.Items {
+		machineSet := ms
+		machineSets = append(machineSets, &machineSet)
+	}
+
+	return machineSets, nil
 }
 
 // GetMachineSet gets a machineset by its name from the default machine API namespace.
@@ -328,23 +335,42 @@ func WaitForMachineSet(c client.Client, name string) {
 // WaitForMachineSetDelete polls until the given MachineSet is not found, and
 // there are zero Machines found matching the MachineSet's label selector.
 func WaitForMachineSetDelete(c runtimeclient.Client, machineSet *mapiv1beta1.MachineSet) {
-	Eventually(func() bool {
-		selector := machineSet.Spec.Selector
+	WaitForMachineSetsDeleted(c, machineSet)
+}
 
-		machines, err := GetMachines(c, &selector)
-		if err != nil || len(machines) != 0 {
-			return false // Still have Machines, or other error.
+// WaitForMachineSetsDeleted polls until the given MachineSets are not found, and
+// there are zero Machines found matching the MachineSet's label selector.
+func WaitForMachineSetsDeleted(c runtimeclient.Client, machineSets ...*mapiv1beta1.MachineSet) {
+	for _, ms := range machineSets {
+		Eventually(func() bool {
+			selector := ms.Spec.Selector
+
+			machines, err := GetMachines(c, &selector)
+			if err != nil || len(machines) != 0 {
+				return false // Still have Machines, or other error.
+			}
+
+			err = c.Get(context.Background(), runtimeclient.ObjectKey{
+				Name:      ms.GetName(),
+				Namespace: ms.GetNamespace(),
+			}, &mapiv1beta1.MachineSet{})
+
+			if !apierrors.IsNotFound(err) {
+				return false // MachineSet not deleted, or other error.
+			}
+
+			return true // MachineSet and Machines were deleted.
+		}, WaitLong, RetryMedium).Should(BeTrue())
+	}
+}
+
+// DeleteMachineSets deletes the specified machinesets and returns an error on failure.
+func DeleteMachineSets(client runtimeclient.Client, machineSets ...*mapiv1beta1.MachineSet) error {
+	for _, ms := range machineSets {
+		if err := client.Delete(context.TODO(), ms); err != nil {
+			klog.Errorf("Error querying api for machine object %q: %v, retrying...", ms.Name, err)
+			return err
 		}
-
-		err = c.Get(context.Background(), runtimeclient.ObjectKey{
-			Name:      machineSet.GetName(),
-			Namespace: machineSet.GetNamespace(),
-		}, &mapiv1beta1.MachineSet{})
-
-		if !apierrors.IsNotFound(err) {
-			return false // MachineSet not deleted, or other error.
-		}
-
-		return true // MachineSet and Machines were deleted.
-	}, WaitLong, RetryMedium).Should(BeTrue())
+	}
+	return nil
 }
