@@ -269,21 +269,22 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			existingMachineSets, err := framework.GetMachineSets(client)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(len(existingMachineSets)).To(BeNumerically(">=", 1))
-
-			By("Getting existing machines")
-			existingMachines, err := framework.GetMachines(client)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(len(existingMachines)).To(BeNumerically(">=", 1))
-
-			By("Getting existing nodes")
-			existingNodes, err := framework.GetNodes(client)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(len(existingNodes)).To(BeNumerically(">=", 1))
-
 			klog.Infof("Have %v existing machinesets", len(existingMachineSets))
-			klog.Infof("Have %v existing machines", len(existingMachines))
-			klog.Infof("Have %v existing nodes", len(existingNodes))
-			Expect(len(existingNodes) == len(existingMachines)).To(BeTrue())
+
+			By("Checking that the number of machines and nodes is stable")
+			Eventually(func() (bool, error) {
+				existingMachines, err := framework.GetMachines(client)
+				if err != nil {
+					return false, err
+				}
+				existingNodes, err := framework.GetNodes(client)
+				if err != nil {
+					return false, err
+				}
+				klog.Infof("Have %v existing machines", len(existingMachines))
+				klog.Infof("Have %v existing nodes", len(existingNodes))
+				return len(existingMachines) == len(existingNodes) && len(existingNodes) > 0, nil
+			}, framework.WaitMedium, framework.RetryMedium).Should(BeTrue())
 
 			// The remainder of the logic in this test requires 3
 			// machinesets.
