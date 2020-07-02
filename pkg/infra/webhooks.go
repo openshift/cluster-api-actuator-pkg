@@ -12,6 +12,7 @@ import (
 	gcp "github.com/openshift/cluster-api-provider-gcp/pkg/apis/gcpprovider/v1beta1"
 	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	vsphere "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	aws "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsprovider/v1beta1"
@@ -87,6 +88,68 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		framework.WaitForMachineSet(client, machineSet.Name)
+	})
+
+	It("should return an error when removing required fields from the Machine providerSpec", func() {
+		machine := &mapiv1.Machine{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: fmt.Sprintf("%s-webhook-", machineSetParams.Name),
+				Namespace:    framework.MachineAPINamespace,
+				Labels:       machineSetParams.Labels,
+			},
+			Spec: mapiv1.MachineSpec{
+				ProviderSpec: *machineSetParams.ProviderSpec,
+			},
+		}
+		Expect(client.Create(ctx, machine)).To(Succeed())
+
+		updated := false
+		for !updated {
+			machine, err := framework.GetMachine(client, machine.Name)
+			Expect(err).ToNot(HaveOccurred())
+
+			minimalSpec, err := createMinimalProviderSpec(platform, &machine.Spec.ProviderSpec)
+			Expect(err).ToNot(HaveOccurred())
+
+			machine.Spec.ProviderSpec = *minimalSpec
+			err = client.Update(ctx, machine)
+			if apierrors.IsConflict(err) {
+				// Try again if there was a conflict
+				continue
+			}
+
+			// No conflict, so the update "worked"
+			updated = true
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(ContainSubstring("admission webhook \"validation.machine.machine.openshift.io\" denied the request")))
+		}
+	})
+
+	It("should return an error when removing required fields from the MachineSet providerSpec", func() {
+		machineSet, err := framework.CreateMachineSet(client, machineSetParams)
+		Expect(err).ToNot(HaveOccurred())
+
+		updated := false
+		for !updated {
+			machineSet, err = framework.GetMachineSet(client, machineSet.Name)
+			Expect(err).ToNot(HaveOccurred())
+
+			minimalSpec, err := createMinimalProviderSpec(platform, &machineSet.Spec.Template.Spec.ProviderSpec)
+			Expect(err).ToNot(HaveOccurred())
+
+			machineSet.Spec.Template.Spec.ProviderSpec = *minimalSpec
+			err = client.Update(ctx, machineSet)
+			if apierrors.IsConflict(err) {
+				// Try again if there was a conflict
+				continue
+			}
+
+			// No conflict, so the update "worked"
+			updated = true
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(ContainSubstring("admission webhook \"validation.machineset.machine.openshift.io\" denied the request")))
+		}
+
 	})
 })
 
