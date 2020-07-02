@@ -653,7 +653,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 					}
 				}
 				return true, nil
-			}, framework.WaitMedium, pollingInterval).Should(BeTrue())
+			}, framework.WaitLong, pollingInterval).Should(BeTrue())
 
 			for _, machineSet := range transientMachineSets {
 				machines, err := framework.GetMachinesFromMachineSet(client, machineSet)
