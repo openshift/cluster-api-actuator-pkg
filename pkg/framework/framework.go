@@ -30,9 +30,6 @@ const (
 	MachineAPINamespace     = "openshift-machine-api"
 	GlobalInfrastuctureName = "cluster"
 	WorkerNodeRoleLabel     = "node-role.kubernetes.io/worker"
-	WaitShort               = 1 * time.Minute
-	WaitMedium              = 3 * time.Minute
-	WaitLong                = 15 * time.Minute
 	RetryShort              = 1 * time.Second
 	RetryMedium             = 5 * time.Second
 	// DefaultMachineSetReplicas is the default number of replicas of a machineset
@@ -42,6 +39,12 @@ const (
 	MachineRoleLabel          = "machine.openshift.io/cluster-api-machine-role"
 	MachineTypeLabel          = "machine.openshift.io/cluster-api-machine-type"
 	MachineAnnotationKey      = "machine.openshift.io/machine"
+)
+
+var (
+	WaitShort  = 1 * time.Minute
+	WaitMedium = 3 * time.Minute
+	WaitLong   = 15 * time.Minute
 )
 
 // DeleteObjectsByLabels list all objects of a given kind by labels and deletes them.
