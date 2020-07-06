@@ -15,6 +15,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	awsproviderconfigv1 "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsprovider/v1beta1"
+	azureproviderconfigv1 "sigs.k8s.io/cluster-api-provider-azure/pkg/apis/azureprovider/v1beta1"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -37,7 +38,7 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 		Expect(err).NotTo(HaveOccurred())
 		platform = clusterInfra.Status.PlatformStatus.Type
 		switch platform {
-		case configv1.AWSPlatformType, configv1.GCPPlatformType:
+		case configv1.AWSPlatformType, configv1.GCPPlatformType, configv1.AzurePlatformType:
 			// Do Nothing
 		default:
 			Skip(fmt.Sprintf("Platform %s does not support Spot, skipping.", platform))
@@ -129,6 +130,8 @@ func setSpotOnProviderSpec(platform configv1.PlatformType, params framework.Mach
 	switch platform {
 	case configv1.AWSPlatformType:
 		return setSpotOnAWSProviderSpec(params, maxPrice)
+	case configv1.AzurePlatformType:
+		return setSpotOnAzureProviderSpec(params, maxPrice)
 	case configv1.GCPPlatformType:
 		return setSpotOnGCPProviderSpec(params)
 	default:
@@ -145,6 +148,25 @@ func setSpotOnAWSProviderSpec(params framework.MachineSetParams, maxPrice string
 	}
 
 	spec.SpotMarketOptions = &awsproviderconfigv1.SpotMarketOptions{
+		MaxPrice: &maxPrice,
+	}
+
+	params.ProviderSpec.Value.Raw, err = json.Marshal(spec)
+	if err != nil {
+		return fmt.Errorf("error marshalling providerspec: %v", err)
+	}
+
+	return nil
+}
+
+func setSpotOnAzureProviderSpec(params framework.MachineSetParams, maxPrice string) error {
+	spec := azureproviderconfigv1.AzureMachineProviderSpec{}
+	err := json.Unmarshal(params.ProviderSpec.Value.Raw, &spec)
+	if err != nil {
+		return fmt.Errorf("error unmarshalling providerspec: %v", err)
+	}
+
+	spec.SpotVMOptions = &azureproviderconfigv1.SpotVMOptions{
 		MaxPrice: &maxPrice,
 	}
 
