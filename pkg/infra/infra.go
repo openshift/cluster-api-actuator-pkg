@@ -18,7 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/uuid"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -330,56 +329,9 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 	It("reject invalid machinesets", func() {
 		By("Creating invalid machineset")
 		invalidMachineSet := invalidMachinesetWithEmptyProviderConfig()
+		expectedAdmissionWebhookErr := "admission webhook \"default.machineset.machine.openshift.io\" denied the request: providerSpec.value: Required value: a value must be provided"
 
-		// TODO: Update this test once webhooks are merged
 		err := client.Create(context.TODO(), invalidMachineSet)
-		Expect(err).To(SatisfyAny(
-			// No webhooks installed
-			Not(HaveOccurred()),
-
-			// Webhook installed, should reject create completely
-			MatchError("admission webhook \"default.machineset.machine.openshift.io\" denied the request: providerSpec.value: Required value: a value must be provided"),
-		))
-		// If the error is not nil, it matched the webhook error so the test is complete
-		if err != nil {
-			return
-		}
-
-		By("Waiting for ReconcileError MachineSet event")
-		err = wait.PollImmediate(framework.RetryMedium, framework.WaitShort, func() (bool, error) {
-			eventList := corev1.EventList{}
-			if err := client.List(context.TODO(), &eventList); err != nil {
-				klog.Errorf("error querying api for eventList object: %v, retrying...", err)
-				return false, nil
-			}
-
-			klog.Infof("Fetching ReconcileError MachineSet invalid-machineset event")
-			for _, event := range eventList.Items {
-				if event.Reason != "ReconcileError" || event.InvolvedObject.Kind != "MachineSet" || event.InvolvedObject.Name != invalidMachineSet.Name {
-					continue
-				}
-
-				klog.Infof("Found ReconcileError event for %q machine set with the following message: %v", event.InvolvedObject.Name, event.Message)
-				return true, nil
-			}
-
-			return false, nil
-		})
-		Expect(err).NotTo(HaveOccurred())
-
-		// Verify the number of machines does not grow over time.
-		// The assumption is once the ReconcileError event is recorded and caught,
-		// the machineset is not reconciled again until it's updated.
-		machineList := &mapiv1beta1.MachineList{}
-		err = client.List(context.TODO(), machineList, runtimeclient.MatchingLabels(invalidMachineSet.Spec.Template.Labels))
-		Expect(err).NotTo(HaveOccurred())
-
-		By(fmt.Sprintf("Verify no machine from %q machineset were created", invalidMachineSet.Name))
-		klog.Infof("Have %v machines generated from %q machineset", len(machineList.Items), invalidMachineSet.Name)
-		Expect(len(machineList.Items)).To(BeNumerically("==", 0))
-
-		By("Deleting invalid machineset")
-		err = client.Delete(context.TODO(), invalidMachineSet)
-		Expect(err).NotTo(HaveOccurred())
+		Expect(err).To(MatchError(expectedAdmissionWebhookErr))
 	})
 })
