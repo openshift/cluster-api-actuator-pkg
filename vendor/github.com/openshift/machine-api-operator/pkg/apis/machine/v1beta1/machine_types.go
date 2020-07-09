@@ -17,8 +17,6 @@ limitations under the License.
 package v1beta1
 
 import (
-	"fmt"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -69,7 +67,7 @@ type MachineSpec struct {
 	// indicate what labels, annotations, name prefix, etc., should be used
 	// when creating the Node.
 	// +optional
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	ObjectMeta `json:"metadata,omitempty"`
 
 	// The list of the taints to be applied to the corresponding Node in additive
 	// manner. This list will not overwrite any other taints added to the Node on
@@ -154,6 +152,7 @@ type MachineStatus struct {
 	// own versioned API types that should be
 	// serialized/deserialized from this field.
 	// +optional
+	// +kubebuilder:validation:XPreserveUnknownFields
 	ProviderStatus *runtime.RawExtension `json:"providerStatus,omitempty"`
 
 	// Addresses is a list of addresses assigned to the machine. Queried from cloud provider, if available.
@@ -195,13 +194,8 @@ type LastOperation struct {
 func (m *Machine) Validate() field.ErrorList {
 	errors := field.ErrorList{}
 
-	// validate spec.labels
-	fldPath := field.NewPath("spec")
-	if m.Labels[MachineClusterIDLabel] == "" {
-		errors = append(errors, field.Invalid(fldPath.Child("labels"), m.Labels, fmt.Sprintf("missing %v label.", MachineClusterIDLabel)))
-	}
-
 	// validate provider config is set
+	fldPath := field.NewPath("spec")
 	if m.Spec.ProviderSpec.Value == nil {
 		errors = append(errors, field.Invalid(fldPath.Child("spec").Child("providerspec"), m.Spec.ProviderSpec, "value field must be set"))
 	}
