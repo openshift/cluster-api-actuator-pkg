@@ -295,10 +295,8 @@ func WaitForMachineSet(c client.Client, name string) {
 	machineSet, err := GetMachineSet(c, name)
 	Expect(err).ToNot(HaveOccurred())
 
-	selector := machineSet.Spec.Selector
-
 	Eventually(func() error {
-		machines, err := GetMachines(c, &selector)
+		machines, err := GetMachinesFromMachineSet(c, machineSet)
 		if err != nil {
 			return err
 		}

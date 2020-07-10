@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"reflect"
 	"strings"
 	"time"
 
@@ -697,6 +698,98 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 						return true, nil
 					}, framework.WaitMedium, pollingInterval).Should(BeTrue())
 				}
+			}
+		})
+	})
+
+	Context("use a ClusterAutoscaler that has 12 maximum total nodes count and balance similar nodes enabled", func() {
+		var clusterAutoscaler *caov1.ClusterAutoscaler
+
+		BeforeEach(func() {
+			By("Creating ClusterAutoscaler")
+			clusterAutoscaler = clusterAutoscalerResource(12)
+			clusterAutoscaler.Spec.BalanceSimilarNodeGroups = pointer.BoolPtr(true)
+			Expect(client.Create(ctx, clusterAutoscaler)).Should(Succeed())
+			cleanupObjects[clusterAutoscaler.GetName()] = clusterAutoscaler
+		})
+
+		AfterEach(func() {
+			// explicitly delete the ClusterAutoscaler
+			// this is needed due to the autoscaler tests requiring singleton
+			// deployments of the ClusterAutoscaler.
+			By("Waiting for ClusterAutoscaler to delete.")
+			caName := clusterAutoscaler.GetName()
+			Expect(deleteObject(caName, cleanupObjects[caName])).Should(Succeed())
+			delete(cleanupObjects, caName)
+			Eventually(func() bool {
+				t := &apierrors.StatusError{}
+				// Convert the error to a StatusError and allow `IsNotFound` to check that.
+				// TODO drop this conversion once we have upgraded to K8s 1.19 which will support error wrapping first class.
+				if _, err := framework.GetClusterAutoscaler(client, caName); err != nil && errors.As(err, &t) && apierrors.IsNotFound(t) {
+					return true
+				}
+				return false
+			}, framework.WaitMedium, pollingInterval).Should(BeTrue())
+		})
+
+		It("places nodes evenly across node groups [Slow]", func() {
+			By("Creating 2 MachineSets each with 1 replica")
+			var transientMachineSets [2]*mapiv1beta1.MachineSet
+			targetedNodeLabel := fmt.Sprintf("%v-delete-cleanup", autoscalerWorkerNodeRoleLabel)
+			for i, machineSet := range transientMachineSets {
+				machineSetParams := framework.BuildMachineSetParams(client, 1)
+				machineSetParams.Labels[targetedNodeLabel] = ""
+				// remove this label to make the MachineSets similar, see below for more details
+				delete(machineSetParams.Labels, "e2e.openshift.io")
+				machineSet, err = framework.CreateMachineSet(client, machineSetParams)
+				Expect(err).ToNot(HaveOccurred())
+				cleanupObjects[machineSet.GetName()] = machineSet
+				transientMachineSets[i] = machineSet
+			}
+
+			// balance similar nodes requires that all the participating MachineSets have the same
+			// instance types and labels. while the instance types should be the same, we want to
+			// ensure that no extra labels have been added.
+			// TODO it would be nice to check instance types as well, this will require adding some deserialization code for the machine specs.
+			By("Ensuring both MachineSets have the same labels")
+			Expect(reflect.DeepEqual(transientMachineSets[0].Labels, transientMachineSets[1].Labels)).Should(BeTrue())
+
+			By("Waiting for all Machines in MachineSets to enter Running phase")
+			framework.WaitForMachineSet(client, transientMachineSets[0].GetName())
+			framework.WaitForMachineSet(client, transientMachineSets[1].GetName())
+
+			maxMachineSetReplicas := int32(3)
+			for _, machineSet := range transientMachineSets {
+				By(fmt.Sprintf("Creating a MachineAutoscaler backed by MachineSet %s - min: 1, max: %d",
+					machineSet.GetName(), maxMachineSetReplicas))
+				asr := machineAutoscalerResource(machineSet, 1, maxMachineSetReplicas)
+				Expect(client.Create(ctx, asr)).Should(Succeed())
+				cleanupObjects[asr.GetName()] = asr
+			}
+
+			// 4 job replicas are being chosen here to force the cluster to
+			// expand its size by 2 nodes. the cluster autoscaler should
+			// place 1 node in each of the 2 MachineSets created.
+			jobReplicas := int32(4)
+			By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s",
+				jobReplicas, workloadMemRequest.String()))
+			workload := newWorkLoad(jobReplicas, workloadMemRequest, targetedNodeLabel)
+			cleanupObjects[workload.GetName()] = workload
+			Expect(client.Create(ctx, workload)).Should(Succeed())
+
+			expectedReplicas := int32(2)
+			for _, machineSet := range transientMachineSets {
+				By(fmt.Sprintf("Waiting for MachineSet %s replicas to scale out", machineSet.GetName()))
+				Eventually(func() (bool, error) {
+					current, err := framework.GetMachineSet(client, machineSet.GetName())
+					if err != nil {
+						return false, err
+					}
+					if pointer.Int32PtrDerefOr(current.Spec.Replicas, 0) != expectedReplicas {
+						return false, nil
+					}
+					return true, nil
+				}, framework.WaitMedium, pollingInterval).Should(BeTrue())
 			}
 		})
 	})
