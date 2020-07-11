@@ -162,6 +162,10 @@ func GetWorkerMachineSets(client runtimeclient.Client) ([]*mapiv1beta1.MachineSe
 	for i, ms := range machineSets.Items {
 		labels := ms.Spec.Template.ObjectMeta.Labels
 
+		if labels == nil {
+			continue
+		}
+
 		if labels[MachineRoleLabel] == "worker" {
 			result = append(result, &machineSets.Items[i])
 		}
