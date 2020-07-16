@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path"
 	"reflect"
 	"strings"
 	"time"
@@ -22,7 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/klog"
 	"k8s.io/utils/pointer"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -260,219 +258,6 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		}
 	})
 
-	Context("use a ClusterAutoscaler that has a derived maximum total nodes count", func() {
-
-		It("scale up and down", func() {
-			clientset, err := framework.LoadClientset()
-			Expect(err).NotTo(HaveOccurred())
-
-			By("Getting existing machinesets")
-			existingMachineSets, err := framework.GetMachineSets(client)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(len(existingMachineSets)).To(BeNumerically(">=", 1))
-			klog.Infof("Have %v existing machinesets", len(existingMachineSets))
-
-			By("Checking that the number of machines and nodes is stable")
-			Eventually(func() (bool, error) {
-				existingMachines, err := framework.GetMachines(client)
-				if err != nil {
-					return false, err
-				}
-				existingNodes, err := framework.GetNodes(client)
-				if err != nil {
-					return false, err
-				}
-				klog.Infof("Have %v existing machines", len(existingMachines))
-				klog.Infof("Have %v existing nodes", len(existingNodes))
-				return len(existingMachines) == len(existingNodes) && len(existingNodes) > 0, nil
-			}, framework.WaitMedium, framework.RetryMedium).Should(BeTrue())
-
-			// The remainder of the logic in this test requires 3
-			// machinesets.
-			var machineSets [3]*mapiv1beta1.MachineSet
-
-			randomUUID := string(uuid.NewUUID())
-			for i := 0; i < len(machineSets); i++ {
-				targetMachineSet := existingMachineSets[i%len(existingMachineSets)]
-				machineSetName := fmt.Sprintf("e2e-%s-w-%d", randomUUID[:5], i)
-				machineSets[i] = framework.NewMachineSet(targetMachineSet.Labels[framework.ClusterKey],
-					targetMachineSet.Namespace,
-					machineSetName,
-					targetMachineSet.Spec.Selector.MatchLabels,
-					targetMachineSet.Spec.Template.ObjectMeta.Labels,
-					&targetMachineSet.Spec.Template.Spec.ProviderSpec,
-					1) // one replica
-				machineSets[i].Spec.Template.Spec.Labels = map[string]string{
-					autoscalerWorkerNodeRoleLabel: "",
-				}
-				Expect(client.Create(ctx, machineSets[i])).Should(Succeed())
-				cleanupObjects[machineSets[i].Name] = machineSets[i]
-			}
-
-			By(fmt.Sprintf("Creating %v transient machinesets", len(machineSets)))
-			testDuration := time.Now().Add(time.Duration(framework.WaitLong))
-			Eventually(func() bool {
-				By(fmt.Sprintf("[%s remaining] Waiting for nodes to be Ready in %v transient machinesets",
-					remaining(testDuration), len(machineSets)))
-				var allNewNodes []*corev1.Node
-				for i := 0; i < len(machineSets); i++ {
-					nodes, err := framework.GetNodesFromMachineSet(client, machineSets[i])
-					if err != nil {
-						return false
-					}
-					allNewNodes = append(allNewNodes, nodes...)
-				}
-				return len(allNewNodes) == len(machineSets) && framework.NodesAreReady(allNewNodes)
-			}, framework.WaitLong, pollingInterval).Should(BeTrue())
-
-			// Now that we have created some transient machinesets
-			// take stock of the number of nodes we now have.
-			By("Getting nodes")
-			nodes, err := framework.GetNodes(client)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(len(nodes)).To(BeNumerically(">=", 1))
-
-			var machineAutoscalers []*caov1beta1.MachineAutoscaler
-
-			By(fmt.Sprintf("Creating %v machineautoscalers", len(machineSets)))
-			transientMachineSetsMinSize := int32(1)
-			var clusterExpansionSize int
-			for i := range machineSets {
-				clusterExpansionSize++
-				klog.Infof("Create MachineAutoscaler backed by MachineSet %s/%s - min:%v, max:%v", machineSets[i].Namespace, machineSets[i].Name, transientMachineSetsMinSize, 2)
-				asr := machineAutoscalerResource(machineSets[i], transientMachineSetsMinSize, 2)
-				Expect(client.Create(ctx, asr)).Should(Succeed())
-				machineAutoscalers = append(machineAutoscalers, asr)
-				cleanupObjects[asr.Name] = asr
-			}
-			Expect(clusterExpansionSize).To(BeNumerically(">", 1))
-
-			// The total size of our cluster is
-			// len(existingMachineSets) + clusterExpansionSize. We
-			// cap that to $max-1 because we want to test that the
-			// maxNodesTotal flag is respected by the
-			// cluster-autoscaler
-			maxNodesTotal := len(nodes) + clusterExpansionSize - 1
-
-			eventWatcher := newEventWatcher(clientset)
-			Expect(eventWatcher.run()).Should(BeTrue())
-			defer eventWatcher.stop()
-
-			// Log cluster-autoscaler events
-			eventWatcher.onEvent(matchAnyEvent, func(e *corev1.Event) {
-				if e.Source.Component == clusterAutoscalerComponent {
-					klog.Infof("%s: %s", e.InvolvedObject.Name, e.Message)
-				}
-			}).enable()
-
-			By(fmt.Sprintf("Creating ClusterAutoscaler configured with maxNodesTotal:%v", maxNodesTotal))
-			clusterAutoscaler := clusterAutoscalerResource(maxNodesTotal)
-			Expect(client.Create(ctx, clusterAutoscaler)).Should(Succeed())
-			cleanupObjects[clusterAutoscaler.GetName()] = clusterAutoscaler
-
-			By(fmt.Sprintf("Deriving Memory capacity from machine %q", existingMachineSets[0].Name))
-
-			By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s", maxNodesTotal+1, workloadMemRequest.String()))
-			scaledGroups := map[string]bool{}
-			for i := range machineSets {
-				scaledGroups[path.Join(machineSets[i].Namespace, machineSets[i].Name)] = false
-			}
-			scaleUpCounter := newScaleUpCounter(eventWatcher, 0, scaledGroups)
-			maxNodesTotalReachedCounter := newMaxNodesTotalReachedCounter(eventWatcher, 0)
-			// +1 to continuously generate the MaxNodesTotalReached
-			workload := newWorkLoad(int32(maxNodesTotal+1), workloadMemRequest, autoscalerWorkerNodeRoleLabel)
-			Expect(client.Create(ctx, workload)).Should(Succeed())
-			cleanupObjects[workload.Name] = workload
-			testDuration = time.Now().Add(time.Duration(framework.WaitLong))
-			Eventually(func() bool {
-				v := scaleUpCounter.get()
-				klog.Infof("[%s remaining] Expecting %v %q events; observed %v",
-					remaining(testDuration), clusterExpansionSize-1, clusterAutoscalerScaledUpGroup, v)
-				return v == uint32(clusterExpansionSize-1)
-			}, framework.WaitLong, pollingInterval).Should(BeTrue())
-
-			// The cluster-autoscaler can keep on generating
-			// ScaledUpGroup events but in this scenario we are
-			// expecting no more as we explicitly capped the
-			// cluster size with maxNodesTotal (i.e.,
-			// clusterExpansionSize -1). We run for a period of
-			// time asserting that the cluster does not exceed the
-			// capped size.
-			testDuration = time.Now().Add(time.Duration(framework.WaitShort))
-			Eventually(func() uint32 {
-				v := maxNodesTotalReachedCounter.get()
-				klog.Infof("[%s remaining] Waiting for %s to generate a %q event; observed %v",
-					remaining(testDuration), clusterAutoscalerComponent, clusterAutoscalerMaxNodesTotalReached, v)
-				return v
-			}, framework.WaitShort, pollingInterval).Should(BeNumerically(">=", 1))
-
-			testDuration = time.Now().Add(time.Duration(framework.WaitShort))
-			Consistently(func() bool {
-				v := scaleUpCounter.get()
-				klog.Infof("[%s remaining] At max cluster size and expecting no more %q events; currently have %v, max=%v",
-					remaining(testDuration), clusterAutoscalerScaledUpGroup, v, clusterExpansionSize-1)
-				return v == uint32(clusterExpansionSize-1)
-			}, framework.WaitShort, pollingInterval).Should(BeTrue())
-
-			By("Deleting workload")
-			scaleDownCounter := newScaleDownCounter(eventWatcher, uint32(clusterExpansionSize-1))
-			Expect(deleteObject(workload.Name, cleanupObjects[workload.Name])).Should(Succeed())
-			delete(cleanupObjects, workload.Name)
-			testDuration = time.Now().Add(time.Duration(framework.WaitLong))
-			Eventually(func() bool {
-				v := scaleDownCounter.get()
-				klog.Infof("[%s remaining] Expecting %v %q events; observed %v",
-					remaining(testDuration), clusterExpansionSize-1, clusterAutoscalerScaleDownEmpty, v)
-				return v == uint32(clusterExpansionSize-1)
-			}, framework.WaitLong, pollingInterval).Should(BeTrue())
-
-			Eventually(func() bool {
-				podList := corev1.PodList{}
-				err = client.List(ctx, &podList, runtimeclient.InNamespace(workload.Namespace))
-				Expect(err).NotTo(HaveOccurred())
-				for i := range podList.Items {
-					if strings.Contains(podList.Items[i].Name, workloadJobName) {
-						klog.Infof("still have workload POD: %q", podList.Items[i].Name)
-						return false
-					}
-				}
-				return true
-			}, framework.WaitMedium, pollingInterval).Should(BeZero())
-
-			// Delete MachineAutoscalers to prevent scaling while we manually
-			// scale-down the recently created MachineSets.
-			for _, ma := range machineAutoscalers {
-				err := deleteObject(ma.Name, ma)
-				Expect(err).NotTo(HaveOccurred())
-				delete(cleanupObjects, ma.Name)
-			}
-
-			// Delete the transient MachinSets.
-			for _, ms := range machineSets {
-				err := deleteObject(ms.Name, ms)
-				Expect(err).NotTo(HaveOccurred())
-
-				delete(cleanupObjects, ms.Name)
-
-				framework.WaitForMachineSetDelete(client, ms)
-			}
-
-			// explicitly delete the ClusterAutoscaler
-			// this is needed due to the autoscaler tests requiring singleton
-			// deployments of the ClusterAutoscaler.
-			caName := clusterAutoscaler.GetName()
-			Expect(deleteObject(caName, cleanupObjects[caName])).Should(Succeed())
-			delete(cleanupObjects, caName)
-			Eventually(func() bool {
-				By("Waiting for ClusterAutoscaler to delete")
-				if ca, err := framework.GetClusterAutoscaler(client, caName); ca == nil && err != nil {
-					return true
-				}
-				return false
-			}, framework.WaitLong, pollingInterval).Should(BeTrue())
-		})
-	})
-
 	Context("use a ClusterAutoscaler that has 100 maximum total nodes count", func() {
 		var clusterAutoscaler *caov1.ClusterAutoscaler
 		var caEventWatcher *eventWatcher
@@ -704,10 +489,11 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 
 	Context("use a ClusterAutoscaler that has 12 maximum total nodes count and balance similar nodes enabled", func() {
 		var clusterAutoscaler *caov1.ClusterAutoscaler
+		const caMaxNodesTotal = 12
 
 		BeforeEach(func() {
 			By("Creating ClusterAutoscaler")
-			clusterAutoscaler = clusterAutoscalerResource(12)
+			clusterAutoscaler = clusterAutoscalerResource(caMaxNodesTotal)
 			clusterAutoscaler.Spec.BalanceSimilarNodeGroups = pointer.BoolPtr(true)
 			Expect(client.Create(ctx, clusterAutoscaler)).Should(Succeed())
 			cleanupObjects[clusterAutoscaler.GetName()] = clusterAutoscaler
@@ -729,6 +515,77 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 					return true
 				}
 				return false
+			}, framework.WaitMedium, pollingInterval).Should(BeTrue())
+		})
+
+		It("scales up and down while respecting MaxNodesTotal [Slow][Serial]", func() {
+			By("Creating 1 MachineSet with 1 replica")
+			var transientMachineSet *mapiv1beta1.MachineSet
+			targetedNodeLabel := fmt.Sprintf("%v-scale-updown", autoscalerWorkerNodeRoleLabel)
+			machineSetParams := framework.BuildMachineSetParams(client, 1)
+			machineSetParams.Labels[targetedNodeLabel] = ""
+			transientMachineSet, err = framework.CreateMachineSet(client, machineSetParams)
+			Expect(err).ToNot(HaveOccurred())
+			cleanupObjects[transientMachineSet.GetName()] = transientMachineSet
+
+			By("Waiting for all Machines in the MachineSet to enter Running phase")
+			framework.WaitForMachineSet(client, transientMachineSet.GetName())
+
+			// To exercise the MaxNodesTotal mechanism we want to make sure
+			// that the MachineSet can grow large enough to reach the boundary.
+			// A simple way to test this is by setting the max scale size to
+			// the MaxNodesTotal+1, since we will not be able to reach this limit
+			// due to the original install master/worker nodes.
+			maxMachineSetReplicas := int32(caMaxNodesTotal + 1)
+			By(fmt.Sprintf("Creating a MachineAutoscaler backed by MachineSet %s - min: 1, max: %d",
+				transientMachineSet.GetName(), maxMachineSetReplicas))
+			asr := machineAutoscalerResource(transientMachineSet, 1, maxMachineSetReplicas)
+			Expect(client.Create(ctx, asr)).Should(Succeed())
+			cleanupObjects[asr.GetName()] = asr
+
+			// We want to create a workload that would cause the autoscaler to
+			// grow the cluster beyond the MaxNodesTotal. If we set the replicas
+			// to the maximum MachineSet size this will create enough demand to
+			// grow the cluster to maximum size.
+			jobReplicas := maxMachineSetReplicas
+			By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s",
+				jobReplicas, workloadMemRequest.String()))
+			workload := newWorkLoad(jobReplicas, workloadMemRequest, targetedNodeLabel)
+			cleanupObjects[workload.GetName()] = workload
+			Expect(client.Create(ctx, workload)).Should(Succeed())
+
+			// At this point the autoscaler should be growing the cluster, we
+			// wait until the cluster has grown to reach MaxNodesTotal size.
+			By(fmt.Sprintf("Waiting for cluster to scale up to %d nodes", caMaxNodesTotal))
+			Eventually(func() (bool, error) {
+				nodes, err := framework.GetNodes(client)
+				return len(nodes) == caMaxNodesTotal, err
+			}, framework.WaitLong, pollingInterval).Should(BeTrue())
+
+			// Wait for all nodes to become ready, we wait here to help ensure
+			// that the cluster has reached a steady state and no more machines
+			// are in the process of being added.
+			By("Waiting for all Machines in MachineSet to enter Running phase")
+			framework.WaitForMachineSet(client, transientMachineSet.GetName())
+
+			// Now that the cluster has reached maximum size, we want to ensure
+			// that it doesn't try to grow larger.
+			By("Watching Cluster node count to ensure it remains consistent")
+			Consistently(func() (bool, error) {
+				nodes, err := framework.GetNodes(client)
+				return len(nodes) == caMaxNodesTotal, err
+			}, framework.WaitShort, pollingInterval).Should(BeTrue())
+
+			By("Deleting the workload")
+			Expect(deleteObject(workload.Name, cleanupObjects[workload.Name])).Should(Succeed())
+			delete(cleanupObjects, workload.Name)
+
+			// With the workload gone, the MachineSet should scale back down to
+			// its minimum size of 1.
+			By(fmt.Sprintf("Waiting for MachineSet %s replicas to scale down", transientMachineSet.GetName()))
+			Eventually(func() (bool, error) {
+				nodes, err := framework.GetNodesFromMachineSet(client, transientMachineSet)
+				return len(nodes) == 1, err
 			}, framework.WaitMedium, pollingInterval).Should(BeTrue())
 		})
 
