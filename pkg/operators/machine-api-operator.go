@@ -13,6 +13,7 @@ var (
 	maoDeployment        = "machine-api-operator"
 	maoManagedDeployment = "machine-api-controllers"
 )
+
 var _ = Describe("[Feature:Operators] Machine API operator deployment should", func() {
 	defer GinkgoRecover()
 
@@ -65,6 +66,93 @@ var _ = Describe("[Feature:Operators] Machine API operator deployment should", f
 		Expect(framework.IsDeploymentAvailable(client, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
 
 	})
+
+	It("reconcile mutating webhook configuration", func() {
+		client, err := framework.LoadClient()
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(framework.IsMutatingWebhookConfigurationSynced(client)).To(BeTrue())
+	})
+
+	It("reconcile validating webhook configuration", func() {
+		client, err := framework.LoadClient()
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(framework.IsValidatingWebhookConfigurationSynced(client)).To(BeTrue())
+	})
+
+	It("recover after validating webhook configuration deletion", func() {
+		client, err := framework.LoadClient()
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(framework.DeleteValidatingWebhookConfiguration(client, framework.DefaultValidatingWebhookConfiguration)).To(Succeed())
+
+		Expect(framework.IsValidatingWebhookConfigurationSynced(client)).To(BeTrue())
+	})
+
+	It("recover after mutating webhook configuration deletion", func() {
+		client, err := framework.LoadClient()
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(framework.DeleteMutatingWebhookConfiguration(client, framework.DefaultMutatingWebhookConfiguration)).To(Succeed())
+
+		Expect(framework.IsMutatingWebhookConfigurationSynced(client)).To(BeTrue())
+	})
+
+	It("maintains spec after mutating webhook configuration change and preserve caBundle", func() {
+		client, err := framework.LoadClient()
+		Expect(err).NotTo(HaveOccurred())
+
+		initial, err := framework.GetMutatingWebhookConfiguration(client, framework.DefaultMutatingWebhookConfiguration.Name)
+		Expect(initial).ToNot(BeNil())
+		Expect(err).To(Succeed())
+
+		toUpdate := initial.DeepCopy()
+		for _, webhook := range toUpdate.Webhooks {
+			webhook.ClientConfig.CABundle = []byte("test")
+			webhook.AdmissionReviewVersions = []string{"test"}
+		}
+
+		Expect(framework.UpdateMutatingWebhookConfiguration(client, toUpdate)).To(Succeed())
+
+		Expect(framework.IsMutatingWebhookConfigurationSynced(client)).To(BeTrue())
+
+		updated, err := framework.GetMutatingWebhookConfiguration(client, framework.DefaultMutatingWebhookConfiguration.Name)
+		Expect(updated).ToNot(BeNil())
+		Expect(err).To(Succeed())
+
+		for i, webhook := range updated.Webhooks {
+			Expect(webhook.ClientConfig.CABundle).To(Equal(initial.Webhooks[i].ClientConfig.CABundle))
+		}
+	})
+
+	It("maintains spec after validating webhook configuration change and preserve caBundle", func() {
+		client, err := framework.LoadClient()
+		Expect(err).NotTo(HaveOccurred())
+
+		initial, err := framework.GetValidatingWebhookConfiguration(client, framework.DefaultValidatingWebhookConfiguration.Name)
+		Expect(initial).ToNot(BeNil())
+		Expect(err).To(Succeed())
+
+		toUpdate := initial.DeepCopy()
+		for _, webhook := range toUpdate.Webhooks {
+			webhook.ClientConfig.CABundle = []byte("test")
+			webhook.AdmissionReviewVersions = []string{"test"}
+		}
+
+		Expect(framework.UpdateValidatingWebhookConfiguration(client, toUpdate)).To(Succeed())
+
+		Expect(framework.IsValidatingWebhookConfigurationSynced(client)).To(BeTrue())
+
+		updated, err := framework.GetValidatingWebhookConfiguration(client, framework.DefaultValidatingWebhookConfiguration.Name)
+		Expect(updated).ToNot(BeNil())
+		Expect(err).To(Succeed())
+
+		for i, webhook := range updated.Webhooks {
+			Expect(webhook.ClientConfig.CABundle).To(Equal(initial.Webhooks[i].ClientConfig.CABundle))
+		}
+	})
+
 })
 
 var _ = Describe("[Feature:Operators] Machine API cluster operator status should", func() {

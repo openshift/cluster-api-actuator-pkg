@@ -81,7 +81,7 @@ func DeleteMutatingWebhookConfiguration(c client.Client, webhookConfiguraiton *a
 
 // UpdateMutatingWebhookConfiguration updates the specified mutating webhook configuration
 func UpdateMutatingWebhookConfiguration(c client.Client, updated *admissionregistrationv1.MutatingWebhookConfiguration) error {
-	return wait.PollImmediate(RetryShort, WaitMedium, func() (bool, error) {
+	return wait.PollImmediate(RetryShort, WaitShort, func() (bool, error) {
 		existing, err := GetMutatingWebhookConfiguration(c, updated.Name)
 		if err != nil {
 			klog.Errorf("Error getting MutatingWebhookConfiguration: %v", err)
@@ -97,7 +97,7 @@ func UpdateMutatingWebhookConfiguration(c client.Client, updated *admissionregis
 
 // UpdateValidatingWebhookConfiguration updates the specified mutating webhook configuration
 func UpdateValidatingWebhookConfiguration(c client.Client, updated *admissionregistrationv1.ValidatingWebhookConfiguration) error {
-	return wait.PollImmediate(RetryShort, WaitMedium, func() (bool, error) {
+	return wait.PollImmediate(RetryShort, WaitShort, func() (bool, error) {
 		existing, err := GetValidatingWebhookConfiguration(c, updated.Name)
 		if err != nil {
 			klog.Errorf("Error getting ValidatingWebhookConfiguration: %v", err)
@@ -113,7 +113,7 @@ func UpdateValidatingWebhookConfiguration(c client.Client, updated *admissionreg
 
 // IsMutatingWebhookConfigurationSynced expects a matching MutatingWebhookConfiguration to be present in the cluster
 func IsMutatingWebhookConfigurationSynced(c client.Client) bool {
-	if err := wait.PollImmediate(RetryShort, WaitLong, func() (bool, error) {
+	if err := wait.PollImmediate(RetryShort, WaitMedium, func() (bool, error) {
 		existing, err := GetMutatingWebhookConfiguration(c, DefaultMutatingWebhookConfiguration.Name)
 		if err != nil {
 			klog.Errorf("Error getting MutatingWebhookConfiguration: %v", err)
@@ -137,7 +137,7 @@ func IsMutatingWebhookConfigurationSynced(c client.Client) bool {
 
 // IsValidatingWebhookConfigurationSynced expects a matching MutatingWebhookConfiguration to be present in the cluster
 func IsValidatingWebhookConfigurationSynced(c client.Client) bool {
-	if err := wait.PollImmediate(RetryShort, WaitLong, func() (bool, error) {
+	if err := wait.PollImmediate(RetryShort, WaitMedium, func() (bool, error) {
 		existing, err := GetValidatingWebhookConfiguration(c, DefaultValidatingWebhookConfiguration.Name)
 		if err != nil {
 			klog.Errorf("Error getting MutatingWebhookConfiguration: %v", err)
