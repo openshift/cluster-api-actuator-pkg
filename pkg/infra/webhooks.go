@@ -15,6 +15,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/pointer"
 	aws "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsprovider/v1beta1"
 	azure "sigs.k8s.io/cluster-api-provider-azure/pkg/apis/azureprovider/v1beta1"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -160,6 +161,58 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 			Expect(err).To(MatchError(ContainSubstring("admission webhook \"validation.machineset.machine.openshift.io\" denied the request")))
 		}
 
+	})
+
+	// https://bugzilla.redhat.com/show_bug.cgi?id=1857175
+	It("should enforce the machineSet selector and the machine template label machine.openshift.io/cluster-api-cluster to be the real clusterID when creating a machineSet", func() {
+		ms := &mapiv1.MachineSet{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "MachineSet",
+				APIVersion: "machine.openshift.io/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: machineSetParams.Name,
+				Namespace:    framework.MachineAPINamespace,
+				Labels:       machineSetParams.Labels,
+			},
+			Spec: mapiv1.MachineSetSpec{
+				Selector: metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"e2e.openshift.io":   machineSetParams.Labels["e2e.openshift.io"],
+						framework.ClusterKey: "foo",
+					},
+				},
+				Template: mapiv1.MachineTemplateSpec{
+					ObjectMeta: mapiv1.ObjectMeta{
+						Labels: map[string]string{
+							"e2e.openshift.io":   machineSetParams.Labels["e2e.openshift.io"],
+							framework.ClusterKey: "bar",
+						},
+					},
+					Spec: mapiv1.MachineSpec{
+						ObjectMeta: mapiv1.ObjectMeta{
+							Labels: machineSetParams.Labels,
+						},
+						ProviderSpec: *machineSetParams.ProviderSpec,
+					},
+				},
+				Replicas: pointer.Int32Ptr(machineSetParams.Replicas),
+			},
+		}
+
+		err := client.Create(context.Background(), ms)
+		Expect(err).ToNot(HaveOccurred())
+
+		ms, err = framework.GetMachineSet(client, ms.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		clusterInfra, err := framework.GetInfrastructure(client)
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(ms.Spec.Selector.MatchLabels[framework.ClusterKey]).To(BeIdenticalTo(clusterInfra.Status.InfrastructureName))
+		Expect(ms.Spec.Template.Labels[framework.ClusterKey]).To(BeIdenticalTo(clusterInfra.Status.InfrastructureName))
+
+		framework.WaitForMachineSet(client, ms.Name)
 	})
 })
 
