@@ -26,6 +26,6 @@ var _ = Describe("[Feature:Operators] Cluster Machine Approver Cluster Operator 
 		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(framework.IsStatusAvailable(client, cmaClusterOperator)).To(BeTrue())
+		Expect(framework.WaitForStatusAvailable(client, cmaClusterOperator)).To(BeTrue())
 	})
 })

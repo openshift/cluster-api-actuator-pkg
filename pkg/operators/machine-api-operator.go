@@ -77,7 +77,7 @@ var _ = Describe("[Feature:Operators] Machine API cluster operator status should
 	It("be available", func() {
 		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(framework.IsStatusAvailable(client, "machine-api")).To(BeTrue())
+		Expect(framework.WaitForStatusAvailable(client, "machine-api")).To(BeTrue())
 	})
 
 	It("be degraded when a pod owned by the operator is prevented from being available", func() {
@@ -118,6 +118,6 @@ var _ = Describe("[Feature:Operators] Machine API cluster operator status should
 			return isStatusDegraded, nil
 		}, framework.WaitLong, framework.RetryShort).Should(BeTrue())
 
-		Expect(framework.IsStatusAvailable(c, "machine-api")).To(BeTrue())
+		Expect(framework.WaitForStatusAvailable(c, "machine-api")).To(BeTrue())
 	})
 })
