@@ -152,6 +152,27 @@ func IsStatusAvailable(client runtimeclient.Client, name string) bool {
 	return true
 }
 
+func IsStatusDegraded(client runtimeclient.Client, name string) (bool, error) {
+	key := types.NamespacedName{
+		Namespace: MachineAPINamespace,
+		Name:      name,
+	}
+	clusterOperator := &configv1.ClusterOperator{}
+	if err := client.Get(context.TODO(), key, clusterOperator); err != nil {
+		return false, fmt.Errorf("error querying api for OperatorStatus object: %v, retrying...", err)
+	}
+
+	isAvailable := cov1helpers.IsStatusConditionTrue(clusterOperator.Status.Conditions, configv1.OperatorAvailable)
+	isDegraded := cov1helpers.IsStatusConditionTrue(clusterOperator.Status.Conditions, configv1.OperatorDegraded)
+	isProgressing := cov1helpers.IsStatusConditionTrue(clusterOperator.Status.Conditions, configv1.OperatorProgressing)
+
+	klog.Infof("Condition: %q is %v, expected true", configv1.OperatorAvailable, isAvailable)
+	klog.Infof("Condition: %q is %v, expected true", configv1.OperatorDegraded, isDegraded)
+	klog.Infof("Condition: %q is %v, expected false", configv1.OperatorProgressing, isProgressing)
+
+	return isAvailable && isDegraded && !isProgressing, nil
+}
+
 func WaitForValidatingWebhook(client runtimeclient.Client, name string) bool {
 	key := types.NamespacedName{Name: name}
 	webhook := &admissionregistrationv1beta1.ValidatingWebhookConfiguration{}
