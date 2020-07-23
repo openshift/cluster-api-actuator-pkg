@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"math/rand"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -12,13 +15,21 @@ import (
 	gcproviderconfigv1 "github.com/openshift/cluster-api-provider-gcp/pkg/apis/gcpprovider/v1beta1"
 	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
+	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/pointer"
 	awsproviderconfigv1 "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsprovider/v1beta1"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var _ = Describe("[Feature:Machines] Running on Spot", func() {
+	var ctx = context.Background()
+
 	var client runtimeclient.Client
 	var machineSet *mapiv1.MachineSet
 	var machineSetParams framework.MachineSetParams
@@ -123,6 +134,56 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 		}
 	})
 
+	It("should terminate a Machine if a termination event is observed", func() {
+		By("Deploying a mock metadata application", func() {
+			configMap, err := getMetadataMockConfigMap()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(client.Create(ctx, configMap)).To(Succeed())
+			delObjects[configMap.Name] = configMap
+
+			service := getMetadataMockService()
+			Expect(client.Create(ctx, service)).To(Succeed())
+			delObjects[service.Name] = service
+
+			deployment := getMetadataMockDeployment(platform)
+			Expect(client.Create(ctx, deployment)).To(Succeed())
+			delObjects[deployment.Name] = deployment
+
+			Expect(framework.IsDeploymentAvailable(client, deployment.Name, deployment.Namespace)).To(BeTrue())
+		})
+
+		var machine *mapiv1.Machine
+		By("Choosing a Machine to terminate", func() {
+			machines, err := framework.GetMachinesFromMachineSet(client, machineSet)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(len(machines)).To(BeNumerically(">", 0))
+
+			rand.Seed(time.Now().Unix())
+			machine = machines[rand.Intn(len(machines))]
+			Expect(machine.Status.NodeRef).ToNot(BeNil())
+		})
+
+		By("Deploying a job to reroute metadata traffic to the mock", func() {
+			serviceAccount := getTerminationSimulatorServiceAccount()
+			Expect(client.Create(ctx, serviceAccount)).To(Succeed())
+			delObjects[serviceAccount.Name] = serviceAccount
+
+			role := getTerminationSimulatorRole()
+			Expect(client.Create(ctx, role)).To(Succeed())
+			delObjects[role.Name] = role
+
+			roleBinding := getTerminationSimulatorRoleBinding()
+			Expect(client.Create(ctx, roleBinding)).To(Succeed())
+			delObjects[roleBinding.Name] = roleBinding
+
+			job := getTerminationSimulatorJob(machine.Status.NodeRef.Name)
+			Expect(client.Create(ctx, job)).To(Succeed())
+			delObjects[job.Name] = job
+		})
+
+		// If the job deploys correctly, the Machine will go away
+		framework.WaitForMachinesDeleted(client, machine)
+	})
 })
 
 func setSpotOnProviderSpec(platform configv1.PlatformType, params framework.MachineSetParams, maxPrice string) error {
@@ -172,4 +233,262 @@ func setSpotOnGCPProviderSpec(params framework.MachineSetParams) error {
 	}
 
 	return nil
+}
+
+const (
+	metadataServiceMockName          = "metadata-service-mock"
+	metadataServiceMockServiceName   = metadataServiceMockName + "-service"
+	metadataServiceMockConfigMapName = metadataServiceMockName + "-configmap"
+	metadataServiceMockPort          = 8082
+)
+
+func getMetadataMockLabels() map[string]string {
+	return map[string]string{
+		"app": "metadata-mock",
+	}
+}
+
+func getMetadataMockDeployment(platform configv1.PlatformType) *appsv1.Deployment {
+	return &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      metadataServiceMockName,
+			Namespace: framework.MachineAPINamespace,
+			Labels:    getMetadataMockLabels(),
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: pointer.Int32Ptr(1),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: getMetadataMockLabels(),
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: getMetadataMockLabels(),
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:    "metadata-mock",
+							Image:   "golang:1.14",
+							Command: []string{"/usr/local/go/bin/go"},
+							Args: []string{
+								"run",
+								"/mock/metadata_mock.go",
+								fmt.Sprintf("--provider=%s", platform),
+								fmt.Sprintf("--listen-addr=0.0.0.0:%d", metadataServiceMockPort),
+							},
+							Env: []corev1.EnvVar{
+								{
+									Name:  "GOCACHE",
+									Value: "/go/.cache",
+								},
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "mock-server",
+									MountPath: "/mock",
+								},
+							},
+						},
+					},
+					DNSPolicy: corev1.DNSClusterFirst,
+					Volumes: []corev1.Volume{
+						{
+							Name: "mock-server",
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: metadataServiceMockConfigMapName,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func getMetadataMockService() *corev1.Service {
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      metadataServiceMockServiceName,
+			Namespace: framework.MachineAPINamespace,
+			Labels:    getMetadataMockLabels(),
+		},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{
+				{
+					Name:       "http",
+					Port:       metadataServiceMockPort,
+					Protocol:   "TCP",
+					TargetPort: intstr.FromInt(metadataServiceMockPort),
+				},
+			},
+			Selector:        getMetadataMockLabels(),
+			SessionAffinity: corev1.ServiceAffinityNone,
+			ClusterIP:       "None",
+			Type:            corev1.ServiceTypeClusterIP,
+		},
+	}
+}
+
+func getMetadataMockConfigMap() (*corev1.ConfigMap, error) {
+	// Load relative to the test execution directory
+	data, err := ioutil.ReadFile("./infra/mock/metadata_mock.go")
+	if err != nil {
+		return nil, err
+	}
+
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      metadataServiceMockConfigMapName,
+			Namespace: framework.MachineAPINamespace,
+			Labels:    getMetadataMockLabels(),
+		},
+		BinaryData: map[string][]byte{
+			"metadata_mock.go": data,
+		},
+	}, nil
+}
+
+const (
+	terminationSimulatorName               = "termination-simulator"
+	terminationSimulatorServiceAccountName = terminationSimulatorName + "-service-account"
+	terminationSimulatorRoleName           = terminationSimulatorName + "-role"
+	terminationSimulatorRoleBindingName    = terminationSimulatorName + "-rolebinding"
+)
+
+func getTerminationSimulatorJob(nodeName string) *batchv1.Job {
+	script := `apk update && apk add iptables bind-tools;
+export SERVICE_IP=$(dig +short ${MOCK_SERVICE_NAME}.${NAMESPACE}.svc.cluster.local);
+if [ -z ${SERVICE_IP} ]; then echo "No service IP"; exit 1; fi;
+iptables-nft -t nat -A OUTPUT -p tcp -d 169.254.169.254 -j DNAT --to-destination ${SERVICE_IP}:${MOCK_SERVICE_PORT};
+iptables-nft -t nat -A POSTROUTING -j MASQUERADE;
+echo "Redirected metadata service to ${SERVICE_IP}:${MOCK_SERVICE_PORT}";`
+
+	fileOrCreate := corev1.HostPathFileOrCreate
+	return &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      terminationSimulatorName,
+			Namespace: framework.MachineAPINamespace,
+		},
+		Spec: batchv1.JobSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:    "iptables",
+							Image:   "alpine:3.12",
+							Command: []string{"/bin/sh", "-c"},
+							Args:    []string{script},
+							Env: []corev1.EnvVar{
+								{
+									Name:  "NAMESPACE",
+									Value: framework.MachineAPINamespace,
+								},
+								{
+									Name:  "MOCK_SERVICE_NAME",
+									Value: metadataServiceMockServiceName,
+								},
+								{
+									Name:  "MOCK_SERVICE_PORT",
+									Value: fmt.Sprintf("%d", metadataServiceMockPort),
+								},
+							},
+							SecurityContext: &corev1.SecurityContext{
+								Privileged: pointer.BoolPtr(true),
+								Capabilities: &corev1.Capabilities{
+									Add: []corev1.Capability{"NET_ADMIN", "NET_RAW"},
+								},
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "xtables-lock",
+									MountPath: "/run/xtables.lock",
+									ReadOnly:  false,
+								},
+								{
+									Name:      "lib-modules",
+									MountPath: "/lib/modules",
+									ReadOnly:  true,
+								},
+							},
+						},
+					},
+					RestartPolicy:      corev1.RestartPolicyOnFailure,
+					HostNetwork:        true,
+					DNSPolicy:          corev1.DNSClusterFirstWithHostNet,
+					NodeName:           nodeName,
+					ServiceAccountName: terminationSimulatorServiceAccountName,
+					Volumes: []corev1.Volume{
+						{
+							Name: "xtables-lock",
+							VolumeSource: corev1.VolumeSource{
+								HostPath: &corev1.HostPathVolumeSource{
+									Path: "/run/xtables.lock",
+									Type: &fileOrCreate,
+								},
+							},
+						},
+						{
+							Name: "lib-modules",
+							VolumeSource: corev1.VolumeSource{
+								HostPath: &corev1.HostPathVolumeSource{
+									Path: "/lib/modules",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func getTerminationSimulatorServiceAccount() *corev1.ServiceAccount {
+	return &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      terminationSimulatorServiceAccountName,
+			Namespace: framework.MachineAPINamespace,
+		},
+	}
+}
+
+func getTerminationSimulatorRole() *rbacv1.Role {
+	return &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      terminationSimulatorRoleName,
+			Namespace: framework.MachineAPINamespace,
+		},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups:     []string{"security.openshift.io"},
+				ResourceNames: []string{"privileged"},
+				Resources:     []string{"securitycontextconstraints"},
+				Verbs:         []string{"use"},
+			},
+		},
+	}
+}
+
+func getTerminationSimulatorRoleBinding() *rbacv1.RoleBinding {
+	return &rbacv1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      terminationSimulatorRoleBindingName,
+			Namespace: framework.MachineAPINamespace,
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "Role",
+			Name:     terminationSimulatorRoleName,
+		},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				Name:      terminationSimulatorServiceAccountName,
+				Namespace: framework.MachineAPINamespace,
+			},
+		},
+	}
 }
