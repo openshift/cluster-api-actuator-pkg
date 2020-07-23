@@ -42,9 +42,10 @@ const (
 )
 
 var (
-	WaitShort  = 1 * time.Minute
-	WaitMedium = 3 * time.Minute
-	WaitLong   = 15 * time.Minute
+	WaitShort    = 1 * time.Minute
+	WaitMedium   = 3 * time.Minute
+	WaitLong     = 15 * time.Minute
+	WaitOverLong = 30 * time.Minute
 )
 
 // DeleteObjectsByLabels list all objects of a given kind by labels and deletes them.
