@@ -13,6 +13,7 @@ import (
 	"k8s.io/klog"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	caov1alpha1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis"
 	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -58,3 +59,19 @@ func e2eReporters() []Reporter {
 	}
 	return []Reporter{}
 }
+
+var _ = BeforeSuite(func() {
+	client, err := framework.LoadClient()
+	Expect(err).ToNot(HaveOccurred())
+
+	infra, err := framework.GetInfrastructure(client)
+	Expect(err).ToNot(HaveOccurred())
+
+	// Extend timeouts for slower providers
+	switch infra.Status.PlatformStatus.Type {
+	case osconfigv1.AzurePlatformType, osconfigv1.VSpherePlatformType:
+		framework.WaitShort = 2 * time.Minute  // Normally 1m
+		framework.WaitMedium = 6 * time.Minute // Normally 3m
+		framework.WaitLong = 30 * time.Minute  // Normally 15m
+	}
+})
