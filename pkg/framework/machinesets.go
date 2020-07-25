@@ -308,15 +308,16 @@ func WaitForMachineSet(c client.Client, name string) {
 		replicas := pointer.Int32PtrDerefOr(machineSet.Spec.Replicas, 0)
 
 		if len(machines) != int(replicas) {
-			return fmt.Errorf("found %d Machines, but MachineSet has %d replicas",
-				len(machines), int(replicas))
+			return fmt.Errorf("%q: found %d Machines, but MachineSet has %d replicas",
+				name, len(machines), int(replicas))
 		}
 
 		running := FilterRunningMachines(machines)
 
 		// This could probably be smarter, but seems fine for now.
 		if len(running) != len(machines) {
-			return fmt.Errorf("not all Machines are running")
+			return fmt.Errorf("%q: not all Machines are running: %d of %d",
+				name, len(running), len(machines))
 		}
 
 		for _, m := range running {
@@ -331,7 +332,7 @@ func WaitForMachineSet(c client.Client, name string) {
 		}
 
 		return nil
-	}, WaitLong, RetryMedium).ShouldNot(HaveOccurred())
+	}, WaitOverLong, RetryMedium).ShouldNot(HaveOccurred())
 }
 
 // WaitForMachineSetDelete polls until the given MachineSet is not found, and
