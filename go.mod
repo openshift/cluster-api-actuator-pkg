@@ -9,10 +9,10 @@ require (
 	github.com/onsi/gomega v1.8.1
 	github.com/openshift/api v0.0.0-20200526144822-34f54f12813a
 	github.com/openshift/client-go v0.0.0-20200521150516-05eb9880269c // indirect
-	github.com/openshift/cluster-api-provider-gcp v0.0.1-0.20200618110630-09cef98ae787
+	github.com/openshift/cluster-api-provider-gcp v0.0.1-0.20200701112720-3a7d727c9a10
 	github.com/openshift/cluster-autoscaler-operator v0.0.0-20190627103136-350eb7249737
 	github.com/openshift/library-go v0.0.0-20200512120242-21a1ff978534
-	github.com/openshift/machine-api-operator v0.2.1-0.20200611014855-9a69f85c32dd
+	github.com/openshift/machine-api-operator v0.2.1-0.20200716183840-c9a1f7584b4b
 	k8s.io/api v0.18.3
 	k8s.io/apimachinery v0.18.3
 	k8s.io/client-go v0.18.3
