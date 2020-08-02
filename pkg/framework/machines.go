@@ -20,17 +20,23 @@ import (
 )
 
 // FilterRunningMachines returns a slice of only those Machines in the input
-// that are in the "Running" phase.
-func FilterRunningMachines(machines []*mapiv1beta1.Machine) []*mapiv1beta1.Machine {
+// that are in the "Running" phase. If some of the machine enters Failed phase,
+// it will indicate this wil an error.
+func FilterRunningMachines(machines []*mapiv1beta1.Machine) ([]*mapiv1beta1.Machine, error) {
 	var result []*mapiv1beta1.Machine
 
 	for i, m := range machines {
-		if m.Status.Phase != nil && *m.Status.Phase == MachinePhaseRunning {
-			result = append(result, machines[i])
+		if m.Status.Phase != nil {
+			switch *m.Status.Phase {
+			case MachinePhaseRunning:
+				result = append(result, machines[i])
+			case MachinePhaseFailed:
+				return nil, fmt.Errorf("Machine entered the Failed phase: %q, reason: %v", m.GetName(), m.Status.ErrorMessage)
+			}
 		}
 	}
 
-	return result
+	return result, nil
 }
 
 // GetMachine get a machine by its name from the default machine API namespace.

@@ -85,7 +85,8 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 			if err != nil {
 				return err
 			}
-			running := framework.FilterRunningMachines([]*mapiv1.Machine{m})
+			running, err := framework.FilterRunningMachines([]*mapiv1.Machine{m})
+			Expect(err).ToNot(HaveOccurred())
 			if len(running) == 0 {
 				return fmt.Errorf("machine not yet running")
 			}

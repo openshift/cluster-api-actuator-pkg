@@ -312,7 +312,8 @@ func WaitForMachineSet(c client.Client, name string) {
 				name, len(machines), int(replicas))
 		}
 
-		running := FilterRunningMachines(machines)
+		running, err := FilterRunningMachines(machines)
+		Expect(err).ToNot(HaveOccurred())
 
 		// This could probably be smarter, but seems fine for now.
 		if len(running) != len(machines) {

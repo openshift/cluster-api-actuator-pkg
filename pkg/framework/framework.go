@@ -36,6 +36,7 @@ const (
 	// if MachineSet.Spec.Replicas field is set to nil
 	DefaultMachineSetReplicas = 0
 	MachinePhaseRunning       = "Running"
+	MachinePhaseFailed        = "Failed"
 	MachineRoleLabel          = "machine.openshift.io/cluster-api-machine-role"
 	MachineTypeLabel          = "machine.openshift.io/cluster-api-machine-type"
 	MachineAnnotationKey      = "machine.openshift.io/machine"
