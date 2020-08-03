@@ -134,7 +134,7 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 		}
 	})
 
-	It("should terminate a Machine if a termination event is observed", func() {
+	PIt("should terminate a Machine if a termination event is observed", func() {
 		By("Deploying a mock metadata application", func() {
 			configMap, err := getMetadataMockConfigMap()
 			Expect(err).ToNot(HaveOccurred())
