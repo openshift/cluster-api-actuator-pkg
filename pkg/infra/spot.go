@@ -365,6 +365,7 @@ export SERVICE_IP=$(dig +short ${MOCK_SERVICE_NAME}.${NAMESPACE}.svc.cluster.loc
 if [ -z ${SERVICE_IP} ]; then echo "No service IP"; exit 1; fi;
 iptables-nft -t nat -A OUTPUT -p tcp -d 169.254.169.254 -j DNAT --to-destination ${SERVICE_IP}:${MOCK_SERVICE_PORT};
 iptables-nft -t nat -A POSTROUTING -j MASQUERADE;
+ifconfig lo:0 169.254.169.254 up;
 echo "Redirected metadata service to ${SERVICE_IP}:${MOCK_SERVICE_PORT}";`
 
 	fileOrCreate := corev1.HostPathFileOrCreate
