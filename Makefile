@@ -63,10 +63,11 @@ test-e2e: ## Run openshift specific e2e test
 	# failures and flakes.
 	# Feature:Operator tests remove deployments. Thus loosing all the logs
 	# previously acquired.
-	hack/ci-integration.sh $(GINKGO_ARGS) -p -focus="Feature:Operators" || (hack/junitmerge.sh && exit 1)
-	hack/ci-integration.sh $(GINKGO_ARGS) -p -skip="Feature:Operators|Autoscaler" || (hack/junitmerge.sh && exit 1)
+	hack/ci-integration.sh $(GINKGO_ARGS) -p -focus="Feature:Operators" -skip="Serial" || (hack/junitmerge.sh && exit 1)
+	hack/ci-integration.sh $(GINKGO_ARGS) -p -skip="Feature:Operators|Autoscaler|Serial" || (hack/junitmerge.sh && exit 1)
 	# TODO: parallelise autoscaler
-	hack/ci-integration.sh $(GINKGO_ARGS) -focus="Autoscaler" || (hack/junitmerge.sh && exit 1)
+	# Run serial tests only
+	hack/ci-integration.sh $(GINKGO_ARGS) -focus="Autoscaler|\[Serial\]" || (hack/junitmerge.sh && exit 1)
 	# After success, merge all JUnit files into one
 	hack/junitmerge.sh
 
