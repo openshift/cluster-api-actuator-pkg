@@ -149,7 +149,8 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 			Expect(client.Create(ctx, deployment)).To(Succeed())
 			delObjects[deployment.Name] = deployment
 
-			Expect(framework.IsDeploymentAvailable(client, deployment.Name, deployment.Namespace)).To(BeTrue())
+			Expect(framework.IsDeploymentAvailable(client, deployment.Name,
+				deployment.Namespace, framework.WaitLong)).To(BeTrue())
 		})
 
 		var machine *mapiv1.Machine

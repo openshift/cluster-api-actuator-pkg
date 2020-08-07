@@ -81,7 +81,8 @@ var _ = Describe("[Feature:Operators] Cluster autoscaler operator deployment sho
 		var err error
 		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(framework.IsDeploymentAvailable(client, "cluster-autoscaler-operator", framework.MachineAPINamespace)).To(BeTrue())
+		Expect(framework.IsDeploymentAvailable(client, "cluster-autoscaler-operator",
+			framework.MachineAPINamespace, framework.WaitLong)).To(BeTrue())
 	})
 })
 

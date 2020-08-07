@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"time"
 
 	kappsapi "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -12,15 +13,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// GetDeployment gets deployment object by name and namespace.
-func GetDeployment(c client.Client, name, namespace string) (*kappsapi.Deployment, error) {
+// GetDeployment gets deployment object by name and namespace with custom timeout
+func GetDeployment(c client.Client, name, namespace string, timeout time.Duration) (*kappsapi.Deployment, error) {
 	key := types.NamespacedName{
 		Namespace: namespace,
 		Name:      name,
 	}
 	d := &kappsapi.Deployment{}
 
-	if err := wait.PollImmediate(RetryShort, WaitShort, func() (bool, error) {
+	if err := wait.PollImmediate(RetryShort, timeout, func() (bool, error) {
 		if err := c.Get(context.TODO(), key, d); err != nil {
 			klog.Errorf("Error querying api for Deployment object %q: %v, retrying...", name, err)
 			return false, nil
@@ -32,9 +33,9 @@ func GetDeployment(c client.Client, name, namespace string) (*kappsapi.Deploymen
 	return d, nil
 }
 
-// DeleteDeployment deletes the specified deployment
-func DeleteDeployment(c client.Client, deployment *kappsapi.Deployment) error {
-	return wait.PollImmediate(RetryShort, WaitShort, func() (bool, error) {
+// DeleteDeployment deletes the specified deployment with custom timeout
+func DeleteDeployment(c client.Client, deployment *kappsapi.Deployment, timeout time.Duration) error {
+	return wait.PollImmediate(RetryShort, timeout, func() (bool, error) {
 		if err := c.Delete(context.TODO(), deployment); err != nil {
 			klog.Errorf("error querying api for deployment object %q: %v, retrying...", deployment.Name, err)
 			return false, nil
@@ -43,10 +44,11 @@ func DeleteDeployment(c client.Client, deployment *kappsapi.Deployment) error {
 	})
 }
 
-// UpdateDeployment updates the specified deployment
-func UpdateDeployment(c client.Client, name, namespace string, updated *kappsapi.Deployment) error {
-	return wait.PollImmediate(RetryShort, WaitMedium, func() (bool, error) {
-		d, err := GetDeployment(c, name, namespace)
+// UpdateDeployment updates the specified deployment with custom timeout
+func UpdateDeployment(c client.Client, name, namespace string,
+	updated *kappsapi.Deployment, timeout time.Duration) error {
+	return wait.PollImmediate(RetryShort, timeout, func() (bool, error) {
+		d, err := GetDeployment(c, name, namespace, WaitShort)
 		if err != nil {
 			klog.Errorf("Error getting deployment: %v", err)
 			return false, nil
@@ -59,10 +61,10 @@ func UpdateDeployment(c client.Client, name, namespace string, updated *kappsapi
 	})
 }
 
-// IsDeploymentAvailable returns true if the deployment has one or more availabe replicas
-func IsDeploymentAvailable(c client.Client, name, namespace string) bool {
-	if err := wait.PollImmediate(RetryShort, WaitLong, func() (bool, error) {
-		d, err := GetDeployment(c, name, namespace)
+// IsDeploymentAvailable returns true if the deployment has one or more availabe replicas with custom timeout
+func IsDeploymentAvailable(c client.Client, name, namespace string, timeout time.Duration) bool {
+	if err := wait.PollImmediate(RetryShort, timeout, func() (bool, error) {
+		d, err := GetDeployment(c, name, namespace, WaitShort)
 		if err != nil {
 			klog.Errorf("Error getting deployment: %v", err)
 			return false, nil
@@ -82,9 +84,11 @@ func IsDeploymentAvailable(c client.Client, name, namespace string) bool {
 	return true
 }
 
-// IsDeploymentSynced returns true if provided deployment spec matched one found on cluster
-func IsDeploymentSynced(c client.Client, dep *kappsapi.Deployment, name, namespace string) bool {
-	d, err := GetDeployment(c, name, namespace)
+// IsDeploymentSynced returns true if provided deployment spec
+// matched one found on cluster with custom timeout
+func IsDeploymentSynced(c client.Client, dep *kappsapi.Deployment,
+	name, namespace string, timeout time.Duration) bool {
+	d, err := GetDeployment(c, name, namespace, timeout)
 	if err != nil {
 		klog.Errorf("Error getting deployment: %v", err)
 		return false

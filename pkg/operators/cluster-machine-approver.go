@@ -17,7 +17,8 @@ var _ = Describe("[Feature:Operators] Cluster Machine Approver deployment", func
 		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(framework.IsDeploymentAvailable(client, cmaDeployment, cmaNamespace)).To(BeTrue())
+		Expect(framework.IsDeploymentAvailable(client, cmaDeployment,
+			cmaNamespace, framework.WaitLong)).To(BeTrue())
 	})
 })
 
