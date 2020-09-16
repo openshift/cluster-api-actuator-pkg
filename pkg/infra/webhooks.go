@@ -37,12 +37,9 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 		clusterInfra, err := framework.GetInfrastructure(client)
 		Expect(err).NotTo(HaveOccurred())
 		platform = clusterInfra.Status.PlatformStatus.Type
-		switch platform {
-		case configv1.AWSPlatformType, configv1.AzurePlatformType, configv1.GCPPlatformType, configv1.VSpherePlatformType:
-			// Do Nothing
-		default:
-			Skip(fmt.Sprintf("Platform %s does not have webhooks, skipping.", platform))
-		}
+		// We will review createMinimalProviderSpec and enable this back after merging
+		// https://github.com/openshift/machine-api-operator/pull/697
+		Skip(fmt.Sprintf("Temporary skipping webhooks for Platform %s", platform))
 
 		machineSetParams = framework.BuildMachineSetParams(client, 1)
 		ps, err := createMinimalProviderSpec(platform, machineSetParams.ProviderSpec)
