@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -155,62 +154,6 @@ func machineAutoscalerResource(targetMachineSet *mapiv1beta1.MachineSet, minRepl
 	}
 }
 
-func newScaleUpCounter(w *eventWatcher, v uint32, scaledGroups map[string]bool) *eventCounter {
-	isAutoscalerScaleUpEvent := func(event *corev1.Event) bool {
-		return event.Source.Component == clusterAutoscalerComponent &&
-			event.Reason == clusterAutoscalerScaledUpGroup &&
-			event.InvolvedObject.Kind == clusterAutoscalerObjectKind &&
-			strings.HasPrefix(event.Message, "Scale-up: setting group")
-	}
-
-	matchGroup := func(event *corev1.Event) bool {
-		if !isAutoscalerScaleUpEvent(event) {
-			return false
-		}
-		for k := range scaledGroups {
-			if !scaledGroups[k] && strings.HasPrefix(event.Message, fmt.Sprintf("Scale-up: group %s size set to", k)) {
-				scaledGroups[k] = true
-			}
-		}
-		return true
-	}
-
-	c := newEventCounter(w, matchGroup, v, increment)
-	c.enable()
-
-	return c
-}
-
-func newScaleDownCounter(w *eventWatcher, v uint32) *eventCounter {
-	isAutoscalerScaleDownEvent := func(event *corev1.Event) bool {
-		return event.Source.Component == clusterAutoscalerComponent &&
-			event.Reason == clusterAutoscalerScaleDownEmpty &&
-			event.InvolvedObject.Kind == clusterAutoscalerObjectKind &&
-			strings.HasPrefix(event.Message, "Scale-down: empty node")
-	}
-
-	c := newEventCounter(w, isAutoscalerScaleDownEvent, v, increment)
-	c.enable()
-	return c
-}
-
-func newMaxNodesTotalReachedCounter(w *eventWatcher, v uint32) *eventCounter {
-	isAutoscalerMaxNodesTotalEvent := func(event *corev1.Event) bool {
-		return event.Source.Component == clusterAutoscalerComponent &&
-			event.Reason == clusterAutoscalerMaxNodesTotalReached &&
-			event.InvolvedObject.Kind == clusterAutoscalerObjectKind &&
-			strings.HasPrefix(event.Message, "Max total nodes in cluster reached")
-	}
-
-	c := newEventCounter(w, isAutoscalerMaxNodesTotalEvent, v, increment)
-	c.enable()
-	return c
-}
-
-func remaining(t time.Time) time.Duration {
-	return t.Sub(time.Now()).Round(time.Second)
-}
-
 var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 
 	var workloadMemRequest resource.Quantity
@@ -260,31 +203,15 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 
 	Context("use a ClusterAutoscaler that has 100 maximum total nodes count", func() {
 		var clusterAutoscaler *caov1.ClusterAutoscaler
-		var caEventWatcher *eventWatcher
 
 		BeforeEach(func() {
 			By("Creating ClusterAutoscaler")
 			clusterAutoscaler = clusterAutoscalerResource(100)
 			Expect(client.Create(ctx, clusterAutoscaler)).Should(Succeed())
 			cleanupObjects[clusterAutoscaler.GetName()] = clusterAutoscaler
-
-			By("Starting Cluster Autoscaler event watcher")
-			clientset, err := framework.LoadClientset()
-			Expect(err).NotTo(HaveOccurred())
-			caEventWatcher = newEventWatcher(clientset)
-			Expect(caEventWatcher.run()).Should(BeTrue())
-			// Log cluster-autoscaler events
-			caEventWatcher.onEvent(matchAnyEvent, func(e *corev1.Event) {
-				if e.Source.Component == clusterAutoscalerComponent {
-					klog.Infof("%s: %s", e.InvolvedObject.Name, e.Message)
-				}
-			}).enable()
 		})
 
 		AfterEach(func() {
-			By("Stopping Cluster Autoscaler event watcher")
-			caEventWatcher.stop()
-
 			// explicitly delete the ClusterAutoscaler
 			// this is needed due to the autoscaler tests requiring singleton
 			// deployments of the ClusterAutoscaler.
