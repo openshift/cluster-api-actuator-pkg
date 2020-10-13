@@ -71,119 +71,121 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 		Expect(deleteObjects(client, delObjects)).To(Succeed())
 	})
 
-	It("should label the Machine specs as interruptible", func() {
-		selector := machineSet.Spec.Selector
-		machines, err := framework.GetMachines(client, &selector)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(machines).To(HaveLen(3))
+	It("should handle the spot instances", func() {
+		By("should label the Machine specs as interruptible", func() {
+			selector := machineSet.Spec.Selector
+			machines, err := framework.GetMachines(client, &selector)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(machines).To(HaveLen(3))
 
-		for _, machine := range machines {
-			Expect(machine.Spec.ObjectMeta.Labels).To(HaveKeyWithValue(machinecontroller.MachineInterruptibleInstanceLabelName, ""))
-		}
-	})
+			for _, machine := range machines {
+				Expect(machine.Spec.ObjectMeta.Labels).To(HaveKeyWithValue(machinecontroller.MachineInterruptibleInstanceLabelName, ""))
+			}
+		})
 
-	It("should deploy a termination handler pod to each instance", func() {
-		nodes, err := framework.GetNodesFromMachineSet(client, machineSet)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(nodes).To(HaveLen(3))
+		By("should deploy a termination handler pod to each instance", func() {
+			nodes, err := framework.GetNodesFromMachineSet(client, machineSet)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(nodes).To(HaveLen(3))
 
-		terminationLabels := map[string]string{
-			"api":     "clusterapi",
-			"k8s-app": "termination-handler",
-		}
+			terminationLabels := map[string]string{
+				"api":     "clusterapi",
+				"k8s-app": "termination-handler",
+			}
 
-		for _, node := range nodes {
-			By("Fetching termination Pods running on the Node")
-			pods := []corev1.Pod{}
-			Eventually(func() ([]corev1.Pod, error) {
-				podList := &corev1.PodList{}
-				err := client.List(context.Background(), podList, runtimeclient.MatchingLabels(terminationLabels))
-				if err != nil {
-					return podList.Items, err
-				}
-				for _, pod := range podList.Items {
-					if pod.Spec.NodeName == node.Name {
-						pods = append(pods, pod)
+			for _, node := range nodes {
+				By("Fetching termination Pods running on the Node")
+				pods := []corev1.Pod{}
+				Eventually(func() ([]corev1.Pod, error) {
+					podList := &corev1.PodList{}
+					err := client.List(context.Background(), podList, runtimeclient.MatchingLabels(terminationLabels))
+					if err != nil {
+						return podList.Items, err
 					}
-				}
-				return pods, nil
-			}, framework.WaitLong, framework.RetryMedium).ShouldNot(BeEmpty())
-			// Termination Pods run in a DaemonSet, should only be 1 per node
-			Expect(pods).To(HaveLen(1))
-			podKey := runtimeclient.ObjectKey{Namespace: pods[0].Namespace, Name: pods[0].Name}
+					for _, pod := range podList.Items {
+						if pod.Spec.NodeName == node.Name {
+							pods = append(pods, pod)
+						}
+					}
+					return pods, nil
+				}, framework.WaitLong, framework.RetryMedium).ShouldNot(BeEmpty())
+				// Termination Pods run in a DaemonSet, should only be 1 per node
+				Expect(pods).To(HaveLen(1))
+				podKey := runtimeclient.ObjectKey{Namespace: pods[0].Namespace, Name: pods[0].Name}
 
-			By("Ensuring the termination Pod is running and the containers are ready")
-			Eventually(func() (bool, error) {
-				pod := &corev1.Pod{}
-				err := client.Get(context.Background(), podKey, pod)
-				if err != nil {
-					return false, err
-				}
-				if pod.Status.Phase != corev1.PodRunning {
+				By("Ensuring the termination Pod is running and the containers are ready")
+				Eventually(func() (bool, error) {
+					pod := &corev1.Pod{}
+					err := client.Get(context.Background(), podKey, pod)
+					if err != nil {
+						return false, err
+					}
+					if pod.Status.Phase != corev1.PodRunning {
+						return false, nil
+					}
+
+					// Ensure all containers are ready
+					for _, condition := range pod.Status.Conditions {
+						if condition.Type == corev1.ContainersReady {
+							return condition.Status == corev1.ConditionTrue, nil
+						}
+					}
+
 					return false, nil
-				}
-
-				// Ensure all containers are ready
-				for _, condition := range pod.Status.Conditions {
-					if condition.Type == corev1.ContainersReady {
-						return condition.Status == corev1.ConditionTrue, nil
-					}
-				}
-
-				return false, nil
-			}, framework.WaitLong, framework.RetryMedium).Should(BeTrue())
-		}
-	})
-
-	It("should terminate a Machine if a termination event is observed", func() {
-		By("Deploying a mock metadata application", func() {
-			configMap, err := getMetadataMockConfigMap()
-			Expect(err).ToNot(HaveOccurred())
-			Expect(client.Create(ctx, configMap)).To(Succeed())
-			delObjects[configMap.Name] = configMap
-
-			service := getMetadataMockService()
-			Expect(client.Create(ctx, service)).To(Succeed())
-			delObjects[service.Name] = service
-
-			deployment := getMetadataMockDeployment(platform)
-			Expect(client.Create(ctx, deployment)).To(Succeed())
-			delObjects[deployment.Name] = deployment
-
-			Expect(framework.IsDeploymentAvailable(client, deployment.Name, deployment.Namespace)).To(BeTrue())
+				}, framework.WaitLong, framework.RetryMedium).Should(BeTrue())
+			}
 		})
 
-		var machine *mapiv1.Machine
-		By("Choosing a Machine to terminate", func() {
-			machines, err := framework.GetMachinesFromMachineSet(client, machineSet)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(len(machines)).To(BeNumerically(">", 0))
+		By("should terminate a Machine if a termination event is observed", func() {
+			By("Deploying a mock metadata application", func() {
+				configMap, err := getMetadataMockConfigMap()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(client.Create(ctx, configMap)).To(Succeed())
+				delObjects[configMap.Name] = configMap
 
-			rand.Seed(time.Now().Unix())
-			machine = machines[rand.Intn(len(machines))]
-			Expect(machine.Status.NodeRef).ToNot(BeNil())
+				service := getMetadataMockService()
+				Expect(client.Create(ctx, service)).To(Succeed())
+				delObjects[service.Name] = service
+
+				deployment := getMetadataMockDeployment(platform)
+				Expect(client.Create(ctx, deployment)).To(Succeed())
+				delObjects[deployment.Name] = deployment
+
+				Expect(framework.IsDeploymentAvailable(client, deployment.Name, deployment.Namespace)).To(BeTrue())
+			})
+
+			var machine *mapiv1.Machine
+			By("Choosing a Machine to terminate", func() {
+				machines, err := framework.GetMachinesFromMachineSet(client, machineSet)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(len(machines)).To(BeNumerically(">", 0))
+
+				rand.Seed(time.Now().Unix())
+				machine = machines[rand.Intn(len(machines))]
+				Expect(machine.Status.NodeRef).ToNot(BeNil())
+			})
+
+			By("Deploying a job to reroute metadata traffic to the mock", func() {
+				serviceAccount := getTerminationSimulatorServiceAccount()
+				Expect(client.Create(ctx, serviceAccount)).To(Succeed())
+				delObjects[serviceAccount.Name] = serviceAccount
+
+				role := getTerminationSimulatorRole()
+				Expect(client.Create(ctx, role)).To(Succeed())
+				delObjects[role.Name] = role
+
+				roleBinding := getTerminationSimulatorRoleBinding()
+				Expect(client.Create(ctx, roleBinding)).To(Succeed())
+				delObjects[roleBinding.Name] = roleBinding
+
+				job := getTerminationSimulatorJob(machine.Status.NodeRef.Name)
+				Expect(client.Create(ctx, job)).To(Succeed())
+				delObjects[job.Name] = job
+			})
+
+			// If the job deploys correctly, the Machine will go away
+			framework.WaitForMachinesDeleted(client, machine)
 		})
-
-		By("Deploying a job to reroute metadata traffic to the mock", func() {
-			serviceAccount := getTerminationSimulatorServiceAccount()
-			Expect(client.Create(ctx, serviceAccount)).To(Succeed())
-			delObjects[serviceAccount.Name] = serviceAccount
-
-			role := getTerminationSimulatorRole()
-			Expect(client.Create(ctx, role)).To(Succeed())
-			delObjects[role.Name] = role
-
-			roleBinding := getTerminationSimulatorRoleBinding()
-			Expect(client.Create(ctx, roleBinding)).To(Succeed())
-			delObjects[roleBinding.Name] = roleBinding
-
-			job := getTerminationSimulatorJob(machine.Status.NodeRef.Name)
-			Expect(client.Create(ctx, job)).To(Succeed())
-			delObjects[job.Name] = job
-		})
-
-		// If the job deploys correctly, the Machine will go away
-		framework.WaitForMachinesDeleted(client, machine)
 	})
 })
 
