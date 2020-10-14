@@ -184,7 +184,9 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 			})
 
 			// If the job deploys correctly, the Machine will go away
-			framework.WaitForMachinesDeleted(client, machine)
+			By(fmt.Sprintf("Waiting for machine %q to be deleted", machine.Name), func() {
+				framework.WaitForMachinesDeleted(client, machine)
+			})
 		})
 	})
 })
