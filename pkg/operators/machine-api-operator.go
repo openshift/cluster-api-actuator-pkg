@@ -1,12 +1,17 @@
 package operators
 
 import (
+	"context"
 	"fmt"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	apitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
+	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
@@ -85,8 +90,25 @@ var _ = Describe("[Feature:Operators] Machine API operator deployment should", f
 		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(framework.DeleteValidatingWebhookConfiguration(client, framework.DefaultValidatingWebhookConfiguration)).To(Succeed())
+		// Record the UID of the current ValidatingWebhookConfiguration
+		initial, err := framework.GetValidatingWebhookConfiguration(client, framework.DefaultValidatingWebhookConfiguration.Name)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(initial).ToNot(BeNil())
+		initialUID := initial.GetUID()
 
+		Expect(framework.DeleteValidatingWebhookConfiguration(client, initial)).To(Succeed())
+
+		// Ensure that either UID changes (to show a new object) or that the existing object is gone
+		key := runtimeclient.ObjectKey{Name: initial.Name}
+		Eventually(func() (apitypes.UID, error) {
+			current := &admissionregistrationv1.ValidatingWebhookConfiguration{}
+			if err := client.Get(context.Background(), key, current); err != nil && !apierrors.IsNotFound(err) {
+				return "", err
+			}
+			return current.GetUID(), nil
+		}).ShouldNot(Equal(initialUID))
+
+		// Ensure that a new object has been created and matches expectations
 		Expect(framework.IsValidatingWebhookConfigurationSynced(client)).To(BeTrue())
 	})
 
@@ -94,8 +116,25 @@ var _ = Describe("[Feature:Operators] Machine API operator deployment should", f
 		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(framework.DeleteMutatingWebhookConfiguration(client, framework.DefaultMutatingWebhookConfiguration)).To(Succeed())
+		// Record the UID of the current MutatingWebhookConfiguration
+		initial, err := framework.GetMutatingWebhookConfiguration(client, framework.DefaultMutatingWebhookConfiguration.Name)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(initial).ToNot(BeNil())
+		initialUID := initial.GetUID()
 
+		Expect(framework.DeleteMutatingWebhookConfiguration(client, initial)).To(Succeed())
+
+		// Ensure that either UID changes (to show a new object) or that the existing object is gone
+		key := runtimeclient.ObjectKey{Name: initial.Name}
+		Eventually(func() (apitypes.UID, error) {
+			current := &admissionregistrationv1.MutatingWebhookConfiguration{}
+			if err := client.Get(context.Background(), key, current); err != nil && !apierrors.IsNotFound(err) {
+				return "", err
+			}
+			return current.GetUID(), nil
+		}).ShouldNot(Equal(initialUID))
+
+		// Ensure that a new object has been created and matches expectations
 		Expect(framework.IsMutatingWebhookConfigurationSynced(client)).To(BeTrue())
 	})
 
