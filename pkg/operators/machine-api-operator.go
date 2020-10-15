@@ -104,8 +104,8 @@ var _ = Describe("[Feature:Operators] Machine API operator deployment should", f
 		Expect(err).NotTo(HaveOccurred())
 
 		initial, err := framework.GetMutatingWebhookConfiguration(client, framework.DefaultMutatingWebhookConfiguration.Name)
+		Expect(err).NotTo(HaveOccurred())
 		Expect(initial).ToNot(BeNil())
-		Expect(err).To(Succeed())
 
 		toUpdate := initial.DeepCopy()
 		for _, webhook := range toUpdate.Webhooks {
@@ -118,8 +118,8 @@ var _ = Describe("[Feature:Operators] Machine API operator deployment should", f
 		Expect(framework.IsMutatingWebhookConfigurationSynced(client)).To(BeTrue())
 
 		updated, err := framework.GetMutatingWebhookConfiguration(client, framework.DefaultMutatingWebhookConfiguration.Name)
+		Expect(err).NotTo(HaveOccurred())
 		Expect(updated).ToNot(BeNil())
-		Expect(err).To(Succeed())
 
 		for i, webhook := range updated.Webhooks {
 			Expect(webhook.ClientConfig.CABundle).To(Equal(initial.Webhooks[i].ClientConfig.CABundle))
@@ -131,8 +131,8 @@ var _ = Describe("[Feature:Operators] Machine API operator deployment should", f
 		Expect(err).NotTo(HaveOccurred())
 
 		initial, err := framework.GetValidatingWebhookConfiguration(client, framework.DefaultValidatingWebhookConfiguration.Name)
+		Expect(err).NotTo(HaveOccurred())
 		Expect(initial).ToNot(BeNil())
-		Expect(err).To(Succeed())
 
 		toUpdate := initial.DeepCopy()
 		for _, webhook := range toUpdate.Webhooks {
@@ -145,8 +145,8 @@ var _ = Describe("[Feature:Operators] Machine API operator deployment should", f
 		Expect(framework.IsValidatingWebhookConfigurationSynced(client)).To(BeTrue())
 
 		updated, err := framework.GetValidatingWebhookConfiguration(client, framework.DefaultValidatingWebhookConfiguration.Name)
+		Expect(err).NotTo(HaveOccurred())
 		Expect(updated).ToNot(BeNil())
-		Expect(err).To(Succeed())
 
 		for i, webhook := range updated.Webhooks {
 			Expect(webhook.ClientConfig.CABundle).To(Equal(initial.Webhooks[i].ClientConfig.CABundle))
