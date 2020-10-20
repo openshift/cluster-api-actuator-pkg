@@ -584,6 +584,14 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			// its minimum size of 1.
 			By(fmt.Sprintf("Waiting for MachineSet %s replicas to scale down", transientMachineSet.GetName()))
 			Eventually(func() (bool, error) {
+				machineSet, err := framework.GetMachineSet(client, transientMachineSet.Name)
+				if err != nil {
+					return false, err
+				}
+				return pointer.Int32PtrDerefOr(machineSet.Spec.Replicas, -1) == 1, nil
+			}, framework.WaitMedium, pollingInterval).Should(BeTrue())
+			By(fmt.Sprintf("Waiting for Deleted MachineSet %s nodes to go away", transientMachineSet.GetName()))
+			Eventually(func() (bool, error) {
 				nodes, err := framework.GetNodesFromMachineSet(client, transientMachineSet)
 				return len(nodes) == 1, err
 			}, framework.WaitLong, pollingInterval).Should(BeTrue())
