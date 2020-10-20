@@ -586,7 +586,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			Eventually(func() (bool, error) {
 				nodes, err := framework.GetNodesFromMachineSet(client, transientMachineSet)
 				return len(nodes) == 1, err
-			}, framework.WaitMedium, pollingInterval).Should(BeTrue())
+			}, framework.WaitLong, pollingInterval).Should(BeTrue())
 		})
 
 		It("places nodes evenly across node groups [Slow]", func() {
