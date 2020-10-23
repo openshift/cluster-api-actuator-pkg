@@ -188,8 +188,10 @@ func minimalAWSProviderSpec(ps *mapiv1.ProviderSpec) (*mapiv1.ProviderSpec, erro
 	return &mapiv1.ProviderSpec{
 		Value: &runtime.RawExtension{
 			Object: &aws.AWSMachineProviderConfig{
-				AMI:       fullProviderSpec.AMI,
-				Placement: fullProviderSpec.Placement,
+				AMI:                fullProviderSpec.AMI,
+				Placement:          fullProviderSpec.Placement,
+				Subnet:             *fullProviderSpec.Subnet.DeepCopy(),
+				IAMInstanceProfile: fullProviderSpec.IAMInstanceProfile.DeepCopy(),
 			},
 		},
 	}, nil
@@ -222,8 +224,9 @@ func minimalGCPProviderSpec(ps *mapiv1.ProviderSpec) (*mapiv1.ProviderSpec, erro
 	return &mapiv1.ProviderSpec{
 		Value: &runtime.RawExtension{
 			Object: &gcp.GCPMachineProviderSpec{
-				Region: fullProviderSpec.Region,
-				Zone:   fullProviderSpec.Zone,
+				Region:          fullProviderSpec.Region,
+				Zone:            fullProviderSpec.Zone,
+				ServiceAccounts: fullProviderSpec.ServiceAccounts,
 			},
 		},
 	}, nil
@@ -246,6 +249,9 @@ func minimalVSphereProviderSpec(ps *mapiv1.ProviderSpec) (*mapiv1.ProviderSpec, 
 				Network: vsphere.NetworkSpec{
 					Devices: fullProviderSpec.Network.Devices,
 				},
+				NumCPUs:   fullProviderSpec.NumCPUs,
+				MemoryMiB: fullProviderSpec.MemoryMiB,
+				DiskGiB:   fullProviderSpec.DiskGiB,
 			},
 		},
 	}, nil
