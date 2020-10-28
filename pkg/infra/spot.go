@@ -51,6 +51,7 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 		switch platform {
 		case configv1.AWSPlatformType, configv1.GCPPlatformType, configv1.AzurePlatformType:
 			// Do Nothing
+			Skip(fmt.Sprintf("Spot tests are temporarily disabled to enable migration to conditions"))
 		default:
 			Skip(fmt.Sprintf("Platform %s does not support Spot, skipping.", platform))
 		}
