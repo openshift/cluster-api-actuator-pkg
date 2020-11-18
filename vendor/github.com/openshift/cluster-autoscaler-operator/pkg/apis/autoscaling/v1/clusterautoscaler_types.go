@@ -19,6 +19,10 @@ type ClusterAutoscalerSpec struct {
 	// Gives pods graceful termination time before scaling down
 	MaxPodGracePeriod *int32 `json:"maxPodGracePeriod,omitempty"`
 
+	// Maximum time CA waits for node to be provisioned
+	// +kubebuilder:validation:Pattern=^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
+	MaxNodeProvisionTime string `json:"maxNodeProvisionTime,omitempty"`
+
 	// To allow users to schedule "best-effort" pods, which shouldn't trigger
 	// Cluster Autoscaler actions, but only run when there are spare resources available,
 	// More info: https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption
@@ -30,6 +34,12 @@ type ClusterAutoscalerSpec struct {
 	// the same instance type and the same set of labels and try
 	// to keep the respective sizes of those node groups balanced.
 	BalanceSimilarNodeGroups *bool `json:"balanceSimilarNodeGroups,omitempty"`
+
+	// Enables/Disables `--ignore-daemonsets-utilization` CA feature flag. Should CA ignore DaemonSet pods when calculating resource utilization for scaling down. false by default
+	IgnoreDaemonsetsUtilization *bool `json:"ignoreDaemonsetsUtilization,omitempty"`
+
+	// Enables/Disables `--skip-nodes-with-local-storage` CA feature flag. If true cluster autoscaler will never delete nodes with pods with local storage, e.g. EmptyDir or HostPath. true by default at autoscaler
+	SkipNodesWithLocalStorage *bool `json:"skipNodesWithLocalStorage,omitempty"`
 }
 
 // ClusterAutoscalerStatus defines the observed state of ClusterAutoscaler
@@ -41,6 +51,7 @@ type ClusterAutoscalerStatus struct {
 
 // ClusterAutoscaler is the Schema for the clusterautoscalers API
 // +k8s:openapi-gen=true
+// +kubebuilder:resource:path=clusterautoscalers,shortName=ca,scope=Cluster
 // +kubebuilder:subresource:status
 // +genclient:nonNamespaced
 type ClusterAutoscaler struct {

@@ -22,17 +22,17 @@ import (
 	"fmt"
 	"time"
 
-	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/util"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 	"k8s.io/kubectl/pkg/drain"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -92,8 +92,6 @@ const (
 	unknownInstanceState = "Unknown"
 
 	skipWaitForDeleteTimeoutSeconds = 60 * 5
-
-	globalInfrastuctureName = "cluster"
 )
 
 var DefaultActuator Actuator
@@ -178,11 +176,6 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 		return reconcile.Result{}, err
 	}
 
-	// Add clusterID label
-	if err := r.setClusterIDLabel(ctx, m); err != nil {
-		return reconcile.Result{}, err
-	}
-
 	// If object hasn't been deleted and doesn't have a finalizer, add one
 	// Add a finalizer to newly created objects.
 	if m.ObjectMeta.DeletionTimestamp.IsZero() {
@@ -252,9 +245,9 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 		}
 
 		if m.Status.NodeRef != nil {
-			klog.Infof("%v: deleting node %q for machine", m.Status.NodeRef.Name, machineName)
+			klog.Infof("%v: deleting node %q for machine", machineName, m.Status.NodeRef.Name)
 			if err := r.deleteNode(ctx, m.Status.NodeRef.Name); err != nil {
-				klog.Errorf("%v: error deleting node %q for machine", machineName, err)
+				klog.Errorf("%v: error deleting node for machine: %v", machineName, err)
 				return reconcile.Result{}, err
 			}
 		}
@@ -442,7 +435,16 @@ func (r *ReconcileMachine) setPhase(machine *machinev1.Machine, phase string, er
 		}
 
 		// Since we may have mutated the local copy of the machine above, we need to calculate baseToPatch here.
+		// Any updates to the status must be done after this point.
 		baseToPatch := client.MergeFrom(machine.DeepCopy())
+
+		if phase == phaseFailed {
+			if err := r.overrideFailedMachineProviderStatusState(machine); err != nil {
+				klog.Errorf("Failed to update machine provider status %q: %v", machine.GetName(), err)
+				return err
+			}
+		}
+
 		machine.Status.Phase = &phase
 		machine.Status.ErrorMessage = nil
 		now := metav1.Now()
@@ -470,21 +472,41 @@ func (r *ReconcileMachine) patchFailedMachineInstanceAnnotation(machine *machine
 	return nil
 }
 
-func (r *ReconcileMachine) setClusterIDLabel(ctx context.Context, m *machinev1.Machine) error {
-	infra := &configv1.Infrastructure{}
-	infraName := client.ObjectKey{Name: globalInfrastuctureName}
-
-	if err := r.Client.Get(ctx, infraName, infra); err != nil {
-		return err
+// overrideFailedMachineProviderStatusState patches the state of the VM in the provider status if it is set.
+// Not all providers set a state, but AWS, Azure, GCP and vSphere do.
+// If the machine has gone into the Failed phase, and the providerStatus has already been set,
+// the VM is in an unknown state. This function overrides the state.
+func (r *ReconcileMachine) overrideFailedMachineProviderStatusState(machine *machinev1.Machine) error {
+	if machine.Status.ProviderStatus == nil {
+		return nil
 	}
 
-	clusterID := infra.Status.InfrastructureName
+	// instanceState is used by AWS, GCP and vSphere; vmState is used by Azure.
+	const instanceStateField = "instanceState"
+	const vmStateField = "vmState"
 
-	if m.Labels == nil {
-		m.Labels = make(map[string]string)
+	providerStatus, err := runtime.DefaultUnstructuredConverter.ToUnstructured(machine.Status.ProviderStatus)
+	if err != nil {
+		return fmt.Errorf("could not covert provider status to unstructured: %v", err)
 	}
 
-	m.Labels[machinev1.MachineClusterIDLabel] = clusterID
+	// if the instanceState is set already, update it to unknown
+	if _, found, err := unstructured.NestedString(providerStatus, instanceStateField); err == nil && found {
+		if err := unstructured.SetNestedField(providerStatus, unknownInstanceState, instanceStateField); err != nil {
+			return fmt.Errorf("could not set %s: %v", instanceStateField, err)
+		}
+	}
+
+	// if the vmState is set already, update it to unknown
+	if _, found, err := unstructured.NestedString(providerStatus, vmStateField); err == nil && found {
+		if err := unstructured.SetNestedField(providerStatus, unknownInstanceState, vmStateField); err != nil {
+			return fmt.Errorf("could not set %s: %v", instanceStateField, err)
+		}
+	}
+
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(providerStatus, machine.Status.ProviderStatus); err != nil {
+		return fmt.Errorf("could not convert provider status from unstructured: %v", err)
+	}
 
 	return nil
 }
