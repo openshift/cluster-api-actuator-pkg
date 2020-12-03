@@ -595,6 +595,11 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 				nodes, err := framework.GetNodesFromMachineSet(client, transientMachineSet)
 				return len(nodes) == 1, err
 			}, framework.WaitLong, pollingInterval).Should(BeTrue())
+			By(fmt.Sprintf("Waiting for Deleted MachineSet %s machines to go away", transientMachineSet.GetName()))
+			Eventually(func() (bool, error) {
+				machines, err := framework.GetMachinesFromMachineSet(client, transientMachineSet)
+				return len(machines) == 1, err
+			}, framework.WaitLong, pollingInterval).Should(BeTrue())
 		})
 
 		It("places nodes evenly across node groups [Slow]", func() {
