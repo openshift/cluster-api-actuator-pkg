@@ -9,6 +9,7 @@ import (
 
 	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -71,7 +72,12 @@ func GetNodesFromMachineSet(client runtimeclient.Client, machineSet *mapiv1beta1
 	var nodes []*corev1.Node
 	for key := range machines {
 		node, err := GetNodeForMachine(client, machines[key])
-		if err != nil {
+		if apierrors.IsNotFound(err) {
+			// We don't care about not found errors.
+			// Callers should account for the number of nodes being correct or not.
+			klog.Infof("No Node object found for machine %s", machines[key].Name)
+			continue
+		} else if err != nil {
 			return nil, fmt.Errorf("error getting node from machine %q: %w", machines[key].Name, err)
 		}
 		nodes = append(nodes, node)
