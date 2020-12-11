@@ -6,6 +6,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	v1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -201,5 +202,59 @@ var _ = Describe("[Feature:Operators] Machine API cluster operator status should
 		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(framework.IsStatusAvailable(client, "machine-api")).To(BeTrue())
+	})
+})
+
+var _ = Describe("[Serial][Feature:Operators] When cluster-wide proxy is configured, Machine API cluster operator should ", func() {
+	It("create machines when configured behind a proxy", func() {
+		client, err := framework.LoadClient()
+		Expect(err).NotTo(HaveOccurred())
+
+		By("deploying an HTTP proxy")
+		err = framework.DeployClusterProxy(client)
+		Expect(err).NotTo(HaveOccurred())
+
+		By("configuring cluster-wide proxy")
+		services, err := framework.GetServices(client, map[string]string{"app": "mitm-proxy"})
+		proxy, err := framework.GetClusterProxy(client)
+		Expect(err).NotTo(HaveOccurred())
+		proxy.Spec.HTTPProxy = "http://" + services.Items[0].Spec.ClusterIP + ":8080"
+		proxy.Spec.HTTPSProxy = "http://" + services.Items[0].Spec.ClusterIP + ":8080"
+		proxy.Spec.NoProxy = ".org,.com,quay.io"
+		proxy.Spec.TrustedCA = v1.ConfigMapNameReference{
+			Name: "mitm-custom-pki",
+		}
+		err = client.Update(context.Background(), proxy)
+		Expect(err).NotTo(HaveOccurred())
+
+		By("waiting for machine-api-controller deployment to reflect configured cluster-wide proxy")
+		result, err := framework.WaitForProxyInjectionSync(client, maoManagedDeployment, framework.MachineAPINamespace, true)
+		Expect(result).To(BeTrue())
+		Expect(err).NotTo(HaveOccurred())
+
+		By("creating a machineset")
+		machineSetParams := framework.BuildMachineSetParams(client, 1)
+		machineSet, err := framework.CreateMachineSet(client, machineSetParams)
+		Expect(err).ToNot(HaveOccurred())
+		framework.WaitForMachineSet(client, machineSet.GetName())
+
+		By("destroying a machineset")
+		Expect(client.Delete(context.Background(), machineSet)).To(Succeed())
+		framework.WaitForMachineSetDelete(client, machineSet)
+
+		By("unconfiguring cluster-wide proxy")
+		err = client.Patch(context.Background(), proxy, runtimeclient.RawPatch(apitypes.JSONPatchType, []byte(`[
+			{"op": "remove", "path": "/spec/httpProxy"},
+			{"op": "remove", "path": "/spec/httpsProxy"},
+			{"op": "remove", "path": "/spec/noProxy"},
+			{"op": "remove", "path": "/spec/trustedCA"}
+		]`)))
+		Expect(err).NotTo(HaveOccurred())
+
+		By("waiting for machine-api-controller deployment to reflect unconfigured cluster-wide proxy")
+		Expect(framework.WaitForProxyInjectionSync(client, maoManagedDeployment, framework.MachineAPINamespace, false)).To(BeTrue())
+
+		err = framework.DestroyClusterProxy(client)
+		Expect(err).ToNot(HaveOccurred())
 	})
 })
