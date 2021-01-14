@@ -124,14 +124,25 @@ func LoadClientset() (*kubernetes.Clientset, error) {
 	return kubernetes.NewForConfig(cfg)
 }
 
-func IsStatusAvailable(client runtimeclient.Client, name string) bool {
+func WaitForStatusAvailableShort(client runtimeclient.Client, name string) bool {
+	return expectStatusAvailableIn(client, name, WaitShort)
+}
+
+func WaitForStatusAvailableMedium(client runtimeclient.Client, name string) bool {
+	return expectStatusAvailableIn(client, name, WaitMedium)
+}
+
+func WaitForStatusAvailableOverLong(client runtimeclient.Client, name string) bool {
+	return expectStatusAvailableIn(client, name, WaitOverLong)
+}
+
+func expectStatusAvailableIn(client runtimeclient.Client, name string, timeout time.Duration) bool {
 	key := types.NamespacedName{
-		Namespace: MachineAPINamespace,
-		Name:      name,
+		Name: name,
 	}
 	clusterOperator := &configv1.ClusterOperator{}
 
-	if err := wait.PollImmediate(RetryShort, WaitShort, func() (bool, error) {
+	if err := wait.PollImmediate(RetryMedium, timeout, func() (bool, error) {
 		if err := client.Get(context.TODO(), key, clusterOperator); err != nil {
 			klog.Errorf("error querying api for OperatorStatus object: %v, retrying...", err)
 			return false, nil
