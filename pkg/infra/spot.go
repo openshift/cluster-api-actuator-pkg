@@ -1,11 +1,15 @@
 package infra
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/rand"
+	"os"
+	"strconv"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -51,7 +55,6 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 		switch platform {
 		case configv1.AWSPlatformType, configv1.GCPPlatformType, configv1.AzurePlatformType:
 			// Do Nothing
-			Skip(fmt.Sprintf("Spot tests are temporarily disabled to enable migration to conditions"))
 		default:
 			Skip(fmt.Sprintf("Platform %s does not support Spot, skipping.", platform))
 		}
@@ -164,6 +167,59 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 				rand.Seed(time.Now().Unix())
 				machine = machines[rand.Intn(len(machines))]
 				Expect(machine.Status.NodeRef).ToNot(BeNil())
+			})
+
+			var cancel context.CancelFunc
+			defer func() {
+				if cancel != nil {
+					cancel()
+				}
+			}()
+
+			By("Streaming the termination handler logs", func() {
+				terminationLabels := map[string]string{
+					"api":     "clusterapi",
+					"k8s-app": "termination-handler",
+				}
+				pods, err := framework.GetPods(client, terminationLabels)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(len(pods.Items)).To(Equal(3))
+
+				var pod *corev1.Pod
+				for i, p := range pods.Items {
+					if p.Spec.NodeName == machine.Status.NodeRef.Name {
+						pod = pods.Items[i].DeepCopy()
+						break
+					}
+				}
+				Expect(pod).ToNot(BeNil())
+
+				c, err := framework.LoadClientset()
+				Expect(err).ToNot(HaveOccurred())
+
+				var logContext context.Context
+				logContext, cancel = context.WithCancel(ctx)
+
+				go func() {
+					defer GinkgoRecover()
+					logsStream := c.CoreV1().Pods(framework.MachineAPINamespace).GetLogs(pod.Name, &corev1.PodLogOptions{}).Param("follow", strconv.FormatBool(true))
+
+					stream, err := logsStream.Stream(logContext)
+					Expect(err).ToNot(HaveOccurred())
+
+					artifactDir := os.Getenv("ARTIFACT_DIR")
+					if artifactDir != "" {
+						logs := bytes.NewBuffer([]byte{})
+						_, err = io.Copy(logs, stream)
+						Expect(err).ToNot(HaveOccurred())
+						Expect(ioutil.WriteFile(fmt.Sprintf("%s/termination-handler.log", artifactDir), logs.Bytes(), 0644)).To(Succeed())
+					} else {
+						_, err = io.WriteString(GinkgoWriter, "Termination Handler logs:")
+						Expect(err).ToNot(HaveOccurred())
+						_, err = io.Copy(GinkgoWriter, stream)
+						Expect(err).ToNot(HaveOccurred())
+					}
+				}()
 			})
 
 			By("Deploying a job to reroute metadata traffic to the mock", func() {
