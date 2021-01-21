@@ -23,6 +23,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -238,6 +239,25 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 				job := getTerminationSimulatorJob(machine.Status.NodeRef.Name)
 				Expect(client.Create(ctx, job)).To(Succeed())
 				delObjects[job.Name] = job
+			})
+
+			By("Checking that the node got marked with the correct condition", func() {
+				nodeKey := runtimeclient.ObjectKey{Name: machine.Status.NodeRef.Name}
+				Eventually(func() (bool, error) {
+					node := &corev1.Node{}
+					err := client.Get(ctx, nodeKey, node)
+					if apierrors.IsNotFound(err) {
+						return true, nil
+					} else if err != nil {
+						return false, err
+					}
+					for _, condition := range node.Status.Conditions {
+						if condition.Type == "Terminating" {
+							return true, nil
+						}
+					}
+					return false, nil
+				}, framework.WaitMedium).Should(BeTrue())
 			})
 
 			// If the job deploys correctly, the Machine will go away
