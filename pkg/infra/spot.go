@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -206,7 +207,10 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 					logsStream := c.CoreV1().Pods(framework.MachineAPINamespace).GetLogs(pod.Name, &corev1.PodLogOptions{}).Param("follow", strconv.FormatBool(true))
 
 					stream, err := logsStream.Stream(logContext)
-					Expect(err).ToNot(HaveOccurred())
+					if !errors.Is(err, context.Canceled) {
+						// Ignore context cancellation here so that we still write logs if the test finishes before the stream finishes
+						Expect(err).ToNot(HaveOccurred())
+					}
 
 					artifactDir := os.Getenv("ARTIFACT_DIR")
 					if artifactDir != "" {
