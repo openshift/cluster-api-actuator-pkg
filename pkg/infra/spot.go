@@ -209,20 +209,20 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 					stream, err := logsStream.Stream(logContext)
 					if !errors.Is(err, context.Canceled) {
 						// Ignore context cancellation here so that we still write logs if the test finishes before the stream finishes
-						Expect(err).ToNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred(), "Unexpected error streaming termination logs")
 					}
 
 					artifactDir := os.Getenv("ARTIFACT_DIR")
 					if artifactDir != "" {
 						logs := bytes.NewBuffer([]byte{})
 						_, err = io.Copy(logs, stream)
-						Expect(err).ToNot(HaveOccurred())
-						Expect(ioutil.WriteFile(fmt.Sprintf("%s/termination-handler.log", artifactDir), logs.Bytes(), 0644)).To(Succeed())
+						Expect(err).ToNot(HaveOccurred(), "Unexpected error copying termination logs")
+						Expect(ioutil.WriteFile(fmt.Sprintf("%s/termination-handler.log", artifactDir), logs.Bytes(), 0644)).To(Succeed(), "Failed to write termination logs to file")
 					} else {
 						_, err = io.WriteString(GinkgoWriter, "Termination Handler logs:")
 						Expect(err).ToNot(HaveOccurred())
 						_, err = io.Copy(GinkgoWriter, stream)
-						Expect(err).ToNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred(), "Unexpected error copying termination logs")
 					}
 				}()
 			})
