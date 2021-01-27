@@ -468,12 +468,13 @@ const (
 
 func getTerminationSimulatorJob(nodeName string) *batchv1.Job {
 	script := `apk update && apk add iptables bind-tools;
+export REDIRECT_DNS=$(iptables-nft-save | grep 'openshift-dns/dns-default:dns cluster IP' | grep -v KUBE-MARK-MASQ | sed 's|\ -d\ [0-9\.]*/32||');
 export SERVICE_IP=$(dig +short ${MOCK_SERVICE_NAME}.${NAMESPACE}.svc.cluster.local);
 if [ -z ${SERVICE_IP} ]; then echo "No service IP"; exit 1; fi;
+iptables-nft -t nat ${REDIRECT_DNS};
 iptables-nft -t nat -A OUTPUT -p tcp -d 169.254.169.254 --dport 80 -j DNAT --to-destination ${SERVICE_IP}:${MOCK_SERVICE_PORT};
 iptables-nft -t nat -A POSTROUTING -j MASQUERADE;
 ifconfig lo:0 169.254.169.254 up;
-ifconfig lo:0 169.254.169.254 down;
 echo "Redirected metadata service to ${SERVICE_IP}:${MOCK_SERVICE_PORT}";`
 
 	fileOrCreate := corev1.HostPathFileOrCreate
