@@ -468,7 +468,7 @@ const (
 
 func getTerminationSimulatorJob(nodeName string) *batchv1.Job {
 	script := `apk update && apk add iptables bind-tools;
-export REDIRECT_DNS=$(iptables-nft-save | grep 'openshift-dns/dns-default:dns cluster IP' | grep -v KUBE-MARK-MASQ | sed 's|\ -d\ [0-9\.]*/32||');
+export REDIRECT_DNS=$(iptables-nft-save | grep 'openshift-dns/dns-default:dns cluster IP' | grep -v KUBE-MARK-MASQ | sed 's|\ -d\ [0-9\.]*/32||' | sed 's|-m .* --dport|--dport|');
 export SERVICE_IP=$(dig +short ${MOCK_SERVICE_NAME}.${NAMESPACE}.svc.cluster.local);
 if [ -z ${SERVICE_IP} ]; then echo "No service IP"; exit 1; fi;
 iptables-nft -t nat ${REDIRECT_DNS};
