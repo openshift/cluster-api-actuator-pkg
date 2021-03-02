@@ -201,11 +201,11 @@ var _ = Describe("[Feature:Operators] Machine API cluster operator status should
 	It("be available", func() {
 		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(framework.IsStatusAvailable(client, "machine-api")).To(BeTrue())
+		Expect(framework.WaitForStatusAvailableShort(client, "machine-api")).To(BeTrue())
 	})
 })
 
-var _ = Describe("[Serial][Feature:Operators] When cluster-wide proxy is configured, Machine API cluster operator should ", func() {
+var _ = Describe("[Serial][Feature:Operators][Disruptive] When cluster-wide proxy is configured, Machine API cluster operator should ", func() {
 	It("create machines when configured behind a proxy", func() {
 		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
@@ -256,5 +256,19 @@ var _ = Describe("[Serial][Feature:Operators] When cluster-wide proxy is configu
 
 		err = framework.DestroyClusterProxy(client)
 		Expect(err).ToNot(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		By("waiting for MAO, KAPI and KCM cluster operators to become available")
+		client, err := framework.LoadClient()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(framework.WaitForProxyInjectionSync(client, maoManagedDeployment, framework.MachineAPINamespace, false)).To(BeTrue())
+
+		By("waiting for KAPI cluster operator to become available")
+		Expect(framework.WaitForStatusAvailableOverLong(client, "kube-apiserver")).To(BeTrue())
+
+		By("waiting for KCM cluster operator to become available")
+		Expect(framework.WaitForStatusAvailableOverLong(client, "kube-controller-manager")).To(BeTrue())
+		Expect(framework.WaitForStatusAvailableMedium(client, "machine-api")).To(BeTrue())
 	})
 })

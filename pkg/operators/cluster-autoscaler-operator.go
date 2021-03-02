@@ -92,6 +92,6 @@ var _ = Describe("[Feature:Operators] Cluster autoscaler cluster operator status
 		var err error
 		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(framework.IsStatusAvailable(client, "cluster-autoscaler")).To(BeTrue())
+		Expect(framework.WaitForStatusAvailableShort(client, "cluster-autoscaler")).To(BeTrue())
 	})
 })
