@@ -7,12 +7,26 @@ export GOFLAGS
 GOPROXY ?=
 export GOPROXY
 
+
 NO_DOCKER ?= 0
+
+ifeq ($(shell command -v podman > /dev/null 2>&1 ; echo $$? ), 0)
+	ENGINE=podman
+else ifeq ($(shell command -v docker > /dev/null 2>&1 ; echo $$? ), 0)
+	ENGINE=docker
+else
+	NO_DOCKER=1
+endif
+
+USE_DOCKER ?= 0
+ifeq ($(USE_DOCKER), 1)
+	ENGINE=docker
+endif
+
 ifeq ($(NO_DOCKER), 1)
   DOCKER_CMD =
-  IMAGE_BUILD_CMD = imagebuilder
 else
-  DOCKER_CMD := docker run \
+  DOCKER_CMD := $(ENGINE) run \
 	  --rm \
 	  -v "$(PWD)":/go/src/github.com/openshift/cluster-api-actuator-pkg:Z \
 	  -w /go/src/github.com/openshift/cluster-api-actuator-pkg \
@@ -20,7 +34,7 @@ else
 	  -e "GOFLAGS=$(GOFLAGS)" \
 	  -e "GOPROXY=$(GOPROXY)" \
 	  openshift/origin-release:golang-1.16
-  IMAGE_BUILD_CMD = docker build
+  IMAGE_BUILD_CMD = $(ENGINE) build
 endif
 
 .PHONY: all
@@ -28,12 +42,11 @@ all: check
 
 .PHONY: vendor
 vendor:
-	go mod tidy
-	go mod vendor
-	go mod verify
+	$(DOCKER_CMD) ./hack/go-mod.sh
+
 
 .PHONY: check
-check: fmt vet lint test ## Check your code
+check: fmt vet #lint ## Check your code
 
 .PHONY: lint
 lint: ## Go lint your code
@@ -43,19 +56,19 @@ lint: ## Go lint your code
 
 .PHONY: fmt
 fmt: ## Go fmt your code
-	hack/go-fmt.sh .
+	$(DOCKER_CMD) hack/go-fmt.sh .
 
 .PHONY: goimports
 goimports: ## Go fmt your code
-	hack/goimports.sh .
+	$(DOCKER_CMD) hack/goimports.sh .
 
 .PHONY: vet
 vet: ## Apply go vet to all go files
-	hack/go-vet.sh ./...
+	$(DOCKER_CMD) hack/go-vet.sh ./...
 
 .PHONY: build-e2e
 build-e2e:
-	go test -c -o "$(BUILD_DEST)" github.com/openshift/cluster-api-actuator-pkg/pkg/e2e
+	$(DOCKER_CMD) go test -c -o "$(BUILD_DEST)" github.com/openshift/cluster-api-actuator-pkg/pkg/
 
 .PHONY: test-e2e
 test-e2e: ## Run openshift specific e2e test
