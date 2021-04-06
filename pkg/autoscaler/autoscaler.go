@@ -307,7 +307,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 
 			platform := clusterInfra.Status.PlatformStatus.Type
 			switch platform {
-			case configv1.AWSPlatformType, configv1.GCPPlatformType, configv1.AzurePlatformType:
+			case configv1.AWSPlatformType, configv1.GCPPlatformType, configv1.AzurePlatformType, configv1.VSpherePlatformType:
 				klog.Infof("Platform is %v", platform)
 			default:
 				Skip(fmt.Sprintf("Platform %v does not support autoscaling from/to zero, skipping.", platform))
