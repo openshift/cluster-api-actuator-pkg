@@ -69,9 +69,13 @@ var _ = BeforeSuite(func() {
 
 	// Extend timeouts for slower providers
 	switch infra.Status.PlatformStatus.Type {
-	case osconfigv1.AzurePlatformType, osconfigv1.VSpherePlatformType:
+	case osconfigv1.AzurePlatformType:
 		framework.WaitShort = 2 * time.Minute  // Normally 1m
 		framework.WaitMedium = 6 * time.Minute // Normally 3m
 		framework.WaitLong = 30 * time.Minute  // Normally 15m
+	case osconfigv1.VSpherePlatformType:
+		framework.WaitShort = 4 * time.Minute   // Normally 1m
+		framework.WaitMedium = 10 * time.Minute // Normally 3m
+		framework.WaitLong = 45 * time.Minute   // Normally 15m
 	}
 })
