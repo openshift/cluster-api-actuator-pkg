@@ -2,6 +2,7 @@ package machinehealthcheck
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -80,7 +81,7 @@ var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck", func() {
 				{
 					Type:    E2EConditionType,
 					Status:  corev1.ConditionTrue,
-					Timeout: "1s",
+					Timeout: metav1.Duration{Duration: time.Second},
 				},
 			},
 			MaxUnhealthy: &maxUnhealthy,
@@ -130,7 +131,7 @@ var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck", func() {
 				{
 					Type:    E2EConditionType,
 					Status:  corev1.ConditionTrue,
-					Timeout: "1s",
+					Timeout: metav1.Duration{Duration: time.Second},
 				},
 			},
 			MaxUnhealthy: &maxUnhealthy,

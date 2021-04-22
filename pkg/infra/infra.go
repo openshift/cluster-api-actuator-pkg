@@ -14,7 +14,6 @@ import (
 	kpolicyapi "k8s.io/api/policy/v1beta1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/uuid"
@@ -121,14 +120,14 @@ func invalidMachinesetWithEmptyProviderConfig() *mapiv1beta1.MachineSet {
 	}
 }
 
-func deleteObject(client runtimeclient.Client, obj runtime.Object) error {
+func deleteObject(client runtimeclient.Client, obj runtimeclient.Object) error {
 	cascadeDelete := metav1.DeletePropagationForeground
 	return client.Delete(context.TODO(), obj, &runtimeclient.DeleteOptions{
 		PropagationPolicy: &cascadeDelete,
 	})
 }
 
-func deleteObjects(client runtimeclient.Client, delObjects map[string]runtime.Object) error {
+func deleteObjects(client runtimeclient.Client, delObjects map[string]runtimeclient.Object) error {
 	// Remove resources
 	for _, obj := range delObjects {
 		if err := deleteObject(client, obj); err != nil {
@@ -282,7 +281,7 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		// Make sure RC and PDB get deleted anyway
-		delObjects := make(map[string]runtime.Object)
+		delObjects := make(map[string]runtimeclient.Object)
 
 		defer func() {
 			err := deleteObjects(client, delObjects)

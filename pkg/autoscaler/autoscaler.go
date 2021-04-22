@@ -20,7 +20,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog"
 	"k8s.io/utils/pointer"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -216,11 +215,11 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 	var workloadMemRequest resource.Quantity
 	var client runtimeclient.Client
 	var err error
-	var cleanupObjects map[string]runtime.Object
+	var cleanupObjects map[string]runtimeclient.Object
 
 	ctx := context.Background()
 	cascadeDelete := metav1.DeletePropagationForeground
-	deleteObject := func(name string, obj runtime.Object) error {
+	deleteObject := func(name string, obj runtimeclient.Object) error {
 		klog.Infof("[cleanup] %q (%T)", name, obj)
 		return client.Delete(ctx, obj, &runtimeclient.DeleteOptions{
 			PropagationPolicy: &cascadeDelete,
@@ -249,7 +248,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		workloadMemRequest = resource.MustParse(fmt.Sprintf("%v", 0.7*float32(bytes)))
 
 		// Anything we create we must cleanup
-		cleanupObjects = make(map[string]runtime.Object)
+		cleanupObjects = make(map[string]runtimeclient.Object)
 	})
 
 	AfterEach(func() {
