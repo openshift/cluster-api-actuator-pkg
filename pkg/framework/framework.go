@@ -2,18 +2,12 @@ package framework
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
-	caov1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1"
-	caov1beta1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1beta1"
 	cov1helpers "github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
 	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
-	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -47,48 +41,6 @@ var (
 	WaitLong     = 15 * time.Minute
 	WaitOverLong = 30 * time.Minute
 )
-
-// DeleteObjectsByLabels list all objects of a given kind by labels and deletes them.
-// Currently supported kinds:
-// - caov1beta1.MachineAutoscalerList
-// - caov1.ClusterAutoscalerList
-// - batchv1.JobList
-func DeleteObjectsByLabels(c runtimeclient.Client, labels map[string]string, list runtime.Object) error {
-	if err := c.List(context.Background(), list, runtimeclient.MatchingLabels(labels)); err != nil {
-		return fmt.Errorf("Unable to list objects: %w", err)
-	}
-
-	// TODO(jchaloup): find a way how to list the items independent of a kind
-	var objs []runtime.Object
-	switch d := list.(type) {
-	case *caov1beta1.MachineAutoscalerList:
-		for _, item := range d.Items {
-			objs = append(objs, runtime.Object(&item))
-		}
-	case *caov1.ClusterAutoscalerList:
-		for _, item := range d.Items {
-			objs = append(objs, runtime.Object(&item))
-		}
-	case *batchv1.JobList:
-		for _, item := range d.Items {
-			objs = append(objs, runtime.Object(&item))
-		}
-
-	default:
-		return fmt.Errorf("List type %#v not recognized", list)
-	}
-
-	cascadeDelete := metav1.DeletePropagationForeground
-	for _, obj := range objs {
-		if err := c.Delete(context.Background(), obj, &runtimeclient.DeleteOptions{
-			PropagationPolicy: &cascadeDelete,
-		}); err != nil {
-			return fmt.Errorf("error deleting object: %w", err)
-		}
-	}
-
-	return nil
-}
 
 // GetInfrastructure fetches the global cluster infrastructure object.
 func GetInfrastructure(c runtimeclient.Client) (*configv1.Infrastructure, error) {
