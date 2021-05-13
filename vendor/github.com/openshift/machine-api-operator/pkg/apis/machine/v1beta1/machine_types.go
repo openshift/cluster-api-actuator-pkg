@@ -17,6 +17,8 @@ limitations under the License.
 package v1beta1
 
 import (
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -38,7 +40,6 @@ const (
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-/// [Machine]
 // Machine is the Schema for the machines API
 // +k8s:openapi-gen=true
 // +kubebuilder:subresource:status
@@ -58,9 +59,14 @@ type Machine struct {
 	Status MachineStatus `json:"status,omitempty"`
 }
 
-/// [Machine]
+func (m *Machine) GetConditions() Conditions {
+	return m.Status.Conditions
+}
 
-/// [MachineSpec]
+func (m *Machine) SetConditions(conditions Conditions) {
+	m.Status.Conditions = conditions
+}
+
 // MachineSpec defines the desired state of Machine
 type MachineSpec struct {
 	// ObjectMeta will autopopulate the Node created. Use this to
@@ -96,9 +102,6 @@ type MachineSpec struct {
 	ProviderID *string `json:"providerID,omitempty"`
 }
 
-/// [MachineSpec]
-
-/// [MachineStatus]
 // MachineStatus defines the observed state of Machine
 type MachineStatus struct {
 	// NodeRef will point to the corresponding Node if it exists.
@@ -170,6 +173,9 @@ type MachineStatus struct {
 	// One of: Failed, Provisioning, Provisioned, Running, Deleting
 	// +optional
 	Phase *string `json:"phase,omitempty"`
+
+	// Conditions defines the current state of the Machine
+	Conditions Conditions `json:"conditions,omitempty"`
 }
 
 // LastOperation represents the detail of the last performed operation on the MachineObject.
@@ -189,13 +195,16 @@ type LastOperation struct {
 	Type *string `json:"type,omitempty"`
 }
 
-/// [MachineVersionInfo]
-
 func (m *Machine) Validate() field.ErrorList {
 	errors := field.ErrorList{}
 
-	// validate provider config is set
+	// validate spec.labels
 	fldPath := field.NewPath("spec")
+	if m.Labels[MachineClusterIDLabel] == "" {
+		errors = append(errors, field.Invalid(fldPath.Child("labels"), m.Labels, fmt.Sprintf("missing %v label.", MachineClusterIDLabel)))
+	}
+
+	// validate provider config is set
 	if m.Spec.ProviderSpec.Value == nil {
 		errors = append(errors, field.Invalid(fldPath.Child("spec").Child("providerspec"), m.Spec.ProviderSpec, "value field must be set"))
 	}

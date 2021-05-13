@@ -20,7 +20,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	awsproviderconfigv1 "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsprovider/v1beta1"
@@ -36,10 +35,10 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 	var machineSetParams framework.MachineSetParams
 	var platform configv1.PlatformType
 
-	var delObjects map[string]runtime.Object
+	var delObjects map[string]runtimeclient.Object
 
 	BeforeEach(func() {
-		delObjects = make(map[string]runtime.Object)
+		delObjects = make(map[string]runtimeclient.Object)
 
 		var err error
 		client, err = framework.LoadClient()

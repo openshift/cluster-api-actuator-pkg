@@ -39,6 +39,7 @@ TOOLS_DIR := hack/tools
 TOOLS_BIN_DIR := $(TOOLS_DIR)/bin
 GOLANGCI_LINT := $(abspath $(TOOLS_BIN_DIR)/golangci-lint)
 GO_APIDIFF := $(TOOLS_BIN_DIR)/go-apidiff
+CONTROLLER_GEN := $(TOOLS_BIN_DIR)/controller-gen
 
 # The help will print out all targets with their descriptions organized bellow their categories. The categories are represented by `##@` and the target descriptions by `##`.
 # The awk commands is responsible to read the entire set of makefiles included in this invocation, looking for lines of the file as xyz: ## something, and then pretty-format the target and help. Then, if there's a line with ##@ something, that gets pretty-printed as a category.
@@ -53,8 +54,12 @@ help:  ## Display this help
 ## --------------------------------------
 
 .PHONY: test
-test: ## Run the script check-everything.sh which will check all.
+test: test-tools ## Run the script check-everything.sh which will check all.
 	TRACE=1 ./hack/check-everything.sh
+
+.PHONY: test-tools
+test-tools: ## tests the tools codebase (setup-envtest)
+	cd tools/setup-envtest && go test ./...
 
 ## --------------------------------------
 ## Binaries
@@ -66,13 +71,23 @@ $(GOLANGCI_LINT): $(TOOLS_DIR)/go.mod # Build golangci-lint from tools folder.
 $(GO_APIDIFF): $(TOOLS_DIR)/go.mod # Build go-apidiff from tools folder.
 	cd $(TOOLS_DIR) && go build -tags=tools -o bin/go-apidiff github.com/joelanford/go-apidiff
 
+$(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod # Build controller-gen from tools folder.
+	cd $(TOOLS_DIR) && go build -tags=tools -o bin/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
+
 ## --------------------------------------
 ## Linting
 ## --------------------------------------
 
-.PHONY: lint
-lint: $(GOLANGCI_LINT) ## Lint codebase.
+.PHONY: lint-libs
+lint-libs: $(GOLANGCI_LINT) ## Lint library codebase.
 	$(GOLANGCI_LINT) run -v
+
+.PHONY: lint-tools
+lint-tools: $(GOLANGCI_LINT) ## Lint tools codebase.
+	cd tools/setup-envtest && $(GOLANGCI_LINT) run -v
+
+.PHONY: lint
+lint: lint-libs lint-tools
 
 ## --------------------------------------
 ## Generate
@@ -82,6 +97,10 @@ lint: $(GOLANGCI_LINT) ## Lint codebase.
 modules: ## Runs go mod to ensure modules are up to date.
 	go mod tidy
 	cd $(TOOLS_DIR); go mod tidy
+
+.PHONY: generate
+generate: $(CONTROLLER_GEN) ## Runs controller-gen for internal types for config file
+	$(CONTROLLER_GEN) object paths="./pkg/config/v1alpha1/...;./examples/configfile/custom/v1alpha1/..."
 
 ## --------------------------------------
 ## Cleanup / Verification
@@ -98,5 +117,5 @@ clean-bin: ## Remove all generated binaries.
 .PHONY: verify-modules
 verify-modules: modules
 	@if !(git diff --quiet HEAD -- go.sum go.mod); then \
-		echo "go module files are out of date"; exit 1; \
+		echo "go module files are out of date, please run 'make modules'"; exit 1; \
 	fi
