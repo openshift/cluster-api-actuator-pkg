@@ -1,11 +1,16 @@
 package infra
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/rand"
+	"os"
+	"strconv"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -19,6 +24,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
@@ -50,7 +56,6 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 		switch platform {
 		case configv1.AWSPlatformType, configv1.GCPPlatformType, configv1.AzurePlatformType:
 			// Do Nothing
-			Skip(fmt.Sprintf("Spot tests are temporarily disabled to enable migration to conditions"))
 		default:
 			Skip(fmt.Sprintf("Platform %s does not support Spot, skipping.", platform))
 		}
@@ -165,6 +170,62 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 				Expect(machine.Status.NodeRef).ToNot(BeNil())
 			})
 
+			var cancel context.CancelFunc
+			defer func() {
+				if cancel != nil {
+					cancel()
+				}
+			}()
+
+			By("Streaming the termination handler logs", func() {
+				terminationLabels := map[string]string{
+					"api":     "clusterapi",
+					"k8s-app": "termination-handler",
+				}
+				pods, err := framework.GetPods(client, terminationLabels)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(len(pods.Items)).To(Equal(3))
+
+				var pod *corev1.Pod
+				for i, p := range pods.Items {
+					if p.Spec.NodeName == machine.Status.NodeRef.Name {
+						pod = pods.Items[i].DeepCopy()
+						break
+					}
+				}
+				Expect(pod).ToNot(BeNil())
+
+				c, err := framework.LoadClientset()
+				Expect(err).ToNot(HaveOccurred())
+
+				var logContext context.Context
+				logContext, cancel = context.WithCancel(ctx)
+
+				go func() {
+					defer GinkgoRecover()
+					logsStream := c.CoreV1().Pods(framework.MachineAPINamespace).GetLogs(pod.Name, &corev1.PodLogOptions{}).Param("follow", strconv.FormatBool(true))
+
+					stream, err := logsStream.Stream(logContext)
+					if !errors.Is(err, context.Canceled) {
+						// Ignore context cancellation here so that we still write logs if the test finishes before the stream finishes
+						Expect(err).ToNot(HaveOccurred(), "Unexpected error streaming termination logs")
+					}
+
+					artifactDir := os.Getenv("ARTIFACT_DIR")
+					if artifactDir != "" {
+						logs := bytes.NewBuffer([]byte{})
+						_, err = io.Copy(logs, stream)
+						Expect(err).ToNot(HaveOccurred(), "Unexpected error copying termination logs")
+						Expect(ioutil.WriteFile(fmt.Sprintf("%s/termination-handler.log", artifactDir), logs.Bytes(), 0644)).To(Succeed(), "Failed to write termination logs to file")
+					} else {
+						_, err = io.WriteString(GinkgoWriter, "Termination Handler logs:")
+						Expect(err).ToNot(HaveOccurred())
+						_, err = io.Copy(GinkgoWriter, stream)
+						Expect(err).ToNot(HaveOccurred(), "Unexpected error copying termination logs")
+					}
+				}()
+			})
+
 			By("Deploying a job to reroute metadata traffic to the mock", func() {
 				serviceAccount := getTerminationSimulatorServiceAccount()
 				Expect(client.Create(ctx, serviceAccount)).To(Succeed())
@@ -181,6 +242,25 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 				job := getTerminationSimulatorJob(machine.Status.NodeRef.Name)
 				Expect(client.Create(ctx, job)).To(Succeed())
 				delObjects[job.Name] = job
+			})
+
+			By("Checking that the node got marked with the correct condition", func() {
+				nodeKey := runtimeclient.ObjectKey{Name: machine.Status.NodeRef.Name}
+				Eventually(func() (bool, error) {
+					node := &corev1.Node{}
+					err := client.Get(ctx, nodeKey, node)
+					if apierrors.IsNotFound(err) {
+						return true, nil
+					} else if err != nil {
+						return false, err
+					}
+					for _, condition := range node.Status.Conditions {
+						if condition.Type == "Terminating" {
+							return true, nil
+						}
+					}
+					return false, nil
+				}, framework.WaitMedium).Should(BeTrue())
 			})
 
 			// If the job deploys correctly, the Machine will go away
@@ -387,9 +467,11 @@ const (
 
 func getTerminationSimulatorJob(nodeName string) *batchv1.Job {
 	script := `apk update && apk add iptables bind-tools;
+export REDIRECT_DNS=$(iptables-nft-save | grep 'openshift-dns/dns-default:dns cluster IP' | grep -v KUBE-MARK-MASQ | sed 's|\ -d\ [0-9\.]*/32||' | sed 's|-m .* --dport|--dport|');
 export SERVICE_IP=$(dig +short ${MOCK_SERVICE_NAME}.${NAMESPACE}.svc.cluster.local);
 if [ -z ${SERVICE_IP} ]; then echo "No service IP"; exit 1; fi;
-iptables-nft -t nat -A OUTPUT -p tcp -d 169.254.169.254 -j DNAT --to-destination ${SERVICE_IP}:${MOCK_SERVICE_PORT};
+iptables-nft -t nat ${REDIRECT_DNS};
+iptables-nft -t nat -A OUTPUT -p tcp -d 169.254.169.254 --dport 80 -j DNAT --to-destination ${SERVICE_IP}:${MOCK_SERVICE_PORT};
 iptables-nft -t nat -A POSTROUTING -j MASQUERADE;
 ifconfig lo:0 169.254.169.254 up;
 echo "Redirected metadata service to ${SERVICE_IP}:${MOCK_SERVICE_PORT}";`
