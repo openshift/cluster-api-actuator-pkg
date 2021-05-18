@@ -73,21 +73,21 @@ var _ = Describe("[Feature:Operators] Machine API operator deployment should", f
 
 	})
 
-	PIt("reconcile mutating webhook configuration", func() {
+	It("reconcile mutating webhook configuration", func() {
 		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(framework.IsMutatingWebhookConfigurationSynced(client)).To(BeTrue())
 	})
 
-	PIt("reconcile validating webhook configuration", func() {
+	It("reconcile validating webhook configuration", func() {
 		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(framework.IsValidatingWebhookConfigurationSynced(client)).To(BeTrue())
 	})
 
-	PIt("recover after validating webhook configuration deletion", func() {
+	It("recover after validating webhook configuration deletion", func() {
 		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
 
@@ -113,7 +113,7 @@ var _ = Describe("[Feature:Operators] Machine API operator deployment should", f
 		Expect(framework.IsValidatingWebhookConfigurationSynced(client)).To(BeTrue())
 	})
 
-	PIt("recover after mutating webhook configuration deletion", func() {
+	It("recover after mutating webhook configuration deletion", func() {
 		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
 
@@ -139,7 +139,7 @@ var _ = Describe("[Feature:Operators] Machine API operator deployment should", f
 		Expect(framework.IsMutatingWebhookConfigurationSynced(client)).To(BeTrue())
 	})
 
-	PIt("maintains spec after mutating webhook configuration change and preserve caBundle", func() {
+	It("maintains spec after mutating webhook configuration change and preserve caBundle", func() {
 		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
 
@@ -166,7 +166,7 @@ var _ = Describe("[Feature:Operators] Machine API operator deployment should", f
 		}
 	})
 
-	PIt("maintains spec after validating webhook configuration change and preserve caBundle", func() {
+	It("maintains spec after validating webhook configuration change and preserve caBundle", func() {
 		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
 
