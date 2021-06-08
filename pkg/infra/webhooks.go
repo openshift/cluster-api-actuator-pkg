@@ -244,6 +244,7 @@ func minimalVSphereProviderSpec(ps *mapiv1.ProviderSpec) (*mapiv1.ProviderSpec, 
 				Template: fullProviderSpec.Template,
 				Workspace: &vsphere.Workspace{
 					Datacenter: fullProviderSpec.Workspace.Datacenter,
+					Datastore:  fullProviderSpec.Workspace.Datastore,
 					Server:     fullProviderSpec.Workspace.Server,
 				},
 				Network: vsphere.NetworkSpec{
