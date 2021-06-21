@@ -20,8 +20,8 @@ var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck", func() {
 
 	var machineSet *mapiv1beta1.MachineSet
 	var machinehealthcheck *v1beta1.MachineHealthCheck
-	var maxUnhealthy = 3
-	const expectedReplicas = 5
+	var maxUnhealthy = 2
+	const expectedReplicas = 4
 
 	const E2EConditionType = "MachineHealthCheckE2E"
 
