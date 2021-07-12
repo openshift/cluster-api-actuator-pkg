@@ -48,9 +48,15 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 		Expect(err).NotTo(HaveOccurred())
 		platform = clusterInfra.Status.PlatformStatus.Type
 		switch platform {
-		case configv1.AWSPlatformType, configv1.GCPPlatformType, configv1.AzurePlatformType:
+		case configv1.AWSPlatformType, configv1.AzurePlatformType:
 			// Do Nothing
-			Skip(fmt.Sprintf("Spot tests are temporarily disabled to enable migration to conditions"))
+		case configv1.GCPPlatformType:
+			// TODO: GCP relies on the metadata IP for DNS.
+			// This test prevents it from accessing the DNS, therefore
+			// the termination handler cannot contact the API server
+			// to mark the node as terminating.
+			// Skip until we can come up with a way to workaround this.
+			Skip("Platform GCP is not compatible with this test suite.")
 		default:
 			Skip(fmt.Sprintf("Platform %s does not support Spot, skipping.", platform))
 		}
