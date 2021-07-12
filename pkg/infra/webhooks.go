@@ -233,26 +233,17 @@ func minimalGCPProviderSpec(ps *mapiv1.ProviderSpec) (*mapiv1.ProviderSpec, erro
 }
 
 func minimalVSphereProviderSpec(ps *mapiv1.ProviderSpec) (*mapiv1.ProviderSpec, error) {
-	fullProviderSpec := &vsphere.VSphereMachineProviderSpec{}
-	err := json.Unmarshal(ps.Value.Raw, fullProviderSpec)
+	providerSpec := &vsphere.VSphereMachineProviderSpec{}
+	err := json.Unmarshal(ps.Value.Raw, providerSpec)
 	if err != nil {
 		return nil, err
 	}
+	// For vSphere only these 2 fields are defaultable
+	providerSpec.UserDataSecret = nil
+	providerSpec.CredentialsSecret = nil
 	return &mapiv1.ProviderSpec{
 		Value: &runtime.RawExtension{
-			Object: &vsphere.VSphereMachineProviderSpec{
-				Template: fullProviderSpec.Template,
-				Workspace: &vsphere.Workspace{
-					Datacenter: fullProviderSpec.Workspace.Datacenter,
-					Server:     fullProviderSpec.Workspace.Server,
-				},
-				Network: vsphere.NetworkSpec{
-					Devices: fullProviderSpec.Network.Devices,
-				},
-				NumCPUs:   fullProviderSpec.NumCPUs,
-				MemoryMiB: fullProviderSpec.MemoryMiB,
-				DiskGiB:   fullProviderSpec.DiskGiB,
-			},
+			Object: providerSpec,
 		},
 	}, nil
 }
