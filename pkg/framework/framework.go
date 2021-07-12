@@ -6,7 +6,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	cov1helpers "github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
-	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -121,7 +121,7 @@ func expectStatusAvailableIn(client runtimeclient.Client, name string, timeout t
 
 func WaitForValidatingWebhook(client runtimeclient.Client, name string) bool {
 	key := types.NamespacedName{Name: name}
-	webhook := &admissionregistrationv1beta1.ValidatingWebhookConfiguration{}
+	webhook := &admissionregistrationv1.ValidatingWebhookConfiguration{}
 
 	if err := wait.PollImmediate(RetryShort, WaitShort, func() (bool, error) {
 		if err := client.Get(context.TODO(), key, webhook); err != nil {
