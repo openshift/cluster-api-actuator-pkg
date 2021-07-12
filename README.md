@@ -65,28 +65,45 @@ $ ./bin/cluster-autoscaler-operator --kubeconfig=<PATH/TO/YOUR/CLUSTERS/KUBECONF
 
 ```console
 $ make build-e2e 
-go test -c -o bin/e2e github.com/openshift/cluster-api-actuator-pkg/pkg/e2e
+go test -c -o bin/e2e github.com/openshift/cluster-api-actuator-pkg/pkg/
 ```
 
 ### Run the autoscaler e2e tests
 
 ```console
-$ NAMESPACE=kube-system ./hack/ci-integration.sh -ginkgo.focus "Autoscaler should" -ginkgo.v -ginkgo.dryRun
-=== RUN   TestE2E
+$ NAMESPACE=kube-system ./hack/ci-integration.sh -focus "Autoscaler should" -v -dryRun
 Running Suite: Machine Suite
 ============================
-Random Seed: 1562320813
-Will run 1 of 15 specs
+Random Seed: 1617813491
+Will run 4 of 33 specs
 
-[Feature:Machines][Serial] Autoscaler should 
-  scale up and down
-  /home/aim/go-projects/cluster-api-actuator-pkg/src/github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/autoscaler/autoscaler.go:229
-•SSSSSSSSSSSSSS
-Ran 1 of 15 Specs in 0.000 seconds
-SUCCESS! -- 0 Passed | 0 Failed | 0 Pending | 14 Skipped
---- PASS: TestE2E (0.00s)
+SSSSSSSSSSSSSSSSSS
+------------------------------
+[Feature:Machines] Autoscaler should use a ClusterAutoscaler that has 100 maximum total nodes count 
+  It scales from/to zero
+  /cluster-api-actuator-pkg/pkg/autoscaler/autoscaler.go:306
+•
+------------------------------
+[Feature:Machines] Autoscaler should use a ClusterAutoscaler that has 100 maximum total nodes count 
+  cleanup deletion information after scale down [Slow]
+  /cluster-api-actuator-pkg/pkg/autoscaler/autoscaler.go:370
+•
+------------------------------
+[Feature:Machines] Autoscaler should use a ClusterAutoscaler that has 12 maximum total nodes count and balance similar nodes enabled 
+  scales up and down while respecting MaxNodesTotal [Slow][Serial]
+  /cluster-api-actuator-pkg/pkg/autoscaler/autoscaler.go:521
+•
+------------------------------
+[Feature:Machines] Autoscaler should use a ClusterAutoscaler that has 12 maximum total nodes count and balance similar nodes enabled 
+  places nodes evenly across node groups [Slow]
+  /cluster-api-actuator-pkg/pkg/autoscaler/autoscaler.go:605
+•SSSSSSSSSSS
+Ran 4 of 33 Specs in 0.000 seconds
+SUCCESS! -- 0 Passed | 0 Failed | 0 Pending | 29 Skipped
 PASS
-ok      github.com/openshift/cluster-api-actuator-pkg/pkg/e2e   0.037s
+
+Ginkgo ran 1 suite in 1.887727166s
+Test Suite Passed
 ```
 
-Adjust `-ginkgo.focus` as appropriate.
+Adjust `-focus` as appropriate.
