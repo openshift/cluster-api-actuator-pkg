@@ -2,7 +2,6 @@ package autoscaler
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -291,14 +290,13 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			caName := clusterAutoscaler.GetName()
 			Expect(deleteObject(caName, cleanupObjects[caName])).Should(Succeed())
 			delete(cleanupObjects, caName)
-			Eventually(func() bool {
-				t := &apierrors.StatusError{}
-				// Convert the error to a StatusError and allow `IsNotFound` to check that.
-				// TODO drop this conversion once we have upgraded to K8s 1.19 which will support error wrapping first class.
-				if _, err := framework.GetClusterAutoscaler(client, caName); err != nil && errors.As(err, &t) && apierrors.IsNotFound(t) {
-					return true
+			Eventually(func() (bool, error) {
+				_, err := framework.GetClusterAutoscaler(client, caName)
+				if apierrors.IsNotFound(err) {
+					return true, nil
 				}
-				return false
+				// Return the error so that failures print additional errors
+				return false, err
 			}, framework.WaitMedium, pollingInterval).Should(BeTrue())
 		})
 
@@ -506,14 +504,13 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			caName := clusterAutoscaler.GetName()
 			Expect(deleteObject(caName, cleanupObjects[caName])).Should(Succeed())
 			delete(cleanupObjects, caName)
-			Eventually(func() bool {
-				t := &apierrors.StatusError{}
-				// Convert the error to a StatusError and allow `IsNotFound` to check that.
-				// TODO drop this conversion once we have upgraded to K8s 1.19 which will support error wrapping first class.
-				if _, err := framework.GetClusterAutoscaler(client, caName); err != nil && errors.As(err, &t) && apierrors.IsNotFound(t) {
-					return true
+			Eventually(func() (bool, error) {
+				_, err := framework.GetClusterAutoscaler(client, caName)
+				if apierrors.IsNotFound(err) {
+					return true, nil
 				}
-				return false
+				// Return the error so that failures print additional errors
+				return false, err
 			}, framework.WaitMedium, pollingInterval).Should(BeTrue())
 		})
 
