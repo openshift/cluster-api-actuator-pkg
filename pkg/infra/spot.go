@@ -218,8 +218,9 @@ func setSpotOnAWSProviderSpec(params framework.MachineSetParams, maxPrice string
 		return fmt.Errorf("error unmarshalling providerspec: %v", err)
 	}
 
-	spec.SpotMarketOptions = &awsproviderconfigv1.SpotMarketOptions{
-		MaxPrice: &maxPrice,
+	spec.SpotMarketOptions = &awsproviderconfigv1.SpotMarketOptions{}
+	if maxPrice != "" {
+		spec.SpotMarketOptions.MaxPrice = &maxPrice
 	}
 
 	params.ProviderSpec.Value.Raw, err = json.Marshal(spec)
@@ -237,8 +238,9 @@ func setSpotOnAzureProviderSpec(params framework.MachineSetParams, maxPrice stri
 		return fmt.Errorf("error unmarshalling providerspec: %v", err)
 	}
 
-	spec.SpotVMOptions = &azureproviderconfigv1.SpotVMOptions{
-		MaxPrice: &maxPrice,
+	spec.SpotVMOptions = &azureproviderconfigv1.SpotVMOptions{}
+	if maxPrice != "" {
+		spec.SpotVMOptions.MaxPrice = &maxPrice
 	}
 
 	params.ProviderSpec.Value.Raw, err = json.Marshal(spec)
