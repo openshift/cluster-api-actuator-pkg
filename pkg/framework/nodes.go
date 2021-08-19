@@ -229,8 +229,8 @@ func VerifyNodeDraining(client runtimeclient.Client, targetMachine *mapiv1beta1.
 }
 
 func WaitUntilAllRCPodsAreReady(client runtimeclient.Client, rc *corev1.ReplicationController) error {
-	endTime := time.Now().Add(time.Duration(WaitLong))
-	err := wait.PollImmediate(RetryMedium, WaitLong, func() (bool, error) {
+	endTime := time.Now().Add(time.Duration(WaitOverLong))
+	err := wait.PollImmediate(RetryMedium, WaitOverLong, func() (bool, error) {
 		rcObj := corev1.ReplicationController{}
 		key := types.NamespacedName{
 			Namespace: rc.Namespace,
