@@ -56,7 +56,7 @@ func newWorkLoad(njobs int32, memoryRequest resource.Quantity, nodeSelector stri
 					Containers: []corev1.Container{
 						{
 							Name:  workloadJobName,
-							Image: "busybox",
+							Image: "registry.access.redhat.com/ubi8-micro:latest",
 							Command: []string{
 								"sleep",
 								"86400", // 1 day
