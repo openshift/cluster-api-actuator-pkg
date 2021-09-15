@@ -2,14 +2,18 @@ package framework
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
 
+	configv1 "github.com/openshift/api/config/v1"
 	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	vsphere "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -48,6 +52,9 @@ func BuildMachineSetParams(client runtimeclient.Client, replicas int) MachineSet
 	Expect(err).NotTo(HaveOccurred())
 	Expect(clusterInfra.Status.InfrastructureName).ShouldNot(BeEmpty())
 
+	providerSpec, err = prepareProviderSpec(clusterInfra.Status.PlatformStatus.Type, providerSpec)
+	Expect(err).NotTo(HaveOccurred())
+
 	uid, err := uuid.NewUUID()
 	Expect(err).NotTo(HaveOccurred())
 
@@ -60,6 +67,30 @@ func BuildMachineSetParams(client runtimeclient.Client, replicas int) MachineSet
 			ClusterKey:         clusterName,
 		},
 	}
+}
+func prepareProviderSpec(platform configv1.PlatformType, ps *mapiv1beta1.ProviderSpec) (*mapiv1beta1.ProviderSpec, error) {
+	switch platform {
+	case configv1.VSpherePlatformType:
+		return prepareVsphereProviderSpec(ps)
+	default:
+		return ps, nil
+	}
+}
+
+func prepareVsphereProviderSpec(spec *mapiv1beta1.ProviderSpec) (*mapiv1beta1.ProviderSpec, error) {
+	// Shrink vsphere worker machines ram amount during machineset copying.
+	// Without this we are spawning 16G ram workers.
+	providerSpec := &vsphere.VSphereMachineProviderSpec{}
+	err := json.Unmarshal(spec.Value.Raw, providerSpec)
+	if err != nil {
+		return nil, err
+	}
+	providerSpec.MemoryMiB = 2048
+	return &mapiv1beta1.ProviderSpec{
+		Value: &runtime.RawExtension{
+			Object: providerSpec,
+		},
+	}, nil
 }
 
 // CreateMachineSet creates a new MachineSet resource.
