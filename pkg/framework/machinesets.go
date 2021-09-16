@@ -85,7 +85,7 @@ func prepareVsphereProviderSpec(spec *mapiv1beta1.ProviderSpec) (*mapiv1beta1.Pr
 	if err != nil {
 		return nil, err
 	}
-	providerSpec.MemoryMiB = 2048
+	providerSpec.MemoryMiB = 4096
 	return &mapiv1beta1.ProviderSpec{
 		Value: &runtime.RawExtension{
 			Object: providerSpec,
