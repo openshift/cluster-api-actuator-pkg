@@ -301,6 +301,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		})
 
 		It("It scales from/to zero", func() {
+			panic("Will this panic happen in the rehearsals?")
 			// Only run in platforms which support autoscaling from/to zero.
 			clusterInfra, err := framework.GetInfrastructure(client)
 			Expect(err).NotTo(HaveOccurred())
