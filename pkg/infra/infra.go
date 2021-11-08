@@ -49,7 +49,7 @@ func replicationControllerWorkload(namespace string) *corev1.ReplicationControll
 					Containers: []corev1.Container{
 						{
 							Name:    "work",
-							Image:   "busybox",
+							Image:   "registry.ci.openshift.org/openshift/origin-v4.0:base",
 							Command: []string{"sleep", "10h"},
 							Resources: corev1.ResourceRequirements{
 								Requests: corev1.ResourceList{
