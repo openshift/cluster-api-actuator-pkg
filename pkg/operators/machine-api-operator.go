@@ -20,7 +20,7 @@ var (
 	maoManagedDeployment = "machine-api-controllers"
 )
 
-var _ = Describe("[Feature:Operators] Machine API operator deployment should", func() {
+var _ = Describe("[Feature:Operators][Disruptive] Machine API operator deployment should", func() {
 	defer GinkgoRecover()
 
 	It("be available", func() {
