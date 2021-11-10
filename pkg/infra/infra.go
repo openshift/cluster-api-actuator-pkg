@@ -151,7 +151,7 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 		client, err = framework.LoadClient()
 		Expect(err).ToNot(HaveOccurred())
 
-		machineSetParams = framework.BuildMachineSetParams(client, 3)
+		machineSetParams = framework.BuildMachineSetParams(client, 2)
 
 		By("Creating a new MachineSet")
 		machineSet, err = framework.CreateMachineSet(client, machineSetParams)
