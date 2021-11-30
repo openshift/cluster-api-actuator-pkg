@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	webhooks "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -14,10 +14,10 @@ import (
 )
 
 // DefaultValidatingWebhookConfiguration is a default validating webhook configuration resource provided by MAO
-var DefaultValidatingWebhookConfiguration = mapiv1.NewValidatingWebhookConfiguration()
+var DefaultValidatingWebhookConfiguration = webhooks.NewValidatingWebhookConfiguration()
 
 // DefaultMutatingWebhookConfiguration is a default mutating webhook configuration resource provided by MAO
-var DefaultMutatingWebhookConfiguration = mapiv1.NewMutatingWebhookConfiguration()
+var DefaultMutatingWebhookConfiguration = webhooks.NewMutatingWebhookConfiguration()
 
 // GetMutatingWebhookConfiguration gets MutatingWebhookConfiguration object by name
 func GetMutatingWebhookConfiguration(c client.Client, name string) (*admissionregistrationv1.MutatingWebhookConfiguration, error) {

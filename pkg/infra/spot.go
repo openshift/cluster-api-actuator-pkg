@@ -13,7 +13,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	gcproviderconfigv1 "github.com/openshift/cluster-api-provider-gcp/pkg/apis/gcpprovider/v1beta1"
-	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -31,7 +31,7 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 	var ctx = context.Background()
 
 	var client runtimeclient.Client
-	var machineSet *mapiv1.MachineSet
+	var machineSet *machinev1.MachineSet
 	var machineSetParams framework.MachineSetParams
 	var platform configv1.PlatformType
 
@@ -160,7 +160,7 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 				Expect(framework.IsDeploymentAvailable(client, deployment.Name, deployment.Namespace)).To(BeTrue())
 			})
 
-			var machine *mapiv1.Machine
+			var machine *machinev1.Machine
 			By("Choosing a Machine to terminate", func() {
 				machines, err := framework.GetMachinesFromMachineSet(client, machineSet)
 				Expect(err).ToNot(HaveOccurred())

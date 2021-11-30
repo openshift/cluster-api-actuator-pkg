@@ -15,7 +15,7 @@ import (
 	osconfigv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	caov1alpha1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis"
-	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	"k8s.io/client-go/kubernetes/scheme"
 
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/autoscaler"
@@ -30,7 +30,7 @@ func init() {
 	klog.InitFlags(nil)
 	klog.SetOutput(GinkgoWriter)
 
-	if err := mapiv1beta1.AddToScheme(scheme.Scheme); err != nil {
+	if err := machinev1.AddToScheme(scheme.Scheme); err != nil {
 		klog.Fatal(err)
 	}
 

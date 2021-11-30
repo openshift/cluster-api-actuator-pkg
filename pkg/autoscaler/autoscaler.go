@@ -13,7 +13,7 @@ import (
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	caov1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1"
 	caov1beta1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1beta1"
-	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -128,7 +128,7 @@ func clusterAutoscalerResource(maxNodesTotal int) *caov1.ClusterAutoscaler {
 }
 
 // Build MA resource from targeted machineset
-func machineAutoscalerResource(targetMachineSet *mapiv1beta1.MachineSet, minReplicas, maxReplicas int32) *caov1beta1.MachineAutoscaler {
+func machineAutoscalerResource(targetMachineSet *machinev1.MachineSet, minReplicas, maxReplicas int32) *caov1beta1.MachineAutoscaler {
 	return &caov1beta1.MachineAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: fmt.Sprintf("autoscale-%s", targetMachineSet.Name),
@@ -366,7 +366,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 
 		It("cleanup deletion information after scale down [Slow]", func() {
 			By("Creating 2 MachineSets each with 1 replica")
-			var transientMachineSets [2]*mapiv1beta1.MachineSet
+			var transientMachineSets [2]*machinev1.MachineSet
 			targetedNodeLabel := fmt.Sprintf("%v-delete-cleanup", autoscalerWorkerNodeRoleLabel)
 			for i, machineSet := range transientMachineSets {
 				machineSetParams := framework.BuildMachineSetParams(client, 1)
@@ -516,7 +516,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 
 		It("scales up and down while respecting MaxNodesTotal [Slow][Serial]", func() {
 			By("Creating 1 MachineSet with 1 replica")
-			var transientMachineSet *mapiv1beta1.MachineSet
+			var transientMachineSet *machinev1.MachineSet
 			targetedNodeLabel := fmt.Sprintf("%v-scale-updown", autoscalerWorkerNodeRoleLabel)
 			machineSetParams := framework.BuildMachineSetParams(client, 1)
 			machineSetParams.Labels[targetedNodeLabel] = ""
@@ -600,7 +600,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 
 		It("places nodes evenly across node groups [Slow]", func() {
 			By("Creating 2 MachineSets each with 1 replica")
-			var transientMachineSets [2]*mapiv1beta1.MachineSet
+			var transientMachineSets [2]*machinev1.MachineSet
 			targetedNodeLabel := fmt.Sprintf("%v-balance-nodes", autoscalerWorkerNodeRoleLabel)
 			for i, machineSet := range transientMachineSets {
 				machineSetParams := framework.BuildMachineSetParams(client, 1)
