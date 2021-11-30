@@ -7,9 +7,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
-	"github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
-	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -18,8 +17,8 @@ import (
 var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck", func() {
 	var client client.Client
 
-	var machineSet *mapiv1beta1.MachineSet
-	var machinehealthcheck *v1beta1.MachineHealthCheck
+	var machineSet *machinev1.MachineSet
+	var machinehealthcheck *machinev1.MachineHealthCheck
 	var maxUnhealthy = 2
 	const expectedReplicas = 4
 
@@ -77,7 +76,7 @@ var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck", func() {
 		mhcParams := framework.MachineHealthCheckParams{
 			Name:   machineSet.Name,
 			Labels: machineSet.Labels,
-			Conditions: []mapiv1beta1.UnhealthyCondition{
+			Conditions: []machinev1.UnhealthyCondition{
 				{
 					Type:    E2EConditionType,
 					Status:  corev1.ConditionTrue,
@@ -127,7 +126,7 @@ var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck", func() {
 		mhcParams := framework.MachineHealthCheckParams{
 			Name:   machineSet.Name,
 			Labels: machineSet.Labels,
-			Conditions: []mapiv1beta1.UnhealthyCondition{
+			Conditions: []machinev1.UnhealthyCondition{
 				{
 					Type:    E2EConditionType,
 					Status:  corev1.ConditionTrue,

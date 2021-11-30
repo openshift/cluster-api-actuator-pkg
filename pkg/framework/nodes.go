@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -63,7 +63,7 @@ func GetNodes(c client.Client, selectors ...*metav1.LabelSelector) ([]corev1.Nod
 }
 
 // GetNodesFromMachineSet returns an array of nodes backed by machines owned by a given machineSet
-func GetNodesFromMachineSet(client runtimeclient.Client, machineSet *mapiv1beta1.MachineSet) ([]*corev1.Node, error) {
+func GetNodesFromMachineSet(client runtimeclient.Client, machineSet *machinev1.MachineSet) ([]*corev1.Node, error) {
 	machines, err := GetMachinesFromMachineSet(client, machineSet)
 	if err != nil {
 		return nil, fmt.Errorf("error calling getMachinesFromMachineSet %w", err)
@@ -87,7 +87,7 @@ func GetNodesFromMachineSet(client runtimeclient.Client, machineSet *mapiv1beta1
 }
 
 // GetNodeForMachine retrieves the node backing the given Machine.
-func GetNodeForMachine(c client.Client, m *mapiv1beta1.Machine) (*corev1.Node, error) {
+func GetNodeForMachine(c client.Client, m *machinev1.Machine) (*corev1.Node, error) {
 	if m.Status.NodeRef == nil {
 		return nil, fmt.Errorf("%s: machine has no NodeRef", m.Name)
 	}
@@ -140,11 +140,11 @@ func NodesAreReady(nodes []*corev1.Node) bool {
 	return true
 }
 
-func VerifyNodeDraining(client runtimeclient.Client, targetMachine *mapiv1beta1.Machine, rc *corev1.ReplicationController) (string, error) {
+func VerifyNodeDraining(client runtimeclient.Client, targetMachine *machinev1.Machine, rc *corev1.ReplicationController) (string, error) {
 	endTime := time.Now().Add(time.Duration(WaitLong))
 	var drainedNodeName string
 	err := wait.PollImmediate(RetryMedium, WaitLong, func() (bool, error) {
-		machine := mapiv1beta1.Machine{}
+		machine := machinev1.Machine{}
 
 		key := types.NamespacedName{
 			Namespace: targetMachine.Namespace,

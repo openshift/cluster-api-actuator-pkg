@@ -7,7 +7,7 @@ import (
 
 	. "github.com/onsi/gomega"
 
-	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,8 +21,8 @@ import (
 
 // FilterRunningMachines returns a slice of only those Machines in the input
 // that are in the "Running" phase.
-func FilterRunningMachines(machines []*mapiv1beta1.Machine) []*mapiv1beta1.Machine {
-	var result []*mapiv1beta1.Machine
+func FilterRunningMachines(machines []*machinev1.Machine) []*machinev1.Machine {
+	var result []*machinev1.Machine
 
 	for i, m := range machines {
 		if m.Status.Phase != nil && *m.Status.Phase == MachinePhaseRunning {
@@ -34,8 +34,8 @@ func FilterRunningMachines(machines []*mapiv1beta1.Machine) []*mapiv1beta1.Machi
 }
 
 // GetMachine get a machine by its name from the default machine API namespace.
-func GetMachine(c client.Client, name string) (*mapiv1beta1.Machine, error) {
-	machine := &mapiv1beta1.Machine{}
+func GetMachine(c client.Client, name string) (*machinev1.Machine, error) {
+	machine := &machinev1.Machine{}
 	key := client.ObjectKey{Namespace: MachineAPINamespace, Name: name}
 
 	if err := c.Get(context.Background(), key, machine); err != nil {
@@ -47,7 +47,7 @@ func GetMachine(c client.Client, name string) (*mapiv1beta1.Machine, error) {
 
 // MachinesPresent search for each provided machine in `machines` argument in the predefined `existingMachines` list
 // and returns true when all of them were found
-func MachinesPresent(existingMachines []*mapiv1beta1.Machine, machines ...*mapiv1beta1.Machine) bool {
+func MachinesPresent(existingMachines []*machinev1.Machine, machines ...*machinev1.Machine) bool {
 	if len(existingMachines) < len(machines) {
 		return false
 	}
@@ -65,8 +65,8 @@ func MachinesPresent(existingMachines []*mapiv1beta1.Machine, machines ...*mapiv
 
 // GetMachines gets a list of machinesets from the default machine API namespace.
 // Optionaly, labels may be used to constrain listed machinesets.
-func GetMachines(client runtimeclient.Client, selectors ...*metav1.LabelSelector) ([]*mapiv1beta1.Machine, error) {
-	machineList := &mapiv1beta1.MachineList{}
+func GetMachines(client runtimeclient.Client, selectors ...*metav1.LabelSelector) ([]*machinev1.Machine, error) {
+	machineList := &machinev1.MachineList{}
 
 	listOpts := append([]runtimeclient.ListOption{},
 		runtimeclient.InNamespace(MachineAPINamespace),
@@ -87,7 +87,7 @@ func GetMachines(client runtimeclient.Client, selectors ...*metav1.LabelSelector
 		return nil, fmt.Errorf("error querying api for machineList object: %w", err)
 	}
 
-	var machines []*mapiv1beta1.Machine
+	var machines []*machinev1.Machine
 
 	for i := range machineList.Items {
 		machines = append(machines, &machineList.Items[i])
@@ -97,7 +97,7 @@ func GetMachines(client runtimeclient.Client, selectors ...*metav1.LabelSelector
 }
 
 // GetMachineFromNode returns the Machine associated with the given node.
-func GetMachineFromNode(client runtimeclient.Client, node *corev1.Node) (*mapiv1beta1.Machine, error) {
+func GetMachineFromNode(client runtimeclient.Client, node *corev1.Node) (*machinev1.Machine, error) {
 	machineNamespaceKey, ok := node.Annotations[MachineAnnotationKey]
 	if !ok {
 		return nil, fmt.Errorf("node %q does not have a MachineAnnotationKey %q",
@@ -123,7 +123,7 @@ func GetMachineFromNode(client runtimeclient.Client, node *corev1.Node) (*mapiv1
 }
 
 // DeleteMachines deletes the specified machines and returns an error on failure.
-func DeleteMachines(client runtimeclient.Client, machines ...*mapiv1beta1.Machine) error {
+func DeleteMachines(client runtimeclient.Client, machines ...*machinev1.Machine) error {
 	return wait.PollImmediate(RetryShort, time.Minute, func() (bool, error) {
 		for _, machine := range machines {
 			if err := client.Delete(context.TODO(), machine); err != nil {
@@ -136,13 +136,13 @@ func DeleteMachines(client runtimeclient.Client, machines ...*mapiv1beta1.Machin
 }
 
 // WaitForMachinesDeleted polls until the given Machines are not found.
-func WaitForMachinesDeleted(c client.Client, machines ...*mapiv1beta1.Machine) {
+func WaitForMachinesDeleted(c client.Client, machines ...*machinev1.Machine) {
 	Eventually(func() bool {
 		for _, m := range machines {
 			err := c.Get(context.Background(), client.ObjectKey{
 				Name:      m.GetName(),
 				Namespace: m.GetNamespace(),
-			}, &mapiv1beta1.Machine{})
+			}, &machinev1.Machine{})
 			if !apierrors.IsNotFound(err) {
 				return false // Not deleted, or other error.
 			}

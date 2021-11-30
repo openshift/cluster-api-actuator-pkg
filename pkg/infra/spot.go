@@ -11,19 +11,17 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
-	gcproviderconfigv1 "github.com/openshift/cluster-api-provider-gcp/pkg/apis/gcpprovider/v1beta1"
-	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
-	awsproviderconfigv1 "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsprovider/v1beta1"
-	azureproviderconfigv1 "sigs.k8s.io/cluster-api-provider-azure/pkg/apis/azureprovider/v1beta1"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -31,7 +29,7 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 	var ctx = context.Background()
 
 	var client runtimeclient.Client
-	var machineSet *mapiv1.MachineSet
+	var machineSet *machinev1.MachineSet
 	var machineSetParams framework.MachineSetParams
 	var platform configv1.PlatformType
 
@@ -160,7 +158,7 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 				Expect(framework.IsDeploymentAvailable(client, deployment.Name, deployment.Namespace)).To(BeTrue())
 			})
 
-			var machine *mapiv1.Machine
+			var machine *machinev1.Machine
 			By("Choosing a Machine to terminate", func() {
 				machines, err := framework.GetMachinesFromMachineSet(client, machineSet)
 				Expect(err).ToNot(HaveOccurred())
@@ -211,14 +209,14 @@ func setSpotOnProviderSpec(platform configv1.PlatformType, params framework.Mach
 }
 
 func setSpotOnAWSProviderSpec(params framework.MachineSetParams, maxPrice string) error {
-	spec := awsproviderconfigv1.AWSMachineProviderConfig{}
+	spec := machinev1.AWSMachineProviderConfig{}
 
 	err := json.Unmarshal(params.ProviderSpec.Value.Raw, &spec)
 	if err != nil {
 		return fmt.Errorf("error unmarshalling providerspec: %v", err)
 	}
 
-	spec.SpotMarketOptions = &awsproviderconfigv1.SpotMarketOptions{}
+	spec.SpotMarketOptions = &machinev1.SpotMarketOptions{}
 	if maxPrice != "" {
 		spec.SpotMarketOptions.MaxPrice = &maxPrice
 	}
@@ -232,15 +230,16 @@ func setSpotOnAWSProviderSpec(params framework.MachineSetParams, maxPrice string
 }
 
 func setSpotOnAzureProviderSpec(params framework.MachineSetParams, maxPrice string) error {
-	spec := azureproviderconfigv1.AzureMachineProviderSpec{}
+	spec := machinev1.AzureMachineProviderSpec{}
 	err := json.Unmarshal(params.ProviderSpec.Value.Raw, &spec)
 	if err != nil {
 		return fmt.Errorf("error unmarshalling providerspec: %v", err)
 	}
 
-	spec.SpotVMOptions = &azureproviderconfigv1.SpotVMOptions{}
+	spec.SpotVMOptions = &machinev1.SpotVMOptions{}
 	if maxPrice != "" {
-		spec.SpotVMOptions.MaxPrice = &maxPrice
+		maxPriceQuantity := resource.MustParse(maxPrice)
+		spec.SpotVMOptions.MaxPrice = &maxPriceQuantity
 	}
 
 	params.ProviderSpec.Value.Raw, err = json.Marshal(spec)
@@ -252,7 +251,7 @@ func setSpotOnAzureProviderSpec(params framework.MachineSetParams, maxPrice stri
 }
 
 func setSpotOnGCPProviderSpec(params framework.MachineSetParams) error {
-	spec := gcproviderconfigv1.GCPMachineProviderSpec{}
+	spec := machinev1.GCPMachineProviderSpec{}
 
 	err := json.Unmarshal(params.ProviderSpec.Value.Raw, &spec)
 	if err != nil {

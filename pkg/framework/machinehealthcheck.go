@@ -3,7 +3,7 @@ package framework
 import (
 	"context"
 
-	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -14,13 +14,13 @@ import (
 type MachineHealthCheckParams struct {
 	Name         string
 	Labels       map[string]string
-	Conditions   []mapiv1beta1.UnhealthyCondition
+	Conditions   []machinev1.UnhealthyCondition
 	MaxUnhealthy *int
 }
 
 // CreateMHC creates a new MachineHealthCheck resource.
-func CreateMHC(c client.Client, params MachineHealthCheckParams) (*mapiv1beta1.MachineHealthCheck, error) {
-	mhc := &mapiv1beta1.MachineHealthCheck{
+func CreateMHC(c client.Client, params MachineHealthCheckParams) (*machinev1.MachineHealthCheck, error) {
+	mhc := &machinev1.MachineHealthCheck{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "machine.openshift.io/v1beta1",
 			Kind:       "MachineHealthCheck",
@@ -29,7 +29,7 @@ func CreateMHC(c client.Client, params MachineHealthCheckParams) (*mapiv1beta1.M
 			Name:      params.Name,
 			Namespace: MachineAPINamespace,
 		},
-		Spec: mapiv1beta1.MachineHealthCheckSpec{
+		Spec: machinev1.MachineHealthCheckSpec{
 			Selector: metav1.LabelSelector{
 				MatchLabels: params.Labels,
 			},
