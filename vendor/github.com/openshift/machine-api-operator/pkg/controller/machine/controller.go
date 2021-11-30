@@ -23,7 +23,7 @@ import (
 	"reflect"
 	"time"
 
-	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/openshift/machine-api-operator/pkg/util"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
@@ -32,6 +32,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
@@ -175,9 +176,9 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 
 	// Get the original state of conditions now so that they can be used to calculate the patch later.
 	// This must be a copy otherwise the referenced slice will be modified by later machine conditions changes.
-	originalConditions := m.GetConditions().DeepCopy()
+	originalConditions := m.Status.Conditions.DeepCopy()
 
-	if errList := m.Validate(); len(errList) > 0 {
+	if errList := validateMachine(m); len(errList) > 0 {
 		err := fmt.Errorf("%v: machine validation failed: %v", machineName, errList.ToAggregate().Error())
 		klog.Error(err)
 		r.eventRecorder.Eventf(m, corev1.EventTypeWarning, "FailedValidate", err.Error())
@@ -222,10 +223,31 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 		// by cloud controller manager. In that case some machines would never get
 		// deleted without a manual intervention.
 		if _, exists := m.ObjectMeta.Annotations[ExcludeNodeDrainingAnnotation]; !exists && m.Status.NodeRef != nil {
+			// pre-drain.delete lifecycle hook
+			// Return early without error, will requeue if/when the hook owner removes the annotation.
+			if len(m.Spec.LifecycleHooks.PreDrain) > 0 {
+				klog.Infof("%v: not draining machine: lifecycle blocked by pre-drain hook", machineName)
+				return reconcile.Result{}, nil
+			}
+
 			if err := r.drainNode(ctx, m); err != nil {
 				klog.Errorf("%v: failed to drain node for machine: %v", machineName, err)
+				conditions.Set(m, conditions.FalseCondition(
+					machinev1.MachineDrained,
+					machinev1.MachineDrainError,
+					machinev1.ConditionSeverityWarning,
+					"could not drain machine: %v", err,
+				))
 				return delayIfRequeueAfterError(err)
 			}
+			conditions.Set(m, conditions.TrueCondition(machinev1.MachineDrained))
+		}
+
+		// pre-term.delete lifecycle hook
+		// Return early without error, will requeue if/when the hook owner removes the annotation.
+		if len(m.Spec.LifecycleHooks.PreTerminate) > 0 {
+			klog.Infof("%v: not deleting machine: lifecycle blocked by pre-terminate hook", machineName)
+			return reconcile.Result{}, nil
 		}
 
 		if err := r.actuator.Delete(ctx, m); err != nil {
@@ -482,9 +504,12 @@ func (r *ReconcileMachine) updateStatus(ctx context.Context, machine *machinev1.
 		klog.V(3).Infof("%v: going into phase %q", machine.GetName(), phase)
 	}
 
+	// Ensure the lifecycle hook conditions are accurate whenever the status is updated
+	setLifecycleHookConditions(machine)
+
 	// Conditions need to be deep copied as they are set outside of this function.
 	// They will be restored after any updates to the base (done by patching annotations).
-	conditions := machine.GetConditions().DeepCopy()
+	conditions := machine.Status.Conditions.DeepCopy()
 
 	// A call to Patch will mutate our local copy of the machine to match what is stored in the API.
 	// Before we make any changes to the status subresource on our local copy, we need to patch the object first,
@@ -500,8 +525,8 @@ func (r *ReconcileMachine) updateStatus(ctx context.Context, machine *machinev1.
 	// To ensure conditions can be patched properly, set the original conditions on the baseMachine.
 	// This allows the difference to be calculated as part of the patch.
 	baseMachine := machine.DeepCopy()
-	baseMachine.SetConditions(originalConditions)
-	machine.SetConditions(conditions)
+	baseMachine.Status.Conditions = originalConditions
+	machine.Status.Conditions = conditions
 
 	// Since we may have mutated the local copy of the machine above, we need to calculate baseToPatch here.
 	// Any updates to the status must be done after this point.
@@ -600,6 +625,47 @@ func (r *ReconcileMachine) overrideFailedMachineProviderStatusState(machine *mac
 	}
 
 	return nil
+}
+
+func validateMachine(m *machinev1.Machine) field.ErrorList {
+	errors := field.ErrorList{}
+
+	// validate spec.labels
+	fldPath := field.NewPath("spec")
+	if m.Labels[machinev1.MachineClusterIDLabel] == "" {
+		errors = append(errors, field.Invalid(fldPath.Child("labels"), m.Labels, fmt.Sprintf("missing %v label.", machinev1.MachineClusterIDLabel)))
+	}
+
+	// validate provider config is set
+	if m.Spec.ProviderSpec.Value == nil {
+		errors = append(errors, field.Invalid(fldPath.Child("spec").Child("providerspec"), m.Spec.ProviderSpec, "value field must be set"))
+	}
+
+	return errors
+}
+
+func setLifecycleHookConditions(m *machinev1.Machine) {
+	if len(m.Spec.LifecycleHooks.PreDrain) > 0 {
+		conditions.Set(m, conditions.FalseCondition(
+			machinev1.MachineDrainable,
+			machinev1.MachineHookPresent,
+			machinev1.ConditionSeverityWarning,
+			"Drain operation currently blocked by: %+v", m.Spec.LifecycleHooks.PreDrain,
+		))
+	} else {
+		conditions.MarkTrue(m, machinev1.MachineDrainable)
+	}
+
+	if len(m.Spec.LifecycleHooks.PreTerminate) > 0 {
+		conditions.Set(m, conditions.FalseCondition(
+			machinev1.MachineTerminable,
+			machinev1.MachineHookPresent,
+			machinev1.ConditionSeverityWarning,
+			"Terminate operation currently blocked by: %+v", m.Spec.LifecycleHooks.PreTerminate,
+		))
+	} else {
+		conditions.MarkTrue(m, machinev1.MachineTerminable)
+	}
 }
 
 // now is used to get the current time. If the reconciler nowFunc is no nil this will be used instead of time.Now().
