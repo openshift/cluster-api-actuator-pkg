@@ -8,15 +8,11 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
-	gcp "github.com/openshift/cluster-api-provider-gcp/pkg/apis/gcpprovider/v1beta1"
-	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
-	vsphere "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	aws "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsprovider/v1beta1"
-	azure "sigs.k8s.io/cluster-api-provider-azure/pkg/apis/azureprovider/v1beta1"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -68,13 +64,13 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 	})
 
 	It("should be able to create a machine from a minimal providerSpec", func() {
-		machine := &mapiv1.Machine{
+		machine := &machinev1.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: fmt.Sprintf("%s-webhook-", machineSetParams.Name),
 				Namespace:    framework.MachineAPINamespace,
 				Labels:       machineSetParams.Labels,
 			},
-			Spec: mapiv1.MachineSpec{
+			Spec: machinev1.MachineSpec{
 				ProviderSpec: *machineSetParams.ProviderSpec,
 			},
 		}
@@ -85,7 +81,7 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 			if err != nil {
 				return err
 			}
-			running := framework.FilterRunningMachines([]*mapiv1.Machine{m})
+			running := framework.FilterRunningMachines([]*machinev1.Machine{m})
 			if len(running) == 0 {
 				return fmt.Errorf("machine not yet running")
 			}
@@ -101,13 +97,13 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 	})
 
 	It("should return an error when removing required fields from the Machine providerSpec", func() {
-		machine := &mapiv1.Machine{
+		machine := &machinev1.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: fmt.Sprintf("%s-webhook-", machineSetParams.Name),
 				Namespace:    framework.MachineAPINamespace,
 				Labels:       machineSetParams.Labels,
 			},
-			Spec: mapiv1.MachineSpec{
+			Spec: machinev1.MachineSpec{
 				ProviderSpec: *machineSetParams.ProviderSpec,
 			},
 		}
@@ -163,7 +159,7 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 	})
 })
 
-func createMinimalProviderSpec(platform configv1.PlatformType, ps *mapiv1.ProviderSpec) (*mapiv1.ProviderSpec, error) {
+func createMinimalProviderSpec(platform configv1.PlatformType, ps *machinev1.ProviderSpec) (*machinev1.ProviderSpec, error) {
 	switch platform {
 	case configv1.AWSPlatformType:
 		return minimalAWSProviderSpec(ps)
@@ -179,15 +175,15 @@ func createMinimalProviderSpec(platform configv1.PlatformType, ps *mapiv1.Provid
 	}
 }
 
-func minimalAWSProviderSpec(ps *mapiv1.ProviderSpec) (*mapiv1.ProviderSpec, error) {
-	fullProviderSpec := &aws.AWSMachineProviderConfig{}
+func minimalAWSProviderSpec(ps *machinev1.ProviderSpec) (*machinev1.ProviderSpec, error) {
+	fullProviderSpec := &machinev1.AWSMachineProviderConfig{}
 	err := json.Unmarshal(ps.Value.Raw, fullProviderSpec)
 	if err != nil {
 		return nil, err
 	}
-	return &mapiv1.ProviderSpec{
+	return &machinev1.ProviderSpec{
 		Value: &runtime.RawExtension{
-			Object: &aws.AWSMachineProviderConfig{
+			Object: &machinev1.AWSMachineProviderConfig{
 				AMI:                fullProviderSpec.AMI,
 				Placement:          fullProviderSpec.Placement,
 				Subnet:             *fullProviderSpec.Subnet.DeepCopy(),
@@ -197,17 +193,17 @@ func minimalAWSProviderSpec(ps *mapiv1.ProviderSpec) (*mapiv1.ProviderSpec, erro
 	}, nil
 }
 
-func minimalAzureProviderSpec(ps *mapiv1.ProviderSpec) (*mapiv1.ProviderSpec, error) {
-	fullProviderSpec := &azure.AzureMachineProviderSpec{}
+func minimalAzureProviderSpec(ps *machinev1.ProviderSpec) (*machinev1.ProviderSpec, error) {
+	fullProviderSpec := &machinev1.AzureMachineProviderSpec{}
 	err := json.Unmarshal(ps.Value.Raw, fullProviderSpec)
 	if err != nil {
 		return nil, err
 	}
-	return &mapiv1.ProviderSpec{
+	return &machinev1.ProviderSpec{
 		Value: &runtime.RawExtension{
-			Object: &azure.AzureMachineProviderSpec{
+			Object: &machinev1.AzureMachineProviderSpec{
 				Location: fullProviderSpec.Location,
-				OSDisk: azure.OSDisk{
+				OSDisk: machinev1.OSDisk{
 					DiskSizeGB: fullProviderSpec.OSDisk.DiskSizeGB,
 				},
 			},
@@ -215,15 +211,15 @@ func minimalAzureProviderSpec(ps *mapiv1.ProviderSpec) (*mapiv1.ProviderSpec, er
 	}, nil
 }
 
-func minimalGCPProviderSpec(ps *mapiv1.ProviderSpec) (*mapiv1.ProviderSpec, error) {
-	fullProviderSpec := &gcp.GCPMachineProviderSpec{}
+func minimalGCPProviderSpec(ps *machinev1.ProviderSpec) (*machinev1.ProviderSpec, error) {
+	fullProviderSpec := &machinev1.GCPMachineProviderSpec{}
 	err := json.Unmarshal(ps.Value.Raw, fullProviderSpec)
 	if err != nil {
 		return nil, err
 	}
-	return &mapiv1.ProviderSpec{
+	return &machinev1.ProviderSpec{
 		Value: &runtime.RawExtension{
-			Object: &gcp.GCPMachineProviderSpec{
+			Object: &machinev1.GCPMachineProviderSpec{
 				Region:          fullProviderSpec.Region,
 				Zone:            fullProviderSpec.Zone,
 				ServiceAccounts: fullProviderSpec.ServiceAccounts,
@@ -232,8 +228,8 @@ func minimalGCPProviderSpec(ps *mapiv1.ProviderSpec) (*mapiv1.ProviderSpec, erro
 	}, nil
 }
 
-func minimalVSphereProviderSpec(ps *mapiv1.ProviderSpec) (*mapiv1.ProviderSpec, error) {
-	providerSpec := &vsphere.VSphereMachineProviderSpec{}
+func minimalVSphereProviderSpec(ps *machinev1.ProviderSpec) (*machinev1.ProviderSpec, error) {
+	providerSpec := &machinev1.VSphereMachineProviderSpec{}
 	err := json.Unmarshal(ps.Value.Raw, providerSpec)
 	if err != nil {
 		return nil, err
@@ -241,7 +237,7 @@ func minimalVSphereProviderSpec(ps *mapiv1.ProviderSpec) (*mapiv1.ProviderSpec, 
 	// For vSphere only these 2 fields are defaultable
 	providerSpec.UserDataSecret = nil
 	providerSpec.CredentialsSecret = nil
-	return &mapiv1.ProviderSpec{
+	return &machinev1.ProviderSpec{
 		Value: &runtime.RawExtension{
 			Object: providerSpec,
 		},
