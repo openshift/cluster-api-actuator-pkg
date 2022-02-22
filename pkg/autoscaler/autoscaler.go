@@ -14,7 +14,6 @@ import (
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	caov1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1"
 	caov1beta1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1beta1"
-	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -38,58 +37,6 @@ const (
 	deletionCandidateTaintKey             = "DeletionCandidateOfClusterAutoscaler"
 	toBeDeletedTaintKey                   = "ToBeDeletedByClusterAutoscaler"
 )
-
-func newWorkLoad(njobs int32, memoryRequest resource.Quantity, nodeSelector string) *batchv1.Job {
-	job := &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      workloadJobName,
-			Namespace: "default",
-			Labels:    map[string]string{autoscalingTestLabel: ""},
-		},
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Job",
-			APIVersion: "batch/v1",
-		},
-		Spec: batchv1.JobSpec{
-			Template: corev1.PodTemplateSpec{
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:  workloadJobName,
-							Image: "busybox",
-							Command: []string{
-								"sleep",
-								"86400", // 1 day
-							},
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									"memory": memoryRequest,
-									"cpu":    resource.MustParse("500m"),
-								},
-							},
-						},
-					},
-					RestartPolicy: corev1.RestartPolicy("Never"),
-					Tolerations: []corev1.Toleration{
-						{
-							Key:      "kubemark",
-							Operator: corev1.TolerationOpExists,
-						},
-					},
-				},
-			},
-			BackoffLimit: pointer.Int32Ptr(4),
-			Completions:  pointer.Int32Ptr(njobs),
-			Parallelism:  pointer.Int32Ptr(njobs),
-		},
-	}
-	if nodeSelector != "" {
-		job.Spec.Template.Spec.NodeSelector = map[string]string{
-			nodeSelector: "",
-		}
-	}
-	return job
-}
 
 // Build default CA resource to allow fast scaling up and down
 func clusterAutoscalerResource(maxNodesTotal int) *caov1.ClusterAutoscaler {
@@ -332,7 +279,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			cleanupObjects[asr.GetName()] = asr
 
 			By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s", expectedReplicas, workloadMemRequest.String()))
-			workload := newWorkLoad(expectedReplicas, workloadMemRequest, targetedNodeLabel)
+			workload := framework.NewWorkLoad(expectedReplicas, workloadMemRequest, workloadJobName, autoscalingTestLabel, targetedNodeLabel, "")
 			cleanupObjects[workload.GetName()] = workload
 			Expect(client.Create(ctx, workload)).Should(Succeed())
 
@@ -393,7 +340,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			jobReplicas := expectedReplicas * int32(2)
 			By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s",
 				jobReplicas, workloadMemRequest.String()))
-			workload := newWorkLoad(jobReplicas, workloadMemRequest, targetedNodeLabel)
+			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, workloadJobName, autoscalingTestLabel, targetedNodeLabel, "")
 			cleanupObjects[workload.GetName()] = workload
 			Expect(client.Create(ctx, workload)).Should(Succeed())
 
@@ -546,7 +493,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			jobReplicas := maxMachineSetReplicas
 			By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s",
 				jobReplicas, workloadMemRequest.String()))
-			workload := newWorkLoad(jobReplicas, workloadMemRequest, targetedNodeLabel)
+			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, workloadJobName, autoscalingTestLabel, targetedNodeLabel, "")
 			cleanupObjects[workload.GetName()] = workload
 			Expect(client.Create(ctx, workload)).Should(Succeed())
 
@@ -639,7 +586,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			jobReplicas := int32(4)
 			By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s",
 				jobReplicas, workloadMemRequest.String()))
-			workload := newWorkLoad(jobReplicas, workloadMemRequest, targetedNodeLabel)
+			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, workloadJobName, autoscalingTestLabel, targetedNodeLabel, "")
 			cleanupObjects[workload.GetName()] = workload
 			Expect(client.Create(ctx, workload)).Should(Succeed())
 
