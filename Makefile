@@ -87,6 +87,10 @@ test-e2e: ## Run openshift specific e2e test
 	# After success, merge all JUnit files into one
 	hack/junitmerge.sh
 
+.PHONY: test-e2e-lifecyclehooks
+test-e2e-lifecyclehooks:
+	hack/ci-integration.sh $(GINKGO_ARGS) -focus="Lifecycle" || (hack/junitmerge.sh && exit 1)
+
 test-e2e-tech-preview:
 	hack/ci-integration.sh $(GINKGO_ARGS) -focus="TechPreview"
 
