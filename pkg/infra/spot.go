@@ -25,6 +25,8 @@ import (
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const machinesCount = 3
+
 var _ = Describe("[Feature:Machines] Running on Spot", func() {
 	var ctx = context.Background()
 
@@ -42,9 +44,8 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 		client, err = framework.LoadClient()
 		Expect(err).ToNot(HaveOccurred())
 		// Only run on AWS
-		clusterInfra, err := framework.GetInfrastructure(client)
+		platform, err = framework.GetPlatform(client)
 		Expect(err).NotTo(HaveOccurred())
-		platform = clusterInfra.Status.PlatformStatus.Type
 		switch platform {
 		case configv1.AWSPlatformType, configv1.AzurePlatformType:
 			// Do Nothing
@@ -60,7 +61,7 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 		}
 
 		By("Creating a Spot backed MachineSet", func() {
-			machineSetParams = framework.BuildMachineSetParams(client, 3)
+			machineSetParams = framework.BuildMachineSetParams(client, machinesCount)
 			Expect(setSpotOnProviderSpec(platform, machineSetParams, "")).To(Succeed())
 
 			machineSet, err = framework.CreateMachineSet(client, machineSetParams)
@@ -80,7 +81,7 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 			selector := machineSet.Spec.Selector
 			machines, err := framework.GetMachines(client, &selector)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(machines).To(HaveLen(3))
+			Expect(machines).To(HaveLen(machinesCount))
 
 			for _, machine := range machines {
 				Expect(machine.Spec.ObjectMeta.Labels).To(HaveKeyWithValue(machinecontroller.MachineInterruptibleInstanceLabelName, ""))
@@ -90,7 +91,7 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 		By("should deploy a termination handler pod to each instance", func() {
 			nodes, err := framework.GetNodesFromMachineSet(client, machineSet)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(nodes).To(HaveLen(3))
+			Expect(nodes).To(HaveLen(machinesCount))
 
 			terminationLabels := map[string]string{
 				"api":     "clusterapi",
