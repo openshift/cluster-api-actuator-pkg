@@ -22,6 +22,7 @@ import (
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/infra"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/machinehealthcheck"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/operators"
+	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/providers"
 )
 
 const junitDirEnvVar = "JUNIT_DIR"
@@ -64,11 +65,11 @@ var _ = BeforeSuite(func() {
 	client, err := framework.LoadClient()
 	Expect(err).ToNot(HaveOccurred())
 
-	infra, err := framework.GetInfrastructure(client)
+	platform, err := framework.GetPlatform(client)
 	Expect(err).ToNot(HaveOccurred())
 
 	// Extend timeouts for slower providers
-	switch infra.Status.PlatformStatus.Type {
+	switch platform {
 	case osconfigv1.AzurePlatformType, osconfigv1.VSpherePlatformType, osconfigv1.OpenStackPlatformType:
 		framework.WaitShort = 2 * time.Minute  // Normally 1m
 		framework.WaitMedium = 6 * time.Minute // Normally 3m

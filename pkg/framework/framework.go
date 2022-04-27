@@ -56,6 +56,23 @@ func GetInfrastructure(c runtimeclient.Client) (*configv1.Infrastructure, error)
 	return infra, nil
 }
 
+var platform configv1.PlatformType
+
+// GetPlatform fetches the PlatformType from the infrastructure object.
+// Caches value after first successful retrieval.
+func GetPlatform(c runtimeclient.Client) (configv1.PlatformType, error) {
+	// platform won't change during test run and might be cached
+	if platform != "" {
+		return platform, nil
+	}
+	infra, err := GetInfrastructure(c)
+	if err != nil {
+		return "", err
+	}
+	platform = infra.Status.PlatformStatus.Type
+	return platform, nil
+}
+
 // LoadClient returns a new controller-runtime client.
 func LoadClient() (runtimeclient.Client, error) {
 	cfg, err := config.GetConfig()
