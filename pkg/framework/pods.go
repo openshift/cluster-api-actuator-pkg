@@ -22,9 +22,9 @@ type PodCleanupFunc func() error
 
 type PodLastLogFunc func(container string, lines int, previous bool) (string, error)
 
-// SpinPodOnNode spins a pod according passed spec on particular node.
+// RunPodOnNode runs a pod according passed spec on particular node.
 // returns created pod object, function for retrieve last logs, cleanup function and error if occurred
-func SpinPodOnNode(clientset *kubernetes.Clientset, node *corev1.Node, namespace string, podSpec corev1.PodSpec) (*corev1.Pod, PodLastLogFunc, PodCleanupFunc, error) {
+func RunPodOnNode(clientset *kubernetes.Clientset, node *corev1.Node, namespace string, podSpec corev1.PodSpec) (*corev1.Pod, PodLastLogFunc, PodCleanupFunc, error) {
 	var err error
 	podSpec.NodeName = node.Name
 	pod := &corev1.Pod{

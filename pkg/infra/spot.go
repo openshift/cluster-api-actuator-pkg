@@ -44,7 +44,7 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 		client, err = framework.LoadClient()
 		Expect(err).ToNot(HaveOccurred())
 		// Only run on AWS
-		platform, err := framework.GetPlatform(client)
+		platform, err = framework.GetPlatform(client)
 		Expect(err).NotTo(HaveOccurred())
 		switch platform {
 		case configv1.AWSPlatformType, configv1.AzurePlatformType:

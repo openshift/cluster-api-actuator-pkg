@@ -41,14 +41,14 @@ var _ = Describe("[Feature:Machines] [AWS] MetadataServiceOptions", func() {
 		toDelete = make([]*machinev1.MachineSet, 0, 3)
 	})
 
-	createMachineSet := func(auth string) (*machinev1.MachineSet, error) {
-		By(fmt.Sprintf("Create machine with metadataServiceOptions.authentication %s", auth))
+	createMachineSet := func(metadataAuth string) (*machinev1.MachineSet, error) {
+		By(fmt.Sprintf("Create machine with metadataServiceOptions.authentication %s", metadataAuth))
 		machineSetParams := framework.BuildMachineSetParams(client, 1)
 		spec := machinev1.AWSMachineProviderConfig{}
 		err := json.Unmarshal(machineSetParams.ProviderSpec.Value.Raw, &spec)
 		Expect(err).ToNot(HaveOccurred())
 
-		spec.MetadataServiceOptions.Authentication = machinev1.MetadataServiceAuthentication(auth)
+		spec.MetadataServiceOptions.Authentication = machinev1.MetadataServiceAuthentication(metadataAuth)
 
 		machineSetParams.ProviderSpec.Value.Raw, err = json.Marshal(spec)
 		Expect(err).ToNot(HaveOccurred())
@@ -77,11 +77,11 @@ var _ = Describe("[Feature:Machines] [AWS] MetadataServiceOptions", func() {
 					},
 				},
 			}
-			pod, lastLog, cleanupPod, err := framework.SpinPodOnNode(clientset, nodes[0], framework.MachineAPINamespace, podSpec)
+			pod, lastLog, cleanupPod, err := framework.RunPodOnNode(clientset, nodes[0], framework.MachineAPINamespace, podSpec)
 			Expect(err).ToNot(HaveOccurred())
 			defer cleanupPod()
 
-			By("Ensure curl pod rdy")
+			By("Ensure curl pod is ready")
 			Eventually(func() (bool, error) {
 				err := client.Get(context.Background(), runtimeclient.ObjectKeyFromObject(pod), pod)
 				if err != nil {
@@ -111,7 +111,6 @@ var _ = Describe("[Feature:Machines] [AWS] MetadataServiceOptions", func() {
 		machineSet, err := createMachineSet(machinev1.MetadataServiceAuthenticationRequired)
 		Expect(err).ToNot(HaveOccurred())
 		assertIMDSavailability(machineSet, "HTTP/1.1 401 Unauthorized")
-
 	})
 
 	It("should allow unauthorized requests to metadata service if metadataServiceOptions.authentication is Optional", func() {
