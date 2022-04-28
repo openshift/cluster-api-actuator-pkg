@@ -2,7 +2,7 @@ package framework
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -71,7 +71,7 @@ func GetPlatform(c runtimeclient.Client) (configv1.PlatformType, error) {
 		return "", err
 	}
 	if infra.Status.PlatformStatus == nil {
-		return "", fmt.Errorf("platform status is not populated in infrastructure object")
+		return "", errors.New("platform status is not populated in infrastructure object")
 	}
 	platform = infra.Status.PlatformStatus.Type
 	return platform, nil
