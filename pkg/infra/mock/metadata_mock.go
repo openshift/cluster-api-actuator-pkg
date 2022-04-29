@@ -10,6 +10,7 @@ import (
 
 const (
 	awsTerminationPattern      = "/latest/meta-data/spot/termination-time"
+	awsTokenPattern            = "/latest/api/token"
 	gcpTerminationPattern      = "/computeMetadata/v1/instance/preempted"
 	azureTerminationPattern    = "/metadata/scheduledevents"
 	azureTerminationAPIVersion = "2019-08-01"
@@ -41,9 +42,29 @@ func main() {
 // AWS instances expect an OK response to indicate that the instance has been scheduled for termination
 func awsMetadataMockHandler() http.Handler {
 	mux := http.NewServeMux()
+	const (
+		authTokenValue = "FOO"
+		tokenHeader    = "X-aws-ec2-metadata-token"
+		tokenTTLHeader = "X-aws-ec2-metadata-token-ttl-seconds"
+	)
 
 	mux.HandleFunc(awsTerminationPattern, func(rw http.ResponseWriter, req *http.Request) {
+		if req.Header.Get(tokenHeader) != authTokenValue {
+			rw.WriteHeader(http.StatusUnauthorized)
+			return
+		}
 		rw.WriteHeader(http.StatusOK)
+	})
+
+	mux.HandleFunc(awsTokenPattern, func(rw http.ResponseWriter, req *http.Request) {
+		if req.Header.Get(tokenTTLHeader) == "" {
+			rw.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		rw.Header().Add(tokenTTLHeader, "21600")
+		rw.WriteHeader(http.StatusOK)
+		rw.Write([]byte(authTokenValue))
 	})
 
 	return mux
