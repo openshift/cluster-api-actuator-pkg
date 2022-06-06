@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"runtime"
 	"strings"
 
@@ -85,7 +86,13 @@ const (
 	defaultAzureCredentialsSecret = "azure-cloud-credentials"
 	defaultAzureOSDiskOSType      = "Linux"
 	defaultAzureOSDiskStorageType = "Premium_LRS"
-	azureMaxDiskSizeGB            = 32768
+
+	// Azure OSDisk constants
+	azureMaxDiskSizeGB                 = 32768
+	azureEphemeralStorageLocationLocal = "Local"
+	azureCachingTypeNone               = "None"
+	azureCachingTypeReadOnly           = "ReadOnly"
+	azureCachingTypeReadWrite          = "ReadWrite"
 
 	// GCP Defaults
 	defaultGCPMachineType       = "n1-standard-4"
@@ -481,6 +488,18 @@ func MachineSetMutatingWebhook() admissionregistrationv1.MutatingWebhook {
 }
 
 func (h *machineValidatorHandler) validateMachine(m, oldM *machinev1.Machine) (bool, []string, utilerrors.Aggregate) {
+	// Skip validation if we just remove the finalizer.
+	// For more information: https://issues.redhat.com/browse/OCPCLOUD-1426
+	if !m.DeletionTimestamp.IsZero() {
+		isFinalizerOnly, err := isFinalizerOnlyRemoval(m, oldM)
+		if err != nil {
+			return false, nil, utilerrors.NewAggregate([]error{err})
+		}
+		if isFinalizerOnly {
+			return true, nil, nil
+		}
+	}
+
 	errs := validateMachineLifecycleHooks(m, oldM)
 
 	ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
@@ -726,6 +745,34 @@ func validateAWS(m *machinev1.Machine, config *admissionConfig) (bool, []string,
 		warnings = append(warnings, fmt.Sprintf("providerSpec.tags: duplicated tag names (%s): only the first value will be used.", strings.Join(duplicatedTags, ",")))
 	}
 
+	switch providerSpec.NetworkInterfaceType {
+	case "", machinev1.AWSENANetworkInterfaceType, machinev1.AWSEFANetworkInterfaceType:
+		// Do nothing, valid values
+	default:
+		errs = append(
+			errs,
+			field.Invalid(
+				field.NewPath("providerSpec", "networkInterfaceType"),
+				providerSpec.NetworkInterfaceType,
+				fmt.Sprintf("Valid values are: %s, %s and omitted", machinev1.AWSENANetworkInterfaceType, machinev1.AWSEFANetworkInterfaceType),
+			),
+		)
+	}
+
+	switch providerSpec.MetadataServiceOptions.Authentication {
+	case "", machinev1.MetadataServiceAuthenticationOptional, machinev1.MetadataServiceAuthenticationRequired:
+		// Valid values
+	default:
+		errs = append(
+			errs,
+			field.Invalid(
+				field.NewPath("providerSpec", "metadataServiceOptions", "authentication"),
+				providerSpec.MetadataServiceOptions.Authentication,
+				fmt.Sprintf("Allowed values are either '%s' or '%s'", machinev1.MetadataServiceAuthenticationOptional, machinev1.MetadataServiceAuthenticationRequired),
+			),
+		)
+	}
+
 	if len(errs) > 0 {
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
@@ -858,6 +905,33 @@ func validateAzure(m *machinev1.Machine, config *admissionConfig) (bool, []strin
 	if providerSpec.OSDisk.DiskSizeGB <= 0 || providerSpec.OSDisk.DiskSizeGB >= azureMaxDiskSizeGB {
 		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "osDisk", "diskSizeGB"), providerSpec.OSDisk.DiskSizeGB, "diskSizeGB must be greater than zero and less than 32768"))
 	}
+
+	if providerSpec.OSDisk.DiskSettings.EphemeralStorageLocation != azureEphemeralStorageLocationLocal && providerSpec.OSDisk.DiskSettings.EphemeralStorageLocation != "" {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "osDisk", "diskSettings", "ephemeralStorageLocation"), providerSpec.OSDisk.DiskSettings.EphemeralStorageLocation,
+			fmt.Sprintf("osDisk.diskSettings.ephemeralStorageLocation can either be omitted or set to %s", azureEphemeralStorageLocationLocal)))
+	}
+
+	switch providerSpec.OSDisk.CachingType {
+	case azureCachingTypeNone, azureCachingTypeReadOnly, azureCachingTypeReadWrite, "":
+		// Valid scenarios, do nothing
+	default:
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "osDisk", "cachingType"), providerSpec.OSDisk.CachingType,
+			fmt.Sprintf("osDisk.cachingType can be only %s, %s, %s or omitted", azureCachingTypeNone, azureCachingTypeReadOnly, azureCachingTypeReadWrite)))
+	}
+
+	if providerSpec.OSDisk.DiskSettings.EphemeralStorageLocation == azureEphemeralStorageLocationLocal && providerSpec.OSDisk.CachingType != azureCachingTypeReadOnly {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "osDisk", "cachingType"), providerSpec.OSDisk.CachingType, "Instances using an ephemeral OS disk support only Readonly caching"))
+	}
+
+	switch providerSpec.UltraSSDCapability {
+	case machinev1.AzureUltraSSDCapabilityEnabled, machinev1.AzureUltraSSDCapabilityDisabled, "":
+		// Valid scenarios, do nothing
+	default:
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "ultraSSDCapability"), providerSpec.UltraSSDCapability,
+			fmt.Sprintf("ultraSSDCapability can be only %s, %s or omitted", machinev1.AzureUltraSSDCapabilityEnabled, machinev1.AzureUltraSSDCapabilityDisabled)))
+	}
+
+	errs = append(errs, validateAzureDataDisks(m.Name, providerSpec, field.NewPath("providerSpec", "dataDisks"))...)
 
 	if isAzureGovCloud(config.platformStatus) && providerSpec.SpotVMOptions != nil {
 		warnings = append(warnings, "spot VMs may not be supported when using GovCloud region")
@@ -1091,7 +1165,7 @@ func validateGCPDisks(disks []*machinev1.GCPDisk, parentPath *field.Path) []erro
 		}
 
 		if disk.Type != "" {
-			diskTypes := sets.NewString("pd-standard", "pd-ssd")
+			diskTypes := sets.NewString("pd-standard", "pd-ssd", "pd-balanced")
 			if !diskTypes.Has(disk.Type) {
 				errs = append(errs, field.NotSupported(fldPath.Child("type"), disk.Type, diskTypes.List()))
 			}
@@ -1204,6 +1278,9 @@ func validateVSphere(m *machinev1.Machine, config *admissionConfig) (bool, []str
 	if providerSpec.DiskGiB < minVSphereDiskGiB {
 		warnings = append(warnings, fmt.Sprintf("providerSpec.diskGiB: %d is missing or less than the recommended minimum (%d): nodes may fail to start if disk size is too low", providerSpec.DiskGiB, minVSphereDiskGiB))
 	}
+	if providerSpec.CloneMode == machinev1.LinkedClone && providerSpec.DiskGiB > 0 {
+		warnings = append(warnings, fmt.Sprintf("%s clone mode is set. DiskGiB parameter will be ignored, disk size from template will be used.", machinev1.LinkedClone))
+	}
 
 	if providerSpec.UserDataSecret == nil {
 		errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret"), "userDataSecret must be provided"))
@@ -1276,18 +1353,83 @@ func isAzureGovCloud(platformStatus *osconfigv1.PlatformStatus) bool {
 
 func validateMachineLifecycleHooks(m, oldM *machinev1.Machine) []error {
 	var errs []error
-	if !isDeleting(m) || oldM == nil {
-		return errs
+
+	if isDeleting(m) && oldM != nil {
+		changedPreDrain := lifecyclehooks.GetChangedLifecycleHooks(oldM.Spec.LifecycleHooks.PreDrain, m.Spec.LifecycleHooks.PreDrain)
+		if len(changedPreDrain) > 0 {
+			errs = append(errs, field.Forbidden(field.NewPath("spec", "lifecycleHooks", "preDrain"), fmt.Sprintf("pre-drain hooks are immutable when machine is marked for deletion: the following hooks are new or changed: %+v", changedPreDrain)))
+		}
+
+		changedPreTerminate := lifecyclehooks.GetChangedLifecycleHooks(oldM.Spec.LifecycleHooks.PreTerminate, m.Spec.LifecycleHooks.PreTerminate)
+		if len(changedPreTerminate) > 0 {
+			errs = append(errs, field.Forbidden(field.NewPath("spec", "lifecycleHooks", "preTerminate"), fmt.Sprintf("pre-terminate hooks are immutable when machine is marked for deletion: the following hooks are new or changed: %+v", changedPreTerminate)))
+		}
 	}
 
-	changedPreDrain := lifecyclehooks.GetChangedLifecycleHooks(oldM.Spec.LifecycleHooks.PreDrain, m.Spec.LifecycleHooks.PreDrain)
-	if len(changedPreDrain) > 0 {
-		errs = append(errs, field.Forbidden(field.NewPath("spec", "lifecycleHooks", "preDrain"), fmt.Sprintf("pre-drain hooks are immutable when machine is marked for deletion: the following hooks are new or changed: %+v", changedPreDrain)))
-	}
+	return errs
+}
 
-	changedPreTerminate := lifecyclehooks.GetChangedLifecycleHooks(oldM.Spec.LifecycleHooks.PreTerminate, m.Spec.LifecycleHooks.PreTerminate)
-	if len(changedPreTerminate) > 0 {
-		errs = append(errs, field.Forbidden(field.NewPath("spec", "lifecycleHooks", "preTerminate"), fmt.Sprintf("pre-terminate hooks are immutable when machine is marked for deletion: the following hooks are new or changed: %+v", changedPreTerminate)))
+func validateAzureDataDisks(machineName string, spec *machinev1.AzureMachineProviderSpec, parentPath *field.Path) []error {
+
+	var errs []error
+	dataDiskLuns := make(map[int32]struct{})
+	dataDiskNames := make(map[string]struct{})
+	// defines rules for matching. strings must start and finish with an alphanumeric character
+	// and can only contain letters, numbers, underscores, periods or hyphens.
+	reg := regexp.MustCompile(`^[a-zA-Z0-9](?:[\w\.-]*[a-zA-Z0-9])?$`)
+
+	for i, disk := range spec.DataDisks {
+		fldPath := parentPath.Index(i)
+
+		dataDiskName := machineName + "_" + disk.NameSuffix
+
+		if len(dataDiskName) > 80 {
+			errs = append(errs, field.Invalid(fldPath.Child("nameSuffix"), disk.NameSuffix, "too long, the overall disk name must not exceed 80 chars"))
+		}
+
+		if matched := reg.MatchString(disk.NameSuffix); !matched {
+			errs = append(errs, field.Invalid(fldPath.Child("nameSuffix"), disk.NameSuffix, "nameSuffix must be provided, must start and finish with an alphanumeric character and can only contain letters, numbers, underscores, periods or hyphens"))
+		}
+
+		if _, exists := dataDiskNames[disk.NameSuffix]; exists {
+			errs = append(errs, field.Invalid(fldPath.Child("nameSuffix"), disk.NameSuffix, "each Data Disk must have a unique nameSuffix"))
+		}
+
+		if disk.DiskSizeGB < 4 {
+			errs = append(errs, field.Invalid(fldPath.Child("diskSizeGB"), disk.DiskSizeGB, "diskSizeGB must be provided and at least 4GB in size"))
+		}
+
+		if disk.Lun < 0 || disk.Lun > 63 {
+			errs = append(errs, field.Invalid(fldPath.Child("lun"), disk.Lun, "must be greater than or equal to 0 and less than 64"))
+		}
+
+		if _, exists := dataDiskLuns[disk.Lun]; exists {
+			errs = append(errs, field.Invalid(fldPath.Child("lun"), disk.Lun, "each Data Disk must have a unique lun"))
+		}
+
+		switch disk.DeletionPolicy {
+		case machinev1.DiskDeletionPolicyTypeDelete, machinev1.DiskDeletionPolicyTypeDetach:
+			// Valid scenarios, do nothing
+		case "":
+			errs = append(errs, field.Required(fldPath.Child("deletionPolicy"),
+				fmt.Sprintf("deletionPolicy must be provided and must be either %s or %s",
+					machinev1.DiskDeletionPolicyTypeDelete, machinev1.DiskDeletionPolicyTypeDetach)))
+		default:
+			errs = append(errs, field.Invalid(fldPath.Child("deletionPolicy"), disk.DeletionPolicy,
+				fmt.Sprintf("must be either %s or %s", machinev1.DiskDeletionPolicyTypeDelete, machinev1.DiskDeletionPolicyTypeDetach)))
+		}
+
+		if (disk.ManagedDisk.StorageAccountType == machinev1.StorageAccountUltraSSDLRS) &&
+			(disk.CachingType != machinev1.CachingTypeNone && disk.CachingType != "") {
+			errs = append(errs,
+				field.Invalid(fldPath.Child("cachingType"),
+					disk.CachingType,
+					fmt.Sprintf("must be \"None\" or omitted when storageAccountType is \"%s\"", machinev1.StorageAccountUltraSSDLRS)),
+			)
+		}
+
+		dataDiskLuns[disk.Lun] = struct{}{}
+		dataDiskNames[disk.NameSuffix] = struct{}{}
 	}
 
 	return errs
@@ -1295,4 +1437,15 @@ func validateMachineLifecycleHooks(m, oldM *machinev1.Machine) []error {
 
 func isDeleting(obj metav1.Object) bool {
 	return obj.GetDeletionTimestamp() != nil
+}
+
+// isFinalizerOnlyRemoval checks if the machine update only removes finalizers.
+func isFinalizerOnlyRemoval(m, oldM *machinev1.Machine) (bool, error) {
+	patchBase := client.MergeFrom(oldM)
+	data, err := patchBase.Data(m)
+	if err != nil {
+		return false, fmt.Errorf("cannot calculate patch data from machine object: %w", err)
+	}
+
+	return string(data) == `{"metadata":{"finalizers":[""]}}`, nil
 }
