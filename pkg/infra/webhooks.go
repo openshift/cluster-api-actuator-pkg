@@ -188,6 +188,7 @@ func minimalAWSProviderSpec(ps *machinev1.ProviderSpec) (*machinev1.ProviderSpec
 				Placement:          fullProviderSpec.Placement,
 				Subnet:             *fullProviderSpec.Subnet.DeepCopy(),
 				IAMInstanceProfile: fullProviderSpec.IAMInstanceProfile.DeepCopy(),
+				SecurityGroups:     fullProviderSpec.SecurityGroups,
 			},
 		},
 	}, nil
