@@ -208,11 +208,13 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		var caEventWatcher *eventWatcher
 
 		BeforeEach(func() {
+			klog.Info("Creating ClusterAutoscaler")
 			By("Creating ClusterAutoscaler")
 			clusterAutoscaler = clusterAutoscalerResource(100)
 			Expect(client.Create(ctx, clusterAutoscaler)).Should(Succeed())
 			cleanupObjects[clusterAutoscaler.GetName()] = clusterAutoscaler
 
+			klog.Info("Starting Cluster Autoscaler event watcher")
 			By("Starting Cluster Autoscaler event watcher")
 			clientset, err := framework.LoadClientset()
 			Expect(err).NotTo(HaveOccurred())
@@ -227,12 +229,14 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		})
 
 		AfterEach(func() {
+			klog.Info("Stopping Cluster Autoscaler event watcher")
 			By("Stopping Cluster Autoscaler event watcher")
 			caEventWatcher.stop()
 
 			// explicitly delete the ClusterAutoscaler
 			// this is needed due to the autoscaler tests requiring singleton
 			// deployments of the ClusterAutoscaler.
+			klog.Info("Waiting for ClusterAutoscaler to delete.")
 			By("Waiting for ClusterAutoscaler to delete.")
 			caName := clusterAutoscaler.GetName()
 			Expect(deleteObject(caName, cleanupObjects[caName])).Should(Succeed())
@@ -260,6 +264,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 				Skip(fmt.Sprintf("Platform %v does not support autoscaling from/to zero, skipping.", platform))
 			}
 
+			klog.Info("Creating a new MachineSet with 0 replicas")
 			By("Creating a new MachineSet with 0 replicas")
 			machineSetParams := framework.BuildMachineSetParams(client, 0)
 			targetedNodeLabel := fmt.Sprintf("%v-scale-from-zero", autoscalerWorkerNodeRoleLabel)
@@ -272,12 +277,15 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			framework.WaitForMachineSet(client, machineSet.GetName())
 
 			expectedReplicas := int32(3)
+			klog.Infof("Creating a MachineAutoscaler backed by MachineSet %s/%s - min:%v, max:%v",
+				machineSet.GetNamespace(), machineSet.GetName(), 0, expectedReplicas)
 			By(fmt.Sprintf("Creating a MachineAutoscaler backed by MachineSet %s/%s - min:%v, max:%v",
 				machineSet.GetNamespace(), machineSet.GetName(), 0, expectedReplicas))
 			asr := machineAutoscalerResource(machineSet, 0, expectedReplicas)
 			Expect(client.Create(ctx, asr)).Should(Succeed())
 			cleanupObjects[asr.GetName()] = asr
 
+			klog.Infof("Creating scale-out workload: jobs: %v, memory: %s", expectedReplicas, workloadMemRequest.String())
 			By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s", expectedReplicas, workloadMemRequest.String()))
 			workload := framework.NewWorkLoad(expectedReplicas, workloadMemRequest, workloadJobName, autoscalingTestLabel, targetedNodeLabel, "")
 			cleanupObjects[workload.GetName()] = workload
@@ -287,16 +295,20 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 				ms, err := framework.GetMachineSet(client, machineSet.GetName())
 				Expect(err).ToNot(HaveOccurred())
 
+				klog.Infof("Waiting for machineSet replicas to scale out. Current replicas are %v, expected %v.",
+					*ms.Spec.Replicas, expectedReplicas)
 				By(fmt.Sprintf("Waiting for machineSet replicas to scale out. Current replicas are %v, expected %v.",
 					*ms.Spec.Replicas, expectedReplicas))
 
 				return *ms.Spec.Replicas == expectedReplicas
 			}, framework.WaitMedium, pollingInterval).Should(BeTrue())
 
+			klog.Info("Waiting for the machineSet replicas to become nodes")
 			By("Waiting for the machineSet replicas to become nodes")
 			framework.WaitForMachineSet(client, machineSet.GetName())
 
 			expectedReplicas = 0
+			klog.Info("Deleting the workload")
 			By("Deleting the workload")
 			Expect(deleteObject(workload.Name, cleanupObjects[workload.Name])).Should(Succeed())
 			delete(cleanupObjects, workload.Name)
@@ -304,6 +316,8 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 				ms, err := framework.GetMachineSet(client, machineSet.GetName())
 				Expect(err).ToNot(HaveOccurred())
 
+				klog.Infof("Waiting for machineSet replicas to scale in. Current replicas are %v, expected %v.",
+					*ms.Spec.Replicas, expectedReplicas)
 				By(fmt.Sprintf("Waiting for machineSet replicas to scale in. Current replicas are %v, expected %v.",
 					*ms.Spec.Replicas, expectedReplicas))
 
@@ -312,6 +326,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		})
 
 		It("cleanup deletion information after scale down [Slow]", func() {
+			klog.Info("Creating 2 MachineSets each with 1 replica")
 			By("Creating 2 MachineSets each with 1 replica")
 			var transientMachineSets [2]*machinev1.MachineSet
 			targetedNodeLabel := fmt.Sprintf("%v-delete-cleanup", autoscalerWorkerNodeRoleLabel)
@@ -324,12 +339,15 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 				transientMachineSets[i] = machineSet
 			}
 
+			klog.Info("Waiting for all Machines in MachineSets to enter Running phase")
 			By("Waiting for all Machines in MachineSets to enter Running phase")
 			framework.WaitForMachineSet(client, transientMachineSets[0].GetName())
 			framework.WaitForMachineSet(client, transientMachineSets[1].GetName())
 
 			expectedReplicas := int32(3)
 			for _, machineSet := range transientMachineSets {
+				klog.Infof("Creating a MachineAutoscaler backed by MachineSet %s - min: 1, max: %d",
+					machineSet.GetName(), expectedReplicas)
 				By(fmt.Sprintf("Creating a MachineAutoscaler backed by MachineSet %s - min: 1, max: %d",
 					machineSet.GetName(), expectedReplicas))
 				asr := machineAutoscalerResource(machineSet, 1, expectedReplicas)
@@ -338,6 +356,8 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			}
 
 			jobReplicas := expectedReplicas * int32(2)
+			klog.Infof("Creating scale-out workload: jobs: %v, memory: %s",
+				jobReplicas, workloadMemRequest.String())
 			By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s",
 				jobReplicas, workloadMemRequest.String()))
 			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, workloadJobName, autoscalingTestLabel, targetedNodeLabel, "")
@@ -345,6 +365,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			Expect(client.Create(ctx, workload)).Should(Succeed())
 
 			for _, machineSet := range transientMachineSets {
+				klog.Infof("Waiting for MachineSet %s replicas to scale out", machineSet.GetName())
 				By(fmt.Sprintf("Waiting for MachineSet %s replicas to scale out", machineSet.GetName()))
 			}
 			Eventually(func() (bool, error) {
@@ -360,15 +381,18 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 				return true, nil
 			}, framework.WaitMedium, pollingInterval).Should(BeTrue())
 
+			klog.Info("Waiting for all Machines in MachineSets to enter Running phase")
 			By("Waiting for all Machines in MachineSets to enter Running phase")
 			framework.WaitForMachineSet(client, transientMachineSets[0].GetName())
 			framework.WaitForMachineSet(client, transientMachineSets[1].GetName())
 
+			klog.Info("Deleting the workload")
 			By("Deleting the workload")
 			Expect(deleteObject(workload.Name, cleanupObjects[workload.Name])).Should(Succeed())
 			delete(cleanupObjects, workload.Name)
 
 			for _, machineSet := range transientMachineSets {
+				klog.Infof("Waiting for MachineSet %s replicas to scale in", machineSet.GetName())
 				By(fmt.Sprintf("Waiting for MachineSet %s replicas to scale in", machineSet.GetName()))
 			}
 			expectedLength := 1
@@ -389,6 +413,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 				machines, err := framework.GetMachinesFromMachineSet(client, machineSet)
 				Expect(err).NotTo(HaveOccurred())
 				for _, machine := range machines {
+					klog.Infof("Checking Machine %s for %s annotation", machine.Name, machineDeleteAnnotationKey)
 					By(fmt.Sprintf("Checking Machine %s for %s annotation", machine.Name, machineDeleteAnnotationKey))
 					Eventually(func() (bool, error) {
 						m, err := framework.GetMachine(client, machine.Name)
@@ -413,6 +438,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 					if machine.Status.NodeRef == nil {
 						continue
 					}
+					klog.Infof("Checking Node %s for %s and %s taints", machine.Status.NodeRef.Name, deletionCandidateTaintKey, toBeDeletedTaintKey)
 					By(fmt.Sprintf("Checking Node %s for %s and %s taints", machine.Status.NodeRef.Name, deletionCandidateTaintKey, toBeDeletedTaintKey))
 					Eventually(func() (bool, error) {
 						n, err := framework.GetNodeForMachine(client, machine)
@@ -436,6 +462,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		const caMaxNodesTotal = 12
 
 		BeforeEach(func() {
+			klog.Info("Creating ClusterAutoscaler")
 			By("Creating ClusterAutoscaler")
 			clusterAutoscaler = clusterAutoscalerResource(caMaxNodesTotal)
 			clusterAutoscaler.Spec.BalanceSimilarNodeGroups = pointer.BoolPtr(true)
@@ -447,6 +474,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			// explicitly delete the ClusterAutoscaler
 			// this is needed due to the autoscaler tests requiring singleton
 			// deployments of the ClusterAutoscaler.
+			klog.Info("Waiting for ClusterAutoscaler to delete.")
 			By("Waiting for ClusterAutoscaler to delete.")
 			caName := clusterAutoscaler.GetName()
 			Expect(deleteObject(caName, cleanupObjects[caName])).Should(Succeed())
@@ -462,6 +490,8 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		})
 
 		It("scales up and down while respecting MaxNodesTotal [Slow][Serial]", func() {
+
+			klog.Info("Creating 1 MachineSet with 1 replica")
 			By("Creating 1 MachineSet with 1 replica")
 			var transientMachineSet *machinev1.MachineSet
 			targetedNodeLabel := fmt.Sprintf("%v-scale-updown", autoscalerWorkerNodeRoleLabel)
@@ -471,6 +501,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			Expect(err).ToNot(HaveOccurred())
 			cleanupObjects[transientMachineSet.GetName()] = transientMachineSet
 
+			klog.Info("Waiting for all Machines in the MachineSet to enter Running phase")
 			By("Waiting for all Machines in the MachineSet to enter Running phase")
 			framework.WaitForMachineSet(client, transientMachineSet.GetName())
 
@@ -480,6 +511,8 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			// the MaxNodesTotal+1, since we will not be able to reach this limit
 			// due to the original install master/worker nodes.
 			maxMachineSetReplicas := int32(caMaxNodesTotal + 1)
+			klog.Infof("Creating a MachineAutoscaler backed by MachineSet %s - min: 1, max: %d",
+				transientMachineSet.GetName(), maxMachineSetReplicas)
 			By(fmt.Sprintf("Creating a MachineAutoscaler backed by MachineSet %s - min: 1, max: %d",
 				transientMachineSet.GetName(), maxMachineSetReplicas))
 			asr := machineAutoscalerResource(transientMachineSet, 1, maxMachineSetReplicas)
@@ -491,6 +524,8 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			// to the maximum MachineSet size this will create enough demand to
 			// grow the cluster to maximum size.
 			jobReplicas := maxMachineSetReplicas
+			klog.Infof("Creating scale-out workload: jobs: %v, memory: %s",
+				jobReplicas, workloadMemRequest.String())
 			By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s",
 				jobReplicas, workloadMemRequest.String()))
 			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, workloadJobName, autoscalingTestLabel, targetedNodeLabel, "")
@@ -499,6 +534,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 
 			// At this point the autoscaler should be growing the cluster, we
 			// wait until the cluster has grown to reach MaxNodesTotal size.
+			klog.Infof("Waiting for cluster to scale up to %d nodes", caMaxNodesTotal)
 			By(fmt.Sprintf("Waiting for cluster to scale up to %d nodes", caMaxNodesTotal))
 			Eventually(func() (bool, error) {
 				nodes, err := framework.GetNodes(client)
@@ -508,23 +544,27 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			// Wait for all nodes to become ready, we wait here to help ensure
 			// that the cluster has reached a steady state and no more machines
 			// are in the process of being added.
+			klog.Info("Waiting for all Machines in MachineSet to enter Running phase")
 			By("Waiting for all Machines in MachineSet to enter Running phase")
 			framework.WaitForMachineSet(client, transientMachineSet.GetName())
 
 			// Now that the cluster has reached maximum size, we want to ensure
 			// that it doesn't try to grow larger.
+			klog.Info("Watching Cluster node count to ensure it remains consistent")
 			By("Watching Cluster node count to ensure it remains consistent")
 			Consistently(func() (bool, error) {
 				nodes, err := framework.GetNodes(client)
 				return len(nodes) == caMaxNodesTotal, err
 			}, framework.WaitShort, pollingInterval).Should(BeTrue())
 
+			klog.Info("Deleting the workload")
 			By("Deleting the workload")
 			Expect(deleteObject(workload.Name, cleanupObjects[workload.Name])).Should(Succeed())
 			delete(cleanupObjects, workload.Name)
 
 			// With the workload gone, the MachineSet should scale back down to
 			// its minimum size of 1.
+			klog.Infof("Waiting for MachineSet %s replicas to scale down", transientMachineSet.GetName())
 			By(fmt.Sprintf("Waiting for MachineSet %s replicas to scale down", transientMachineSet.GetName()))
 			Eventually(func() (bool, error) {
 				machineSet, err := framework.GetMachineSet(client, transientMachineSet.Name)
@@ -533,11 +573,15 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 				}
 				return pointer.Int32PtrDerefOr(machineSet.Spec.Replicas, -1) == 1, nil
 			}, framework.WaitMedium, pollingInterval).Should(BeTrue())
+
+			klog.Infof("Waiting for Deleted MachineSet %s nodes to go away", transientMachineSet.GetName())
 			By(fmt.Sprintf("Waiting for Deleted MachineSet %s nodes to go away", transientMachineSet.GetName()))
 			Eventually(func() (bool, error) {
 				nodes, err := framework.GetNodesFromMachineSet(client, transientMachineSet)
 				return len(nodes) == 1, err
 			}, framework.WaitLong, pollingInterval).Should(BeTrue())
+
+			klog.Infof("Waiting for Deleted MachineSet %s machines to go away", transientMachineSet.GetName())
 			By(fmt.Sprintf("Waiting for Deleted MachineSet %s machines to go away", transientMachineSet.GetName()))
 			Eventually(func() (bool, error) {
 				machines, err := framework.GetMachinesFromMachineSet(client, transientMachineSet)
@@ -546,6 +590,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		})
 
 		It("places nodes evenly across node groups [Slow]", func() {
+			klog.Info("Creating 2 MachineSets each with 1 replica")
 			By("Creating 2 MachineSets each with 1 replica")
 			var transientMachineSets [2]*machinev1.MachineSet
 			targetedNodeLabel := fmt.Sprintf("%v-balance-nodes", autoscalerWorkerNodeRoleLabel)
@@ -564,15 +609,19 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			// instance types and labels. while the instance types should be the same, we want to
 			// ensure that no extra labels have been added.
 			// TODO it would be nice to check instance types as well, this will require adding some deserialization code for the machine specs.
+			klog.Info("Ensuring both MachineSets have the same labels")
 			By("Ensuring both MachineSets have the same labels")
 			Expect(reflect.DeepEqual(transientMachineSets[0].Labels, transientMachineSets[1].Labels)).Should(BeTrue())
 
+			klog.Info("Waiting for all Machines in MachineSets to enter Running phase")
 			By("Waiting for all Machines in MachineSets to enter Running phase")
 			framework.WaitForMachineSet(client, transientMachineSets[0].GetName())
 			framework.WaitForMachineSet(client, transientMachineSets[1].GetName())
 
 			maxMachineSetReplicas := int32(3)
 			for _, machineSet := range transientMachineSets {
+				klog.Infof("Creating a MachineAutoscaler backed by MachineSet %s - min: 1, max: %d",
+					machineSet.GetName(), maxMachineSetReplicas)
 				By(fmt.Sprintf("Creating a MachineAutoscaler backed by MachineSet %s - min: 1, max: %d",
 					machineSet.GetName(), maxMachineSetReplicas))
 				asr := machineAutoscalerResource(machineSet, 1, maxMachineSetReplicas)
