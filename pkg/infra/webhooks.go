@@ -10,7 +10,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	gcp "github.com/openshift/cluster-api-provider-gcp/pkg/apis/gcpprovider/v1beta1"
-	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	vsphere "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -68,13 +68,13 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 	})
 
 	It("should be able to create a machine from a minimal providerSpec", func() {
-		machine := &machinev1.Machine{
+		machine := &machinev1beta1.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: fmt.Sprintf("%s-webhook-", machineSetParams.Name),
 				Namespace:    framework.MachineAPINamespace,
 				Labels:       machineSetParams.Labels,
 			},
-			Spec: machinev1.MachineSpec{
+			Spec: machinev1beta1.MachineSpec{
 				ProviderSpec: *machineSetParams.ProviderSpec,
 			},
 		}
@@ -85,7 +85,7 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 			if err != nil {
 				return err
 			}
-			running := framework.FilterRunningMachines([]*machinev1.Machine{m})
+			running := framework.FilterRunningMachines([]*machinev1beta1.Machine{m})
 			if len(running) == 0 {
 				return fmt.Errorf("machine not yet running")
 			}
@@ -101,13 +101,13 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 	})
 
 	It("should return an error when removing required fields from the Machine providerSpec", func() {
-		machine := &machinev1.Machine{
+		machine := &machinev1beta1.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: fmt.Sprintf("%s-webhook-", machineSetParams.Name),
 				Namespace:    framework.MachineAPINamespace,
 				Labels:       machineSetParams.Labels,
 			},
-			Spec: machinev1.MachineSpec{
+			Spec: machinev1beta1.MachineSpec{
 				ProviderSpec: *machineSetParams.ProviderSpec,
 			},
 		}
@@ -163,7 +163,7 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 	})
 })
 
-func createMinimalProviderSpec(platform configv1.PlatformType, ps *machinev1.ProviderSpec) (*machinev1.ProviderSpec, error) {
+func createMinimalProviderSpec(platform configv1.PlatformType, ps *machinev1beta1.ProviderSpec) (*machinev1beta1.ProviderSpec, error) {
 	switch platform {
 	case configv1.AWSPlatformType:
 		return minimalAWSProviderSpec(ps)
@@ -179,13 +179,13 @@ func createMinimalProviderSpec(platform configv1.PlatformType, ps *machinev1.Pro
 	}
 }
 
-func minimalAWSProviderSpec(ps *machinev1.ProviderSpec) (*machinev1.ProviderSpec, error) {
+func minimalAWSProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta1.ProviderSpec, error) {
 	fullProviderSpec := &aws.AWSMachineProviderConfig{}
 	err := json.Unmarshal(ps.Value.Raw, fullProviderSpec)
 	if err != nil {
 		return nil, err
 	}
-	return &machinev1.ProviderSpec{
+	return &machinev1beta1.ProviderSpec{
 		Value: &runtime.RawExtension{
 			Object: &aws.AWSMachineProviderConfig{
 				AMI:                fullProviderSpec.AMI,
@@ -198,13 +198,13 @@ func minimalAWSProviderSpec(ps *machinev1.ProviderSpec) (*machinev1.ProviderSpec
 	}, nil
 }
 
-func minimalAzureProviderSpec(ps *machinev1.ProviderSpec) (*machinev1.ProviderSpec, error) {
+func minimalAzureProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta1.ProviderSpec, error) {
 	fullProviderSpec := &azure.AzureMachineProviderSpec{}
 	err := json.Unmarshal(ps.Value.Raw, fullProviderSpec)
 	if err != nil {
 		return nil, err
 	}
-	return &machinev1.ProviderSpec{
+	return &machinev1beta1.ProviderSpec{
 		Value: &runtime.RawExtension{
 			Object: &azure.AzureMachineProviderSpec{
 				Location: fullProviderSpec.Location,
@@ -216,13 +216,13 @@ func minimalAzureProviderSpec(ps *machinev1.ProviderSpec) (*machinev1.ProviderSp
 	}, nil
 }
 
-func minimalGCPProviderSpec(ps *machinev1.ProviderSpec) (*machinev1.ProviderSpec, error) {
+func minimalGCPProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta1.ProviderSpec, error) {
 	fullProviderSpec := &gcp.GCPMachineProviderSpec{}
 	err := json.Unmarshal(ps.Value.Raw, fullProviderSpec)
 	if err != nil {
 		return nil, err
 	}
-	return &machinev1.ProviderSpec{
+	return &machinev1beta1.ProviderSpec{
 		Value: &runtime.RawExtension{
 			Object: &gcp.GCPMachineProviderSpec{
 				Region:          fullProviderSpec.Region,
@@ -233,7 +233,7 @@ func minimalGCPProviderSpec(ps *machinev1.ProviderSpec) (*machinev1.ProviderSpec
 	}, nil
 }
 
-func minimalVSphereProviderSpec(ps *machinev1.ProviderSpec) (*machinev1.ProviderSpec, error) {
+func minimalVSphereProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta1.ProviderSpec, error) {
 	providerSpec := &vsphere.VSphereMachineProviderSpec{}
 	err := json.Unmarshal(ps.Value.Raw, providerSpec)
 	if err != nil {
@@ -242,7 +242,7 @@ func minimalVSphereProviderSpec(ps *machinev1.ProviderSpec) (*machinev1.Provider
 	// For vSphere only these 2 fields are defaultable
 	providerSpec.UserDataSecret = nil
 	providerSpec.CredentialsSecret = nil
-	return &machinev1.ProviderSpec{
+	return &machinev1beta1.ProviderSpec{
 		Value: &runtime.RawExtension{
 			Object: providerSpec,
 		},
