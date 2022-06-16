@@ -8,11 +8,13 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
+	machinev1 "github.com/openshift/api/machine/v1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -34,7 +36,7 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 		Expect(err).NotTo(HaveOccurred())
 		platform = clusterInfra.Status.PlatformStatus.Type
 		switch platform {
-		case configv1.AWSPlatformType, configv1.AzurePlatformType, configv1.GCPPlatformType, configv1.VSpherePlatformType:
+		case configv1.AWSPlatformType, configv1.AzurePlatformType, configv1.GCPPlatformType, configv1.VSpherePlatformType, configv1.PowerVSPlatformType:
 			// Do Nothing
 		default:
 			Skip(fmt.Sprintf("Platform %s does not have webhooks, skipping.", platform))
@@ -169,6 +171,8 @@ func createMinimalProviderSpec(platform configv1.PlatformType, ps *machinev1beta
 		return minimalGCPProviderSpec(ps)
 	case configv1.VSpherePlatformType:
 		return minimalVSphereProviderSpec(ps)
+	case configv1.PowerVSPlatformType:
+		return minimalPowerVSProviderSpec(ps)
 	default:
 		// Should have skipped before this point
 		return nil, fmt.Errorf("Unexpected platform: %s", platform)
@@ -237,6 +241,25 @@ func minimalVSphereProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta
 	// For vSphere only these 2 fields are defaultable
 	providerSpec.UserDataSecret = nil
 	providerSpec.CredentialsSecret = nil
+	return &machinev1beta1.ProviderSpec{
+		Value: &runtime.RawExtension{
+			Object: providerSpec,
+		},
+	}, nil
+}
+
+func minimalPowerVSProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta1.ProviderSpec, error) {
+	providerSpec := &machinev1.PowerVSMachineProviderConfig{}
+	err := json.Unmarshal(ps.Value.Raw, providerSpec)
+	if err != nil {
+		return nil, err
+	}
+	providerSpec.UserDataSecret = nil
+	providerSpec.CredentialsSecret = nil
+	providerSpec.SystemType = ""
+	providerSpec.ProcessorType = ""
+	providerSpec.MemoryGiB = 0
+	providerSpec.Processors = intstr.FromString("")
 	return &machinev1beta1.ProviderSpec{
 		Value: &runtime.RawExtension{
 			Object: providerSpec,
