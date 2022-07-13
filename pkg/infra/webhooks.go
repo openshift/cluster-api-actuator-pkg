@@ -36,7 +36,7 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 		Expect(err).NotTo(HaveOccurred())
 		platform = clusterInfra.Status.PlatformStatus.Type
 		switch platform {
-		case configv1.AWSPlatformType, configv1.AzurePlatformType, configv1.GCPPlatformType, configv1.VSpherePlatformType, configv1.PowerVSPlatformType:
+		case configv1.AWSPlatformType, configv1.AzurePlatformType, configv1.GCPPlatformType, configv1.VSpherePlatformType, configv1.PowerVSPlatformType, configv1.NutanixPlatformType:
 			// Do Nothing
 		default:
 			Skip(fmt.Sprintf("Platform %s does not have webhooks, skipping.", platform))
@@ -125,7 +125,6 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 				// Try again if there was a conflict
 				continue
 			}
-
 			// No conflict, so the update "worked"
 			updated = true
 			Expect(err).To(HaveOccurred())
@@ -173,6 +172,8 @@ func createMinimalProviderSpec(platform configv1.PlatformType, ps *machinev1beta
 		return minimalVSphereProviderSpec(ps)
 	case configv1.PowerVSPlatformType:
 		return minimalPowerVSProviderSpec(ps)
+	case configv1.NutanixPlatformType:
+		return minimalNutanixProviderSpec(ps)
 	default:
 		// Should have skipped before this point
 		return nil, fmt.Errorf("Unexpected platform: %s", platform)
@@ -240,6 +241,23 @@ func minimalVSphereProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta
 		return nil, err
 	}
 	// For vSphere only these 2 fields are defaultable
+	providerSpec.UserDataSecret = nil
+	providerSpec.CredentialsSecret = nil
+	return &machinev1beta1.ProviderSpec{
+		Value: &runtime.RawExtension{
+			Object: providerSpec,
+		},
+	}, nil
+}
+
+func minimalNutanixProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta1.ProviderSpec, error) {
+	providerSpec := &machinev1.NutanixMachineProviderConfig{}
+	err := json.Unmarshal(ps.Value.Raw, providerSpec)
+	if err != nil {
+		return nil, err
+	}
+
+	// For nutanix only these 2 fields are defaultable
 	providerSpec.UserDataSecret = nil
 	providerSpec.CredentialsSecret = nil
 	return &machinev1beta1.ProviderSpec{
