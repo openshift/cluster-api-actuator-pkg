@@ -294,7 +294,8 @@ func getScaleClient() (scale.ScalesGetter, error) {
 
 // WaitForMachineSet waits for the all Machines belonging to the named
 // MachineSet to enter the "Running" phase, and for all nodes belonging to those
-// Machines to be ready.
+// Machines to be ready. If a Machine is detected in "Failed" phase, the test
+// will exit early.
 func WaitForMachineSet(c client.Client, name string) {
 	machineSet, err := GetMachineSet(c, name)
 	Expect(err).ToNot(HaveOccurred())
@@ -311,6 +312,24 @@ func WaitForMachineSet(c client.Client, name string) {
 			return fmt.Errorf("%q: found %d Machines, but MachineSet has %d replicas",
 				name, len(machines), int(replicas))
 		}
+
+		failed := FilterMachines(machines, MachinePhaseFailed)
+		if len(failed) > 0 {
+			// if there are failed machines, print them out before we exit
+			klog.Errorf("found %d Machines in failed phase: ", len(failed))
+			for _, m := range failed {
+				reason := "failureReason not present in Machine.status"
+				if m.Status.ErrorReason != nil {
+					reason = string(*m.Status.ErrorReason)
+				}
+				message := "failureMessage not present in Machine.status"
+				if m.Status.ErrorMessage != nil {
+					message = string(*m.Status.ErrorMessage)
+				}
+				klog.Errorf("Failed machine: %s, Reason: %s, Message: %s", m.Name, reason, message)
+			}
+		}
+		Expect(len(failed)).To(Equal(0))
 
 		running := FilterRunningMachines(machines)
 

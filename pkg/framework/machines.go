@@ -19,18 +19,24 @@ import (
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// FilterRunningMachines returns a slice of only those Machines in the input
-// that are in the "Running" phase.
-func FilterRunningMachines(machines []*machinev1.Machine) []*machinev1.Machine {
+// FilterMachines returns a slice of only those Machines in the input that are
+// in the requested phase.
+func FilterMachines(machines []*machinev1.Machine, phase string) []*machinev1.Machine {
 	var result []*machinev1.Machine
 
 	for i, m := range machines {
-		if m.Status.Phase != nil && *m.Status.Phase == MachinePhaseRunning {
+		if m.Status.Phase != nil && *m.Status.Phase == phase {
 			result = append(result, machines[i])
 		}
 	}
 
 	return result
+}
+
+// FilterRunningMachines returns a slice of only those Machines in the input
+// that are in the "Running" phase.
+func FilterRunningMachines(machines []*machinev1.Machine) []*machinev1.Machine {
+	return FilterMachines(machines, MachinePhaseRunning)
 }
 
 // GetMachine get a machine by its name from the default machine API namespace.
