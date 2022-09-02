@@ -13,7 +13,7 @@ func NewWorkLoad(njobs int32, memoryRequest resource.Quantity, workloadJobName s
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      workloadJobName,
-			Namespace: "default",
+			Namespace: MachineAPINamespace,
 			Labels:    map[string]string{testLabel: ""},
 		},
 		Spec: batchv1.JobSpec{
