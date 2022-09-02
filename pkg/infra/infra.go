@@ -289,13 +289,18 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 		}()
 
 		By("Creating RC with workload")
-		rc := replicationControllerWorkload("default")
+
+		// Use the openshift-machine-api namespace as it is excluded from
+		// Pod security admission checks.
+		namespace := framework.MachineAPINamespace
+
+		rc := replicationControllerWorkload(namespace)
 		err = client.Create(context.TODO(), rc)
 		Expect(err).NotTo(HaveOccurred())
 		delObjects["rc"] = rc
 
 		By("Creating PDB for RC")
-		pdb := podDisruptionBudget("default")
+		pdb := podDisruptionBudget(namespace)
 		err = client.Create(context.TODO(), pdb)
 		Expect(err).NotTo(HaveOccurred())
 		delObjects["pdb"] = pdb
