@@ -15,12 +15,11 @@ import (
 )
 
 const proxySetup = `
-cd /root
-mkdir /root/.mitmproxy
-cat /root/certs/tls.key /root/certs/tls.crt > /root/.mitmproxy/mitmproxy-ca.pem
+cd /.mitmproxy
+cat /root/certs/tls.key /root/certs/tls.crt > /.mitmproxy/mitmproxy-ca.pem
 curl -O https://snapshots.mitmproxy.org/5.3.0/mitmproxy-5.3.0-linux.tar.gz
 tar xvf mitmproxy-5.3.0-linux.tar.gz
-./mitmdump
+HOME=/.mitmproxy ./mitmdump
 `
 
 const mitmSignerCert = `
@@ -144,6 +143,12 @@ func DeployClusterProxy(c runtimeclient.Client) error {
 								},
 							},
 						},
+						{
+							Name: "mitm-workdir",
+							VolumeSource: corev1.VolumeSource{
+								EmptyDir: &corev1.EmptyDirVolumeSource{},
+							},
+						},
 					},
 					Containers: []corev1.Container{
 						{
@@ -166,6 +171,11 @@ func DeployClusterProxy(c runtimeclient.Client) error {
 									Name:      "mitm-signer",
 									ReadOnly:  false,
 									MountPath: "/root/certs",
+								},
+								{
+									Name:      "mitm-workdir",
+									ReadOnly:  false,
+									MountPath: "/.mitmproxy",
 								},
 							},
 						},
