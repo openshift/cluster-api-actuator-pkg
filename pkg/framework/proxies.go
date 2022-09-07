@@ -2,6 +2,7 @@ package framework
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -178,7 +179,9 @@ func DeployClusterProxy(c runtimeclient.Client) error {
 		return err
 	}
 
-	IsDaemonsetAvailable(c, objectMeta.Name, objectMeta.Namespace)
+	if !IsDaemonsetAvailable(c, objectMeta.Name, objectMeta.Namespace) {
+		return errors.New("daemonset did not become available")
+	}
 
 	service := &corev1.Service{
 		ObjectMeta: objectMeta,
@@ -199,7 +202,9 @@ func DeployClusterProxy(c runtimeclient.Client) error {
 	if err != nil {
 		return err
 	}
-	IsServiceAvailable(c, objectMeta.Name, objectMeta.Namespace)
+	if !IsServiceAvailable(c, objectMeta.Name, objectMeta.Namespace) {
+		return errors.New("service did not become available")
+	}
 
 	return err
 }
