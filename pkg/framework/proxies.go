@@ -16,10 +16,10 @@ import (
 const proxySetup = `
 cd /root
 mkdir /root/.mitmproxy
-cat /root/certs/tls.key /root/certs/tls.crt > /root/.mitmproxy/mitmproxy-ca.pem  
+cat /root/certs/tls.key /root/certs/tls.crt > /root/.mitmproxy/mitmproxy-ca.pem
 curl -O https://snapshots.mitmproxy.org/5.3.0/mitmproxy-5.3.0-linux.tar.gz
 tar xvf mitmproxy-5.3.0-linux.tar.gz
-./mitmdump 
+./mitmdump
 `
 
 const mitmSignerCert = `
@@ -65,14 +65,14 @@ func DeployClusterProxy(c runtimeclient.Client) error {
 
 	objectMeta := metav1.ObjectMeta{
 		Name:      "mitm-proxy",
-		Namespace: "default",
+		Namespace: MachineAPINamespace,
 		Labels:    mitmDeploymentLabels,
 	}
 
 	mitmSigner := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "mitm-signer",
-			Namespace: "default",
+			Namespace: MachineAPINamespace,
 			Labels:    mitmDeploymentLabels,
 		},
 		Data: map[string][]byte{
@@ -87,7 +87,7 @@ func DeployClusterProxy(c runtimeclient.Client) error {
 	mitmBootstrapConfigMap := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "mitm-bootstrap",
-			Namespace: "default",
+			Namespace: MachineAPINamespace,
 		},
 		Data: map[string]string{
 			"startup.sh": proxySetup,
@@ -178,7 +178,7 @@ func DeployClusterProxy(c runtimeclient.Client) error {
 		return err
 	}
 
-	IsDaemonsetAvailable(c, "mitm-proxy", "default")
+	IsDaemonsetAvailable(c, objectMeta.Name, objectMeta.Namespace)
 
 	service := &corev1.Service{
 		ObjectMeta: objectMeta,
@@ -199,7 +199,7 @@ func DeployClusterProxy(c runtimeclient.Client) error {
 	if err != nil {
 		return err
 	}
-	IsServiceAvailable(c, "mitm-proxy", "default")
+	IsServiceAvailable(c, objectMeta.Name, objectMeta.Namespace)
 
 	return err
 }
@@ -212,14 +212,14 @@ func DestroyClusterProxy(c runtimeclient.Client) error {
 
 	mitmObjectMeta := metav1.ObjectMeta{
 		Name:      "mitm-proxy",
-		Namespace: "default",
+		Namespace: MachineAPINamespace,
 		Labels:    mitmDeploymentLabels,
 	}
 
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "mitm-bootstrap",
-			Namespace: "default",
+			Namespace: MachineAPINamespace,
 		},
 	}
 	err := c.Delete(context.Background(), configMap)
@@ -241,7 +241,7 @@ func DestroyClusterProxy(c runtimeclient.Client) error {
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "mitm-signer",
-			Namespace: "default",
+			Namespace: MachineAPINamespace,
 		},
 	}
 	err = c.Delete(context.Background(), secret)
