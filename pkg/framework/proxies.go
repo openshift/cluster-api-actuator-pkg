@@ -8,6 +8,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -237,8 +238,7 @@ func DestroyClusterProxy(c runtimeclient.Client) error {
 			Namespace: MachineAPINamespace,
 		},
 	}
-	err := c.Delete(context.Background(), configMap)
-	if err != nil {
+	if err := c.Delete(context.Background(), configMap); err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
 
@@ -248,8 +248,7 @@ func DestroyClusterProxy(c runtimeclient.Client) error {
 			Namespace: "openshift-config",
 		},
 	}
-	err = c.Delete(context.Background(), configMap)
-	if err != nil {
+	if err := c.Delete(context.Background(), configMap); err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
 
@@ -259,24 +258,25 @@ func DestroyClusterProxy(c runtimeclient.Client) error {
 			Namespace: MachineAPINamespace,
 		},
 	}
-	err = c.Delete(context.Background(), secret)
-	if err != nil {
+	if err := c.Delete(context.Background(), secret); err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
 
 	daemonset := &appsv1.DaemonSet{
 		ObjectMeta: mitmObjectMeta,
 	}
-	err = c.Delete(context.Background(), daemonset)
-	if err != nil {
+	if err := c.Delete(context.Background(), daemonset); err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
 
 	service := &corev1.Service{
 		ObjectMeta: mitmObjectMeta,
 	}
+	if err := c.Delete(context.Background(), service); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
 
-	return c.Delete(context.Background(), service)
+	return nil
 }
 
 // WaitForProxyInjectionSync waits for the deployment to sync with the state of the cluster-proxy

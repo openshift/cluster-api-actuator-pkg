@@ -253,9 +253,6 @@ var _ = Describe("[Serial][Feature:Operators][Disruptive] When cluster-wide prox
 
 		By("waiting for machine-api-controller deployment to reflect unconfigured cluster-wide proxy")
 		Expect(framework.WaitForProxyInjectionSync(client, maoManagedDeployment, framework.MachineAPINamespace, false)).To(BeTrue())
-
-		err = framework.DestroyClusterProxy(client)
-		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
@@ -270,5 +267,8 @@ var _ = Describe("[Serial][Feature:Operators][Disruptive] When cluster-wide prox
 		By("waiting for KCM cluster operator to become available")
 		Expect(framework.WaitForStatusAvailableOverLong(client, "kube-controller-manager")).To(BeTrue())
 		Expect(framework.WaitForStatusAvailableMedium(client, "machine-api")).To(BeTrue())
+
+		By("Removing the mitm-proxy")
+		Expect(framework.DestroyClusterProxy(client)).ToNot(HaveOccurred())
 	})
 })
