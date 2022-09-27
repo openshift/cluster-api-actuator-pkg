@@ -26,7 +26,7 @@ func AddNodeCondition(c client.Client, node *corev1.Node, cond corev1.NodeCondit
 	return c.Status().Patch(context.Background(), nodeCopy, client.MergeFrom(node))
 }
 
-// FilterReadyNodes fileter the list of nodes and returns the list with ready nodes
+// FilterReadyNodes filters the list of nodes and returns a list with ready nodes
 func FilterReadyNodes(nodes []corev1.Node) []corev1.Node {
 	var readyNodes []corev1.Node
 	for _, n := range nodes {
@@ -35,6 +35,17 @@ func FilterReadyNodes(nodes []corev1.Node) []corev1.Node {
 		}
 	}
 	return readyNodes
+}
+
+// FilterSchedulableNodes filters the list of nodes and returns a list with schedulable nodes
+func FilterSchedulableNodes(nodes []corev1.Node) []corev1.Node {
+	var schedulableNodes []corev1.Node
+	for _, n := range nodes {
+		if IsNodeSchedulable(&n) {
+			schedulableNodes = append(schedulableNodes, n)
+		}
+	}
+	return schedulableNodes
 }
 
 // GetNodes gets a list of nodes from a running cluster
@@ -102,6 +113,19 @@ func GetNodeForMachine(c client.Client, m *machinev1.Machine) (*corev1.Node, err
 	return node, nil
 }
 
+// GetReadyAndSchedulableNodes returns all the nodes that have the Ready condition and can schedule workloads
+func GetReadyAndSchedulableNodes(c client.Client) ([]corev1.Node, error) {
+	nodes, err := GetNodes(c)
+	if err != nil {
+		return nodes, err
+	}
+
+	nodes = FilterReadyNodes(nodes)
+	nodes = FilterSchedulableNodes(nodes)
+
+	return nodes, nil
+}
+
 // GetWorkerNodes returns all nodes with the nodeWorkerRoleLabel label
 func GetWorkerNodes(c client.Client) ([]corev1.Node, error) {
 	workerNodes := &corev1.NodeList{}
@@ -125,6 +149,14 @@ func IsNodeReady(node *corev1.Node) bool {
 		}
 	}
 	return false
+}
+
+// IsNodeSchedulable returns true is the given node can schedule workloads.
+func IsNodeSchedulable(node *corev1.Node) bool {
+	if node.Spec.Unschedulable {
+		return false
+	}
+	return true
 }
 
 // NodesAreReady returns true if an array of nodes are all ready

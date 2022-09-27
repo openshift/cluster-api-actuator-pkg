@@ -514,9 +514,12 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 
 			// At this point the autoscaler should be growing the cluster, we
 			// wait until the cluster has grown to reach MaxNodesTotal size.
+			// Because the autoscaler will ignore nodes that are not ready or unschedulable,
+			// we need to check against the number of ready nodes in the cluster since
+			// previous tests might have left nodes that are not ready or unschedulable.
 			By(fmt.Sprintf("Waiting for cluster to scale up to %d nodes", caMaxNodesTotal))
 			Eventually(func() (bool, error) {
-				nodes, err := framework.GetNodes(client)
+				nodes, err := framework.GetReadyAndSchedulableNodes(client)
 				return len(nodes) == caMaxNodesTotal, err
 			}, framework.WaitLong, pollingInterval).Should(BeTrue())
 
@@ -528,9 +531,12 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 
 			// Now that the cluster has reached maximum size, we want to ensure
 			// that it doesn't try to grow larger.
+			// Because the autoscaler will ignore nodes that are not ready or unschedulable,
+			// we need to check against the number of ready nodes in the cluster since
+			// previous tests might have left nodes that are not ready or unschedulable.
 			By("Watching Cluster node count to ensure it remains consistent")
 			Consistently(func() (bool, error) {
-				nodes, err := framework.GetNodes(client)
+				nodes, err := framework.GetReadyAndSchedulableNodes(client)
 				return len(nodes) == caMaxNodesTotal, err
 			}, framework.WaitShort, pollingInterval).Should(BeTrue())
 
