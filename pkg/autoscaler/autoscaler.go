@@ -293,8 +293,9 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			Expect(client.Create(ctx, asr)).Should(Succeed())
 			cleanupObjects[asr.GetName()] = asr
 
-			By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s", expectedReplicas, workloadMemRequest.String()))
-			workload := framework.NewWorkLoad(expectedReplicas, workloadMemRequest, workloadJobName, autoscalingTestLabel, targetedNodeLabel, "")
+			uniqueJobName := fmt.Sprintf("%s-scale-from-zero", workloadJobName)
+			By(fmt.Sprintf("Creating scale-out workload %s: jobs: %v, memory: %s", uniqueJobName, expectedReplicas, workloadMemRequest.String()))
+			workload := framework.NewWorkLoad(expectedReplicas, workloadMemRequest, uniqueJobName, autoscalingTestLabel, targetedNodeLabel, "")
 			cleanupObjects[workload.GetName()] = workload
 			Expect(client.Create(ctx, workload)).Should(Succeed())
 
@@ -353,9 +354,10 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			}
 
 			jobReplicas := expectedReplicas * int32(2)
-			By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s",
-				jobReplicas, workloadMemRequest.String()))
-			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, workloadJobName, autoscalingTestLabel, targetedNodeLabel, "")
+			uniqueJobName := fmt.Sprintf("%s-cleanup-after-scale-down", workloadJobName)
+			By(fmt.Sprintf("Creating scale-out workload %s: jobs: %v, memory: %s",
+				uniqueJobName, jobReplicas, workloadMemRequest.String()))
+			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, uniqueJobName, autoscalingTestLabel, targetedNodeLabel, "")
 			cleanupObjects[workload.GetName()] = workload
 			Expect(client.Create(ctx, workload)).Should(Succeed())
 
@@ -506,9 +508,10 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			// to the maximum MachineSet size this will create enough demand to
 			// grow the cluster to maximum size.
 			jobReplicas := maxMachineSetReplicas
-			By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s",
-				jobReplicas, workloadMemRequest.String()))
-			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, workloadJobName, autoscalingTestLabel, targetedNodeLabel, "")
+			uniqueJobName := fmt.Sprintf("%s-scale-to-maxnodestotal", workloadJobName)
+			By(fmt.Sprintf("Creating scale-out workload %s: jobs: %v, memory: %s",
+				uniqueJobName, jobReplicas, workloadMemRequest.String()))
+			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, uniqueJobName, autoscalingTestLabel, targetedNodeLabel, "")
 			cleanupObjects[workload.GetName()] = workload
 			Expect(client.Create(ctx, workload)).Should(Succeed())
 
@@ -605,9 +608,10 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			// expand its size by 2 nodes. the cluster autoscaler should
 			// place 1 node in each of the 2 MachineSets created.
 			jobReplicas := int32(4)
-			By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s",
-				jobReplicas, workloadMemRequest.String()))
-			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, workloadJobName, autoscalingTestLabel, targetedNodeLabel, "")
+			uniqueJobName := fmt.Sprintf("%s-balance-nodegroups", workloadJobName)
+			By(fmt.Sprintf("Creating scale-out workload %s: jobs: %v, memory: %s",
+				uniqueJobName, jobReplicas, workloadMemRequest.String()))
+			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, uniqueJobName, autoscalingTestLabel, targetedNodeLabel, "")
 			cleanupObjects[workload.GetName()] = workload
 			Expect(client.Create(ctx, workload)).Should(Succeed())
 
