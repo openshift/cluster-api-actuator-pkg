@@ -11,7 +11,7 @@ import (
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	corev1 "k8s.io/api/core/v1"
-	kpolicyapi "k8s.io/api/policy/v1beta1"
+	policyv1 "k8s.io/api/policy/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -72,14 +72,14 @@ func replicationControllerWorkload(namespace string) *corev1.ReplicationControll
 	}
 }
 
-func podDisruptionBudget(namespace string) *kpolicyapi.PodDisruptionBudget {
+func podDisruptionBudget(namespace string) *policyv1.PodDisruptionBudget {
 	maxUnavailable := intstr.FromInt(1)
-	return &kpolicyapi.PodDisruptionBudget{
+	return &policyv1.PodDisruptionBudget{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "nginx-pdb",
 			Namespace: namespace,
 		},
-		Spec: kpolicyapi.PodDisruptionBudgetSpec{
+		Spec: policyv1.PodDisruptionBudgetSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"app": "nginx",
