@@ -49,6 +49,16 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 		testSelector = &metav1.LabelSelector{
 			MatchLabels: machineSetParams.Labels,
 		}
+
+		By("Checking the webhook configurations are synced", func() {
+			Eventually(func() bool {
+				return framework.IsMutatingWebhookConfigurationSynced(client)
+			}, framework.WaitShort).Should(BeTrue(), "MutatingWebhookConfiguration must be synced before running these tests")
+
+			Eventually(func() bool {
+				return framework.IsValidatingWebhookConfigurationSynced(client)
+			}, framework.WaitShort).Should(BeTrue(), "ValidingWebhookConfiguration must be synced before running these tests")
+		})
 	})
 
 	AfterEach(func() {
