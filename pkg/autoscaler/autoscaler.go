@@ -198,8 +198,23 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 	})
 
 	AfterEach(func() {
+		var machineSets []*machinev1.MachineSet
+
 		for name, obj := range cleanupObjects {
+			if machineSet, ok := obj.(*machinev1.MachineSet); ok {
+				// Once we delete a MachineSet we should make sure that the
+				// all of its machines are deleted as well.
+				// Collect MachineSets to wait for.
+				machineSets = append(machineSets, machineSet)
+			}
+
 			Expect(deleteObject(name, obj)).To(Succeed())
+		}
+
+		if len(machineSets) > 0 {
+			// Wait for all MachineSets and their Machines to be deleted.
+			By("Waiting for MachineSets to be deleted...")
+			framework.WaitForMachineSetsDeleted(client, machineSets...)
 		}
 	})
 

@@ -75,6 +75,10 @@ var _ = Describe("[Feature:Machine] Lifecycle Hooks should", func() {
 		Expect(client.Delete(context.Background(), machineSet, &runtimeclient.DeleteOptions{
 			PropagationPolicy: &cascadeDelete,
 		})).To(Succeed())
+
+		By("Waiting for the MachineSet to be deleted...")
+		framework.WaitForMachineSetDelete(client, machineSet)
+
 		By("Deleting workload job")
 		Expect(client.Delete(context.Background(), workload, &runtimeclient.DeleteOptions{
 			PropagationPolicy: &cascadeDelete,
