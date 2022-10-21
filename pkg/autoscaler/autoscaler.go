@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -24,18 +23,14 @@ import (
 )
 
 const (
-	autoscalingTestLabel                  = "test.autoscaling.label"
-	clusterAutoscalerComponent            = "cluster-autoscaler"
-	clusterAutoscalerObjectKind           = "ConfigMap"
-	clusterAutoscalerScaledUpGroup        = "ScaledUpGroup"
-	clusterAutoscalerScaleDownEmpty       = "ScaleDownEmpty"
-	clusterAutoscalerMaxNodesTotalReached = "MaxNodesTotalReached"
-	pollingInterval                       = 3 * time.Second
-	autoscalerWorkerNodeRoleLabel         = "machine.openshift.io/autoscaler-e2e-worker"
-	workloadJobName                       = "e2e-autoscaler-workload"
-	machineDeleteAnnotationKey            = "machine.openshift.io/cluster-api-delete-machine"
-	deletionCandidateTaintKey             = "DeletionCandidateOfClusterAutoscaler"
-	toBeDeletedTaintKey                   = "ToBeDeletedByClusterAutoscaler"
+	autoscalingTestLabel          = "test.autoscaling.label"
+	clusterAutoscalerComponent    = "cluster-autoscaler"
+	pollingInterval               = 3 * time.Second
+	autoscalerWorkerNodeRoleLabel = "machine.openshift.io/autoscaler-e2e-worker"
+	workloadJobName               = "e2e-autoscaler-workload"
+	machineDeleteAnnotationKey    = "machine.openshift.io/cluster-api-delete-machine"
+	deletionCandidateTaintKey     = "DeletionCandidateOfClusterAutoscaler"
+	toBeDeletedTaintKey           = "ToBeDeletedByClusterAutoscaler"
 )
 
 // Build default CA resource to allow fast scaling up and down
@@ -98,62 +93,6 @@ func machineAutoscalerResource(targetMachineSet *machinev1.MachineSet, minReplic
 			},
 		},
 	}
-}
-
-func newScaleUpCounter(w *eventWatcher, v uint32, scaledGroups map[string]bool) *eventCounter {
-	isAutoscalerScaleUpEvent := func(event *corev1.Event) bool {
-		return event.Source.Component == clusterAutoscalerComponent &&
-			event.Reason == clusterAutoscalerScaledUpGroup &&
-			event.InvolvedObject.Kind == clusterAutoscalerObjectKind &&
-			strings.HasPrefix(event.Message, "Scale-up: setting group")
-	}
-
-	matchGroup := func(event *corev1.Event) bool {
-		if !isAutoscalerScaleUpEvent(event) {
-			return false
-		}
-		for k := range scaledGroups {
-			if !scaledGroups[k] && strings.HasPrefix(event.Message, fmt.Sprintf("Scale-up: group %s size set to", k)) {
-				scaledGroups[k] = true
-			}
-		}
-		return true
-	}
-
-	c := newEventCounter(w, matchGroup, v, increment)
-	c.enable()
-
-	return c
-}
-
-func newScaleDownCounter(w *eventWatcher, v uint32) *eventCounter {
-	isAutoscalerScaleDownEvent := func(event *corev1.Event) bool {
-		return event.Source.Component == clusterAutoscalerComponent &&
-			event.Reason == clusterAutoscalerScaleDownEmpty &&
-			event.InvolvedObject.Kind == clusterAutoscalerObjectKind &&
-			strings.HasPrefix(event.Message, "Scale-down: empty node")
-	}
-
-	c := newEventCounter(w, isAutoscalerScaleDownEvent, v, increment)
-	c.enable()
-	return c
-}
-
-func newMaxNodesTotalReachedCounter(w *eventWatcher, v uint32) *eventCounter {
-	isAutoscalerMaxNodesTotalEvent := func(event *corev1.Event) bool {
-		return event.Source.Component == clusterAutoscalerComponent &&
-			event.Reason == clusterAutoscalerMaxNodesTotalReached &&
-			event.InvolvedObject.Kind == clusterAutoscalerObjectKind &&
-			strings.HasPrefix(event.Message, "Max total nodes in cluster reached")
-	}
-
-	c := newEventCounter(w, isAutoscalerMaxNodesTotalEvent, v, increment)
-	c.enable()
-	return c
-}
-
-func remaining(t time.Time) time.Duration {
-	return t.Sub(time.Now()).Round(time.Second)
 }
 
 var _ = Describe("[Feature:Machines] Autoscaler should", func() {

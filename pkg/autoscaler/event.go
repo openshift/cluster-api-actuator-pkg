@@ -10,18 +10,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-const (
-	increment counterType = iota
-	decrement
-)
-
-type counterType int
-
-type eventCounter struct {
-	counter u32counter
-	handler *eventHandler
-}
-
 type matchEventFunc func(event *corev1.Event) bool
 type eventHandlerFunc func(event *corev1.Event)
 
@@ -104,27 +92,4 @@ func (h *eventHandler) enable() {
 
 func matchAnyEvent(_ *corev1.Event) bool {
 	return true
-}
-
-func newEventCounter(w *eventWatcher, matcher matchEventFunc, val uint32, t counterType) *eventCounter {
-	c := &eventCounter{
-		counter: u32counter(val),
-	}
-	c.handler = w.onEvent(matcher, func(e *corev1.Event) {
-		switch t {
-		case increment:
-			c.counter.increment()
-		case decrement:
-			c.counter.decrement()
-		}
-	})
-	return c
-}
-
-func (c *eventCounter) get() uint32 {
-	return c.counter.get()
-}
-
-func (c *eventCounter) enable() {
-	c.handler.enable()
 }
