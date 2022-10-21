@@ -398,15 +398,16 @@ func WaitForMachineSetsDeleted(c runtimeclient.Client, machineSets ...*machinev1
 				return fmt.Errorf("%d Machines still present for MachineSet %s", len(machines), ms.GetName())
 			}
 
-			if err := c.Get(context.Background(), runtimeclient.ObjectKey{
+			machineSetErr := c.Get(context.Background(), runtimeclient.ObjectKey{
 				Name:      ms.GetName(),
 				Namespace: ms.GetNamespace(),
-			}, &machinev1.MachineSet{}); err != nil && !apierrors.IsNotFound(err) {
+			}, &machinev1.MachineSet{})
+			if machineSetErr != nil && !apierrors.IsNotFound(machineSetErr) {
 				return fmt.Errorf("could not fetch MachineSet %s: %v", ms.GetName(), err)
 			}
 
 			// No error means the MachineSet still exists.
-			if err == nil {
+			if machineSetErr == nil {
 				return fmt.Errorf("MachineSet %s still present, but has no Machines", ms.GetName())
 			}
 
