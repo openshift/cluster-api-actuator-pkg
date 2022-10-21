@@ -364,25 +364,46 @@ func WaitForMachineSetDelete(c runtimeclient.Client, machineSet *machinev1.Machi
 // there are zero Machines found matching the MachineSet's label selector.
 func WaitForMachineSetsDeleted(c runtimeclient.Client, machineSets ...*machinev1.MachineSet) {
 	for _, ms := range machineSets {
-		Eventually(func() bool {
+		Eventually(func() error {
 			selector := ms.Spec.Selector
 
-			machines, err := GetMachines(c, &selector)
-			if err != nil || len(machines) != 0 {
-				return false // Still have Machines, or other error.
-			}
-
-			err = c.Get(context.Background(), runtimeclient.ObjectKey{
+			machineSet := &machinev1.MachineSet{}
+			err := c.Get(context.Background(), runtimeclient.ObjectKey{
 				Name:      ms.GetName(),
 				Namespace: ms.GetNamespace(),
-			}, &machinev1.MachineSet{})
-
-			if !apierrors.IsNotFound(err) {
-				return false // MachineSet not deleted, or other error.
+			}, machineSet)
+			if err != nil && !apierrors.IsNotFound(err) {
+				return fmt.Errorf("could not fetch MachineSet %s: %v", ms.GetName(), err)
 			}
 
-			return true // MachineSet and Machines were deleted.
-		}, WaitLong, RetryMedium).Should(BeTrue())
+			// Store this so that we can return later once we have checked all the machines
+			// have been removed.
+			machineSetNotFound := false
+			if !apierrors.IsNotFound(err) {
+				machineSetNotFound = true
+			}
+
+			// If the MachineSet doesn't have a deletion timestamp, it's not been deleted.
+			// No point continuing.
+			if !machineSetNotFound && machineSet.DeletionTimestamp.IsZero() {
+				return fmt.Errorf("MachineSet %s still exists and does not have a deletion timestamp", ms.GetName())
+			}
+
+			machines, err := GetMachines(c, &selector)
+			if err != nil {
+				return fmt.Errorf("could not fetch Machines for MachineSet %s: %v", ms.GetName(), err)
+			}
+
+			if len(machines) != 0 {
+				return fmt.Errorf("%d Machines still present for MachineSet %s", len(machines), ms.GetName())
+			}
+
+			if !machineSetNotFound {
+				return fmt.Errorf("MachineSet %s still present, but has no Machines", ms.GetName())
+			}
+
+			return nil // MachineSet and Machines were deleted.
+		}, WaitLong, RetryMedium).ShouldNot(HaveOccurred())
 	}
 }
 
