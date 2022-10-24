@@ -46,7 +46,7 @@ func clusterAutoscalerResource(maxNodesTotal int) *caov1.ClusterAutoscaler {
 	// and that has high least common multiple to avoid a case
 	// when a node is considered to be empty even if there are
 	// pods already scheduled and running on the node.
-	unneededTimeString := "23s"
+	unneededTimeString := "60s"
 	return &caov1.ClusterAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "default",

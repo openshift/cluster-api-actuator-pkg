@@ -8,6 +8,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -28,6 +29,7 @@ type MachineSetParams struct {
 	Name         string
 	Replicas     int32
 	Labels       map[string]string
+	Taints       []corev1.Taint
 	ProviderSpec *machinev1.ProviderSpec
 }
 
@@ -59,6 +61,12 @@ func BuildMachineSetParams(client runtimeclient.Client, replicas int) MachineSet
 			"e2e.openshift.io": uid.String(),
 			ClusterKey:         clusterName,
 		},
+		Taints: []corev1.Taint{
+			corev1.Taint{
+				Key:    ClusterAPIActuatorPkgTaint,
+				Effect: corev1.TaintEffectPreferNoSchedule,
+			},
+		},
 	}
 }
 
@@ -87,6 +95,7 @@ func CreateMachineSet(c client.Client, params MachineSetParams) (*machinev1.Mach
 						Labels: params.Labels,
 					},
 					ProviderSpec: *params.ProviderSpec,
+					Taints:       params.Taints,
 				},
 			},
 			Replicas: pointer.Int32Ptr(params.Replicas),
