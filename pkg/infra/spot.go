@@ -43,12 +43,16 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 		var err error
 		client, err = framework.LoadClient()
 		Expect(err).ToNot(HaveOccurred())
-		// Only run on AWS
+
 		platform, err = framework.GetPlatform(client)
 		Expect(err).NotTo(HaveOccurred())
 		switch platform {
 		case configv1.AWSPlatformType, configv1.AzurePlatformType:
-			// Do Nothing
+			// The failure rate of this test has increased significantly on Azure and AWS.
+			// We are seeing a massive spike in not being able to create instances due to
+			// a lack of capacity on the platform.
+			// Skip the test until we have time to work out how to mitigate this.
+			Skip("This test has a high failure rate, skipping until further notice")
 		case configv1.GCPPlatformType:
 			// TODO: GCP relies on the metadata IP for DNS.
 			// This test prevents it from accessing the DNS, therefore
