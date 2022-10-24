@@ -41,6 +41,10 @@ func NewWorkLoad(njobs int32, memoryRequest resource.Quantity, workloadJobName s
 							Key:      "kubemark",
 							Operator: corev1.TolerationOpExists,
 						},
+						{
+							Key:    ClusterAPIActuatorPkgTaint,
+							Effect: corev1.TaintEffectPreferNoSchedule,
+						},
 					},
 				},
 			},
