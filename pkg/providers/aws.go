@@ -39,6 +39,8 @@ var _ = Describe("[Feature:Machines] [AWS] MetadataServiceOptions", func() {
 	AfterEach(func() {
 		Expect(framework.DeleteMachineSets(client, toDelete...)).To(Succeed())
 		toDelete = make([]*machinev1.MachineSet, 0, 3)
+
+		framework.WaitForMachineSetsDeleted(client, toDelete...)
 	})
 
 	createMachineSet := func(metadataAuth string) (*machinev1.MachineSet, error) {

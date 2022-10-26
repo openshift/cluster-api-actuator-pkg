@@ -77,7 +77,24 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 	})
 
 	AfterEach(func() {
-		Expect(deleteObjects(client, delObjects)).To(Succeed())
+		var machineSets []*machinev1.MachineSet
+
+		for _, obj := range delObjects {
+			if machineSet, ok := obj.(*machinev1.MachineSet); ok {
+				// Once we delete a MachineSet we should make sure that the
+				// all of its machines are deleted as well.
+				// Collect MachineSets to wait for.
+				machineSets = append(machineSets, machineSet)
+			}
+
+			Expect(deleteObject(client, obj)).To(Succeed())
+		}
+
+		if len(machineSets) > 0 {
+			// Wait for all MachineSets and their Machines to be deleted.
+			By("Waiting for MachineSets to be deleted...")
+			framework.WaitForMachineSetsDeleted(client, machineSets...)
+		}
 	})
 
 	It("should handle the spot instances", func() {

@@ -364,25 +364,55 @@ func WaitForMachineSetDelete(c runtimeclient.Client, machineSet *machinev1.Machi
 // there are zero Machines found matching the MachineSet's label selector.
 func WaitForMachineSetsDeleted(c runtimeclient.Client, machineSets ...*machinev1.MachineSet) {
 	for _, ms := range machineSets {
-		Eventually(func() bool {
+		// Run a short check to wait for the deletion timestamp to show up.
+		// If it doesn't show there's no reason to run the longer check.
+		Eventually(func() error {
+			machineSet := &machinev1.MachineSet{}
+			err := c.Get(context.Background(), runtimeclient.ObjectKey{
+				Name:      ms.GetName(),
+				Namespace: ms.GetNamespace(),
+			}, machineSet)
+			if err != nil && !apierrors.IsNotFound(err) {
+				return fmt.Errorf("could not fetch MachineSet %s: %v", ms.GetName(), err)
+			} else if apierrors.IsNotFound(err) {
+				return nil
+			}
+
+			if machineSet.DeletionTimestamp.IsZero() {
+				return fmt.Errorf("MachineSet %s still exists and does not have a deletion timestamp", ms.GetName())
+			}
+
+			// Deletion timestamp is set, so we can move on to the longer check.
+			return nil
+		}, WaitShort).Should(Succeed())
+
+		Eventually(func() error {
 			selector := ms.Spec.Selector
 
 			machines, err := GetMachines(c, &selector)
-			if err != nil || len(machines) != 0 {
-				return false // Still have Machines, or other error.
+			if err != nil {
+				return fmt.Errorf("could not fetch Machines for MachineSet %s: %v", ms.GetName(), err)
 			}
 
-			err = c.Get(context.Background(), runtimeclient.ObjectKey{
+			if len(machines) != 0 {
+				return fmt.Errorf("%d Machines still present for MachineSet %s", len(machines), ms.GetName())
+			}
+
+			machineSetErr := c.Get(context.Background(), runtimeclient.ObjectKey{
 				Name:      ms.GetName(),
 				Namespace: ms.GetNamespace(),
 			}, &machinev1.MachineSet{})
-
-			if !apierrors.IsNotFound(err) {
-				return false // MachineSet not deleted, or other error.
+			if machineSetErr != nil && !apierrors.IsNotFound(machineSetErr) {
+				return fmt.Errorf("could not fetch MachineSet %s: %v", ms.GetName(), err)
 			}
 
-			return true // MachineSet and Machines were deleted.
-		}, WaitLong, RetryMedium).Should(BeTrue())
+			// No error means the MachineSet still exists.
+			if machineSetErr == nil {
+				return fmt.Errorf("MachineSet %s still present, but has no Machines", ms.GetName())
+			}
+
+			return nil // MachineSet and Machines were deleted.
+		}, WaitLong, RetryMedium).ShouldNot(HaveOccurred())
 	}
 }
 
