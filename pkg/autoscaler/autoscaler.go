@@ -46,7 +46,7 @@ func clusterAutoscalerResource(maxNodesTotal int) *caov1.ClusterAutoscaler {
 	// and that has high least common multiple to avoid a case
 	// when a node is considered to be empty even if there are
 	// pods already scheduled and running on the node.
-	unneededTimeString := "23s"
+	unneededTimeString := "60s"
 	return &caov1.ClusterAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "default",
@@ -293,8 +293,9 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			Expect(client.Create(ctx, asr)).Should(Succeed())
 			cleanupObjects[asr.GetName()] = asr
 
-			By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s", expectedReplicas, workloadMemRequest.String()))
-			workload := framework.NewWorkLoad(expectedReplicas, workloadMemRequest, workloadJobName, autoscalingTestLabel, targetedNodeLabel, "")
+			uniqueJobName := fmt.Sprintf("%s-scale-from-zero", workloadJobName)
+			By(fmt.Sprintf("Creating scale-out workload %s: jobs: %v, memory: %s", uniqueJobName, expectedReplicas, workloadMemRequest.String()))
+			workload := framework.NewWorkLoad(expectedReplicas, workloadMemRequest, uniqueJobName, autoscalingTestLabel, targetedNodeLabel, "")
 			cleanupObjects[workload.GetName()] = workload
 			Expect(client.Create(ctx, workload)).Should(Succeed())
 
@@ -353,9 +354,10 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			}
 
 			jobReplicas := expectedReplicas * int32(2)
-			By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s",
-				jobReplicas, workloadMemRequest.String()))
-			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, workloadJobName, autoscalingTestLabel, targetedNodeLabel, "")
+			uniqueJobName := fmt.Sprintf("%s-cleanup-after-scale-down", workloadJobName)
+			By(fmt.Sprintf("Creating scale-out workload %s: jobs: %v, memory: %s",
+				uniqueJobName, jobReplicas, workloadMemRequest.String()))
+			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, uniqueJobName, autoscalingTestLabel, targetedNodeLabel, "")
 			cleanupObjects[workload.GetName()] = workload
 			Expect(client.Create(ctx, workload)).Should(Succeed())
 
@@ -506,17 +508,21 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			// to the maximum MachineSet size this will create enough demand to
 			// grow the cluster to maximum size.
 			jobReplicas := maxMachineSetReplicas
-			By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s",
-				jobReplicas, workloadMemRequest.String()))
-			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, workloadJobName, autoscalingTestLabel, targetedNodeLabel, "")
+			uniqueJobName := fmt.Sprintf("%s-scale-to-maxnodestotal", workloadJobName)
+			By(fmt.Sprintf("Creating scale-out workload %s: jobs: %v, memory: %s",
+				uniqueJobName, jobReplicas, workloadMemRequest.String()))
+			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, uniqueJobName, autoscalingTestLabel, targetedNodeLabel, "")
 			cleanupObjects[workload.GetName()] = workload
 			Expect(client.Create(ctx, workload)).Should(Succeed())
 
 			// At this point the autoscaler should be growing the cluster, we
 			// wait until the cluster has grown to reach MaxNodesTotal size.
+			// Because the autoscaler will ignore nodes that are not ready or unschedulable,
+			// we need to check against the number of ready nodes in the cluster since
+			// previous tests might have left nodes that are not ready or unschedulable.
 			By(fmt.Sprintf("Waiting for cluster to scale up to %d nodes", caMaxNodesTotal))
 			Eventually(func() (bool, error) {
-				nodes, err := framework.GetNodes(client)
+				nodes, err := framework.GetReadyAndSchedulableNodes(client)
 				return len(nodes) == caMaxNodesTotal, err
 			}, framework.WaitLong, pollingInterval).Should(BeTrue())
 
@@ -528,9 +534,12 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 
 			// Now that the cluster has reached maximum size, we want to ensure
 			// that it doesn't try to grow larger.
+			// Because the autoscaler will ignore nodes that are not ready or unschedulable,
+			// we need to check against the number of ready nodes in the cluster since
+			// previous tests might have left nodes that are not ready or unschedulable.
 			By("Watching Cluster node count to ensure it remains consistent")
 			Consistently(func() (bool, error) {
-				nodes, err := framework.GetNodes(client)
+				nodes, err := framework.GetReadyAndSchedulableNodes(client)
 				return len(nodes) == caMaxNodesTotal, err
 			}, framework.WaitShort, pollingInterval).Should(BeTrue())
 
@@ -599,9 +608,10 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			// expand its size by 2 nodes. the cluster autoscaler should
 			// place 1 node in each of the 2 MachineSets created.
 			jobReplicas := int32(4)
-			By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s",
-				jobReplicas, workloadMemRequest.String()))
-			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, workloadJobName, autoscalingTestLabel, targetedNodeLabel, "")
+			uniqueJobName := fmt.Sprintf("%s-balance-nodegroups", workloadJobName)
+			By(fmt.Sprintf("Creating scale-out workload %s: jobs: %v, memory: %s",
+				uniqueJobName, jobReplicas, workloadMemRequest.String()))
+			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, uniqueJobName, autoscalingTestLabel, targetedNodeLabel, "")
 			cleanupObjects[workload.GetName()] = workload
 			Expect(client.Create(ctx, workload)).Should(Succeed())
 

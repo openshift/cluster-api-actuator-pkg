@@ -33,7 +33,7 @@ else
 	  -e "GO111MODULE=$(GO111MODULE)" \
 	  -e "GOFLAGS=$(GOFLAGS)" \
 	  -e "GOPROXY=$(GOPROXY)" \
-	  openshift/origin-release:golang-1.18
+	  registry.ci.openshift.org/openshift/release:golang-1.18
   IMAGE_BUILD_CMD = $(ENGINE) build
 endif
 
