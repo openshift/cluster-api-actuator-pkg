@@ -33,7 +33,7 @@ else
 	  -e "GO111MODULE=$(GO111MODULE)" \
 	  -e "GOFLAGS=$(GOFLAGS)" \
 	  -e "GOPROXY=$(GOPROXY)" \
-	  openshift/origin-release:golang-1.17
+	  registry.ci.openshift.org/openshift/release:golang-1.17
   IMAGE_BUILD_CMD = $(ENGINE) build
 endif
 
@@ -86,6 +86,10 @@ test-e2e: ## Run openshift specific e2e test
 	hack/ci-integration.sh $(GINKGO_ARGS) -focus="Autoscaler" -skip="\[Disruptive\]" || (hack/junitmerge.sh && exit 1)
 	# After success, merge all JUnit files into one
 	hack/junitmerge.sh
+
+.PHONY: test-e2e-lifecyclehooks
+test-e2e-lifecyclehooks:
+	hack/ci-integration.sh $(GINKGO_ARGS) -focus="Lifecycle" || (hack/junitmerge.sh && exit 1)
 
 test-e2e-tech-preview:
 	hack/ci-integration.sh $(GINKGO_ARGS) -focus="TechPreview"

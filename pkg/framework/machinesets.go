@@ -8,6 +8,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	machinev1 "github.com/openshift/api/machine/v1beta1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -28,6 +29,7 @@ type MachineSetParams struct {
 	Name         string
 	Replicas     int32
 	Labels       map[string]string
+	Taints       []corev1.Taint
 	ProviderSpec *machinev1.ProviderSpec
 }
 
@@ -59,6 +61,12 @@ func BuildMachineSetParams(client runtimeclient.Client, replicas int) MachineSet
 			"e2e.openshift.io": uid.String(),
 			ClusterKey:         clusterName,
 		},
+		Taints: []corev1.Taint{
+			corev1.Taint{
+				Key:    ClusterAPIActuatorPkgTaint,
+				Effect: corev1.TaintEffectPreferNoSchedule,
+			},
+		},
 	}
 }
 
@@ -87,6 +95,7 @@ func CreateMachineSet(c client.Client, params MachineSetParams) (*machinev1.Mach
 						Labels: params.Labels,
 					},
 					ProviderSpec: *params.ProviderSpec,
+					Taints:       params.Taints,
 				},
 			},
 			Replicas: pointer.Int32Ptr(params.Replicas),
@@ -294,7 +303,8 @@ func getScaleClient() (scale.ScalesGetter, error) {
 
 // WaitForMachineSet waits for the all Machines belonging to the named
 // MachineSet to enter the "Running" phase, and for all nodes belonging to those
-// Machines to be ready.
+// Machines to be ready. If a Machine is detected in "Failed" phase, the test
+// will exit early.
 func WaitForMachineSet(c client.Client, name string) {
 	machineSet, err := GetMachineSet(c, name)
 	Expect(err).ToNot(HaveOccurred())
@@ -311,6 +321,24 @@ func WaitForMachineSet(c client.Client, name string) {
 			return fmt.Errorf("%q: found %d Machines, but MachineSet has %d replicas",
 				name, len(machines), int(replicas))
 		}
+
+		failed := FilterMachines(machines, MachinePhaseFailed)
+		if len(failed) > 0 {
+			// if there are failed machines, print them out before we exit
+			klog.Errorf("found %d Machines in failed phase: ", len(failed))
+			for _, m := range failed {
+				reason := "failureReason not present in Machine.status"
+				if m.Status.ErrorReason != nil {
+					reason = string(*m.Status.ErrorReason)
+				}
+				message := "failureMessage not present in Machine.status"
+				if m.Status.ErrorMessage != nil {
+					message = string(*m.Status.ErrorMessage)
+				}
+				klog.Errorf("Failed machine: %s, Reason: %s, Message: %s", m.Name, reason, message)
+			}
+		}
+		Expect(len(failed)).To(Equal(0))
 
 		running := FilterRunningMachines(machines)
 
@@ -345,25 +373,55 @@ func WaitForMachineSetDelete(c runtimeclient.Client, machineSet *machinev1.Machi
 // there are zero Machines found matching the MachineSet's label selector.
 func WaitForMachineSetsDeleted(c runtimeclient.Client, machineSets ...*machinev1.MachineSet) {
 	for _, ms := range machineSets {
-		Eventually(func() bool {
+		// Run a short check to wait for the deletion timestamp to show up.
+		// If it doesn't show there's no reason to run the longer check.
+		Eventually(func() error {
+			machineSet := &machinev1.MachineSet{}
+			err := c.Get(context.Background(), runtimeclient.ObjectKey{
+				Name:      ms.GetName(),
+				Namespace: ms.GetNamespace(),
+			}, machineSet)
+			if err != nil && !apierrors.IsNotFound(err) {
+				return fmt.Errorf("could not fetch MachineSet %s: %v", ms.GetName(), err)
+			} else if apierrors.IsNotFound(err) {
+				return nil
+			}
+
+			if machineSet.DeletionTimestamp.IsZero() {
+				return fmt.Errorf("MachineSet %s still exists and does not have a deletion timestamp", ms.GetName())
+			}
+
+			// Deletion timestamp is set, so we can move on to the longer check.
+			return nil
+		}, WaitShort).Should(Succeed())
+
+		Eventually(func() error {
 			selector := ms.Spec.Selector
 
 			machines, err := GetMachines(c, &selector)
-			if err != nil || len(machines) != 0 {
-				return false // Still have Machines, or other error.
+			if err != nil {
+				return fmt.Errorf("could not fetch Machines for MachineSet %s: %v", ms.GetName(), err)
 			}
 
-			err = c.Get(context.Background(), runtimeclient.ObjectKey{
+			if len(machines) != 0 {
+				return fmt.Errorf("%d Machines still present for MachineSet %s", len(machines), ms.GetName())
+			}
+
+			machineSetErr := c.Get(context.Background(), runtimeclient.ObjectKey{
 				Name:      ms.GetName(),
 				Namespace: ms.GetNamespace(),
 			}, &machinev1.MachineSet{})
-
-			if !apierrors.IsNotFound(err) {
-				return false // MachineSet not deleted, or other error.
+			if machineSetErr != nil && !apierrors.IsNotFound(machineSetErr) {
+				return fmt.Errorf("could not fetch MachineSet %s: %v", ms.GetName(), err)
 			}
 
-			return true // MachineSet and Machines were deleted.
-		}, WaitLong, RetryMedium).Should(BeTrue())
+			// No error means the MachineSet still exists.
+			if machineSetErr == nil {
+				return fmt.Errorf("MachineSet %s still present, but has no Machines", ms.GetName())
+			}
+
+			return nil // MachineSet and Machines were deleted.
+		}, WaitLong, RetryMedium).ShouldNot(HaveOccurred())
 	}
 }
 
