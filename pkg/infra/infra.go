@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
-	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	kpolicyapi "k8s.io/api/policy/v1beta1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -49,7 +49,7 @@ func replicationControllerWorkload(namespace string) *corev1.ReplicationControll
 					Containers: []corev1.Container{
 						{
 							Name:    "work",
-							Image:   "busybox",
+							Image:   "registry.ci.openshift.org/openshift/origin-v4.0:base",
 							Command: []string{"sleep", "10h"},
 							Resources: corev1.ResourceRequirements{
 								Requests: corev1.ResourceList{
@@ -90,30 +90,30 @@ func podDisruptionBudget(namespace string) *kpolicyapi.PodDisruptionBudget {
 	}
 }
 
-func invalidMachinesetWithEmptyProviderConfig() *mapiv1beta1.MachineSet {
+func invalidMachinesetWithEmptyProviderConfig() *machinev1.MachineSet {
 	var oneReplicas int32 = 1
-	return &mapiv1beta1.MachineSet{
+	return &machinev1.MachineSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "invalid-machineset",
 			Namespace: framework.MachineAPINamespace,
 		},
-		Spec: mapiv1beta1.MachineSetSpec{
+		Spec: machinev1.MachineSetSpec{
 			Replicas: &oneReplicas,
 			Selector: metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"little-kitty": "i-am-little-kitty",
 				},
 			},
-			Template: mapiv1beta1.MachineTemplateSpec{
-				ObjectMeta: mapiv1beta1.ObjectMeta{
+			Template: machinev1.MachineTemplateSpec{
+				ObjectMeta: machinev1.ObjectMeta{
 					Labels: map[string]string{
 						"big-kitty": "i-am-bit-kitty",
 					},
 				},
-				Spec: mapiv1beta1.MachineSpec{
+				Spec: machinev1.MachineSpec{
 					// Empty providerSpec!!! we don't want to provision real instances.
 					// Just to observe how many machine replicas get created.
-					ProviderSpec: mapiv1beta1.ProviderSpec{},
+					ProviderSpec: machinev1.ProviderSpec{},
 				},
 			},
 		},
@@ -142,7 +142,7 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 	defer GinkgoRecover()
 
 	var client runtimeclient.Client
-	var machineSet *mapiv1beta1.MachineSet
+	var machineSet *machinev1.MachineSet
 	var machineSetParams framework.MachineSetParams
 
 	BeforeEach(func() {
@@ -151,7 +151,7 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 		client, err = framework.LoadClient()
 		Expect(err).ToNot(HaveOccurred())
 
-		machineSetParams = framework.BuildMachineSetParams(client, 3)
+		machineSetParams = framework.BuildMachineSetParams(client, 2)
 
 		By("Creating a new MachineSet")
 		machineSet, err = framework.CreateMachineSet(client, machineSetParams)
@@ -289,13 +289,18 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 		}()
 
 		By("Creating RC with workload")
-		rc := replicationControllerWorkload("default")
+
+		// Use the openshift-machine-api namespace as it is excluded from
+		// Pod security admission checks.
+		namespace := framework.MachineAPINamespace
+
+		rc := replicationControllerWorkload(namespace)
 		err = client.Create(context.TODO(), rc)
 		Expect(err).NotTo(HaveOccurred())
 		delObjects["rc"] = rc
 
 		By("Creating PDB for RC")
-		pdb := podDisruptionBudget("default")
+		pdb := podDisruptionBudget(namespace)
 		err = client.Create(context.TODO(), pdb)
 		Expect(err).NotTo(HaveOccurred())
 		delObjects["pdb"] = pdb

@@ -13,7 +13,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	gcproviderconfigv1 "github.com/openshift/cluster-api-provider-gcp/pkg/apis/gcpprovider/v1beta1"
-	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -27,11 +27,13 @@ import (
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const machinesCount = 3
+
 var _ = Describe("[Feature:Machines] Running on Spot", func() {
 	var ctx = context.Background()
 
 	var client runtimeclient.Client
-	var machineSet *mapiv1.MachineSet
+	var machineSet *machinev1.MachineSet
 	var machineSetParams framework.MachineSetParams
 	var platform configv1.PlatformType
 
@@ -43,13 +45,16 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 		var err error
 		client, err = framework.LoadClient()
 		Expect(err).ToNot(HaveOccurred())
-		// Only run on AWS
-		clusterInfra, err := framework.GetInfrastructure(client)
+
+		platform, err = framework.GetPlatform(client)
 		Expect(err).NotTo(HaveOccurred())
-		platform = clusterInfra.Status.PlatformStatus.Type
 		switch platform {
 		case configv1.AWSPlatformType, configv1.AzurePlatformType:
-			// Do Nothing
+			// The failure rate of this test has increased significantly on Azure and AWS.
+			// We are seeing a massive spike in not being able to create instances due to
+			// a lack of capacity on the platform.
+			// Skip the test until we have time to work out how to mitigate this.
+			Skip("This test has a high failure rate, skipping until further notice")
 		case configv1.GCPPlatformType:
 			// TODO: GCP relies on the metadata IP for DNS.
 			// This test prevents it from accessing the DNS, therefore
@@ -62,7 +67,7 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 		}
 
 		By("Creating a Spot backed MachineSet", func() {
-			machineSetParams = framework.BuildMachineSetParams(client, 3)
+			machineSetParams = framework.BuildMachineSetParams(client, machinesCount)
 			Expect(setSpotOnProviderSpec(platform, machineSetParams, "")).To(Succeed())
 
 			machineSet, err = framework.CreateMachineSet(client, machineSetParams)
@@ -74,7 +79,24 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 	})
 
 	AfterEach(func() {
-		Expect(deleteObjects(client, delObjects)).To(Succeed())
+		var machineSets []*machinev1.MachineSet
+
+		for _, obj := range delObjects {
+			if machineSet, ok := obj.(*machinev1.MachineSet); ok {
+				// Once we delete a MachineSet we should make sure that the
+				// all of its machines are deleted as well.
+				// Collect MachineSets to wait for.
+				machineSets = append(machineSets, machineSet)
+			}
+
+			Expect(deleteObject(client, obj)).To(Succeed())
+		}
+
+		if len(machineSets) > 0 {
+			// Wait for all MachineSets and their Machines to be deleted.
+			By("Waiting for MachineSets to be deleted...")
+			framework.WaitForMachineSetsDeleted(client, machineSets...)
+		}
 	})
 
 	It("should handle the spot instances", func() {
@@ -82,7 +104,7 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 			selector := machineSet.Spec.Selector
 			machines, err := framework.GetMachines(client, &selector)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(machines).To(HaveLen(3))
+			Expect(machines).To(HaveLen(machinesCount))
 
 			for _, machine := range machines {
 				Expect(machine.Spec.ObjectMeta.Labels).To(HaveKeyWithValue(machinecontroller.MachineInterruptibleInstanceLabelName, ""))
@@ -92,7 +114,7 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 		By("should deploy a termination handler pod to each instance", func() {
 			nodes, err := framework.GetNodesFromMachineSet(client, machineSet)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(nodes).To(HaveLen(3))
+			Expect(nodes).To(HaveLen(machinesCount))
 
 			terminationLabels := map[string]string{
 				"api":     "clusterapi",
@@ -160,7 +182,7 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 				Expect(framework.IsDeploymentAvailable(client, deployment.Name, deployment.Namespace)).To(BeTrue())
 			})
 
-			var machine *mapiv1.Machine
+			var machine *machinev1.Machine
 			By("Choosing a Machine to terminate", func() {
 				machines, err := framework.GetMachinesFromMachineSet(client, machineSet)
 				Expect(err).ToNot(HaveOccurred())

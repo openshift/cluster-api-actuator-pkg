@@ -19,8 +19,8 @@ else
 	  -e "GO111MODULE=$(GO111MODULE)" \
 	  -e "GOFLAGS=$(GOFLAGS)" \
 	  -e "GOPROXY=$(GOPROXY)" \
-	  openshift/origin-release:golang-1.15
-  IMAGE_BUILD_CMD = docker build
+	  registry.ci.openshift.org/openshift/release:golang-1.15
+  IMAGE_BUILD_CMD = $(ENGINE) build
 endif
 
 .PHONY: all

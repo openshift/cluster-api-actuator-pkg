@@ -2,6 +2,7 @@ package framework
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -28,11 +29,13 @@ const (
 	RetryMedium             = 5 * time.Second
 	// DefaultMachineSetReplicas is the default number of replicas of a machineset
 	// if MachineSet.Spec.Replicas field is set to nil
-	DefaultMachineSetReplicas = 0
-	MachinePhaseRunning       = "Running"
-	MachineRoleLabel          = "machine.openshift.io/cluster-api-machine-role"
-	MachineTypeLabel          = "machine.openshift.io/cluster-api-machine-type"
-	MachineAnnotationKey      = "machine.openshift.io/machine"
+	DefaultMachineSetReplicas  = 0
+	MachinePhaseRunning        = "Running"
+	MachinePhaseFailed         = "Failed"
+	MachineRoleLabel           = "machine.openshift.io/cluster-api-machine-role"
+	MachineTypeLabel           = "machine.openshift.io/cluster-api-machine-type"
+	MachineAnnotationKey       = "machine.openshift.io/machine"
+	ClusterAPIActuatorPkgTaint = "cluster-api-actuator-pkg"
 )
 
 var (
@@ -54,6 +57,26 @@ func GetInfrastructure(c runtimeclient.Client) (*configv1.Infrastructure, error)
 	}
 
 	return infra, nil
+}
+
+var platform configv1.PlatformType
+
+// GetPlatform fetches the PlatformType from the infrastructure object.
+// Caches value after first successful retrieval.
+func GetPlatform(c runtimeclient.Client) (configv1.PlatformType, error) {
+	// platform won't change during test run and might be cached
+	if platform != "" {
+		return platform, nil
+	}
+	infra, err := GetInfrastructure(c)
+	if err != nil {
+		return "", err
+	}
+	if infra.Status.PlatformStatus == nil {
+		return "", errors.New("platform status is not populated in infrastructure object")
+	}
+	platform = infra.Status.PlatformStatus.Type
+	return platform, nil
 }
 
 // LoadClient returns a new controller-runtime client.

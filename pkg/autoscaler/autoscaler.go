@@ -13,8 +13,7 @@ import (
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	caov1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1"
 	caov1beta1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1beta1"
-	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
-	batchv1 "k8s.io/api/batch/v1"
+	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -39,58 +38,6 @@ const (
 	toBeDeletedTaintKey                   = "ToBeDeletedByClusterAutoscaler"
 )
 
-func newWorkLoad(njobs int32, memoryRequest resource.Quantity, nodeSelector string) *batchv1.Job {
-	job := &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      workloadJobName,
-			Namespace: "default",
-			Labels:    map[string]string{autoscalingTestLabel: ""},
-		},
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Job",
-			APIVersion: "batch/v1",
-		},
-		Spec: batchv1.JobSpec{
-			Template: corev1.PodTemplateSpec{
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:  workloadJobName,
-							Image: "busybox",
-							Command: []string{
-								"sleep",
-								"86400", // 1 day
-							},
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									"memory": memoryRequest,
-									"cpu":    resource.MustParse("500m"),
-								},
-							},
-						},
-					},
-					RestartPolicy: corev1.RestartPolicy("Never"),
-					Tolerations: []corev1.Toleration{
-						{
-							Key:      "kubemark",
-							Operator: corev1.TolerationOpExists,
-						},
-					},
-				},
-			},
-			BackoffLimit: pointer.Int32Ptr(4),
-			Completions:  pointer.Int32Ptr(njobs),
-			Parallelism:  pointer.Int32Ptr(njobs),
-		},
-	}
-	if nodeSelector != "" {
-		job.Spec.Template.Spec.NodeSelector = map[string]string{
-			nodeSelector: "",
-		}
-	}
-	return job
-}
-
 // Build default CA resource to allow fast scaling up and down
 func clusterAutoscalerResource(maxNodesTotal int) *caov1.ClusterAutoscaler {
 	tenSecondString := "10s"
@@ -99,7 +46,7 @@ func clusterAutoscalerResource(maxNodesTotal int) *caov1.ClusterAutoscaler {
 	// and that has high least common multiple to avoid a case
 	// when a node is considered to be empty even if there are
 	// pods already scheduled and running on the node.
-	unneededTimeString := "23s"
+	unneededTimeString := "60s"
 	return &caov1.ClusterAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "default",
@@ -128,7 +75,7 @@ func clusterAutoscalerResource(maxNodesTotal int) *caov1.ClusterAutoscaler {
 }
 
 // Build MA resource from targeted machineset
-func machineAutoscalerResource(targetMachineSet *mapiv1beta1.MachineSet, minReplicas, maxReplicas int32) *caov1beta1.MachineAutoscaler {
+func machineAutoscalerResource(targetMachineSet *machinev1.MachineSet, minReplicas, maxReplicas int32) *caov1beta1.MachineAutoscaler {
 	return &caov1beta1.MachineAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: fmt.Sprintf("autoscale-%s", targetMachineSet.Name),
@@ -251,8 +198,23 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 	})
 
 	AfterEach(func() {
+		var machineSets []*machinev1.MachineSet
+
 		for name, obj := range cleanupObjects {
+			if machineSet, ok := obj.(*machinev1.MachineSet); ok {
+				// Once we delete a MachineSet we should make sure that the
+				// all of its machines are deleted as well.
+				// Collect MachineSets to wait for.
+				machineSets = append(machineSets, machineSet)
+			}
+
 			Expect(deleteObject(name, obj)).To(Succeed())
+		}
+
+		if len(machineSets) > 0 {
+			// Wait for all MachineSets and their Machines to be deleted.
+			By("Waiting for MachineSets to be deleted...")
+			framework.WaitForMachineSetsDeleted(client, machineSets...)
 		}
 	})
 
@@ -307,7 +269,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 
 			platform := clusterInfra.Status.PlatformStatus.Type
 			switch platform {
-			case configv1.AWSPlatformType, configv1.GCPPlatformType, configv1.AzurePlatformType:
+			case configv1.AWSPlatformType, configv1.GCPPlatformType, configv1.AzurePlatformType, configv1.OpenStackPlatformType, configv1.VSpherePlatformType:
 				klog.Infof("Platform is %v", platform)
 			default:
 				Skip(fmt.Sprintf("Platform %v does not support autoscaling from/to zero, skipping.", platform))
@@ -331,8 +293,9 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			Expect(client.Create(ctx, asr)).Should(Succeed())
 			cleanupObjects[asr.GetName()] = asr
 
-			By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s", expectedReplicas, workloadMemRequest.String()))
-			workload := newWorkLoad(expectedReplicas, workloadMemRequest, targetedNodeLabel)
+			uniqueJobName := fmt.Sprintf("%s-scale-from-zero", workloadJobName)
+			By(fmt.Sprintf("Creating scale-out workload %s: jobs: %v, memory: %s", uniqueJobName, expectedReplicas, workloadMemRequest.String()))
+			workload := framework.NewWorkLoad(expectedReplicas, workloadMemRequest, uniqueJobName, autoscalingTestLabel, targetedNodeLabel, "")
 			cleanupObjects[workload.GetName()] = workload
 			Expect(client.Create(ctx, workload)).Should(Succeed())
 
@@ -366,7 +329,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 
 		It("cleanup deletion information after scale down [Slow]", func() {
 			By("Creating 2 MachineSets each with 1 replica")
-			var transientMachineSets [2]*mapiv1beta1.MachineSet
+			var transientMachineSets [2]*machinev1.MachineSet
 			targetedNodeLabel := fmt.Sprintf("%v-delete-cleanup", autoscalerWorkerNodeRoleLabel)
 			for i, machineSet := range transientMachineSets {
 				machineSetParams := framework.BuildMachineSetParams(client, 1)
@@ -391,9 +354,10 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			}
 
 			jobReplicas := expectedReplicas * int32(2)
-			By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s",
-				jobReplicas, workloadMemRequest.String()))
-			workload := newWorkLoad(jobReplicas, workloadMemRequest, targetedNodeLabel)
+			uniqueJobName := fmt.Sprintf("%s-cleanup-after-scale-down", workloadJobName)
+			By(fmt.Sprintf("Creating scale-out workload %s: jobs: %v, memory: %s",
+				uniqueJobName, jobReplicas, workloadMemRequest.String()))
+			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, uniqueJobName, autoscalingTestLabel, targetedNodeLabel, "")
 			cleanupObjects[workload.GetName()] = workload
 			Expect(client.Create(ctx, workload)).Should(Succeed())
 
@@ -516,7 +480,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 
 		It("scales up and down while respecting MaxNodesTotal [Slow][Serial]", func() {
 			By("Creating 1 MachineSet with 1 replica")
-			var transientMachineSet *mapiv1beta1.MachineSet
+			var transientMachineSet *machinev1.MachineSet
 			targetedNodeLabel := fmt.Sprintf("%v-scale-updown", autoscalerWorkerNodeRoleLabel)
 			machineSetParams := framework.BuildMachineSetParams(client, 1)
 			machineSetParams.Labels[targetedNodeLabel] = ""
@@ -544,17 +508,21 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			// to the maximum MachineSet size this will create enough demand to
 			// grow the cluster to maximum size.
 			jobReplicas := maxMachineSetReplicas
-			By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s",
-				jobReplicas, workloadMemRequest.String()))
-			workload := newWorkLoad(jobReplicas, workloadMemRequest, targetedNodeLabel)
+			uniqueJobName := fmt.Sprintf("%s-scale-to-maxnodestotal", workloadJobName)
+			By(fmt.Sprintf("Creating scale-out workload %s: jobs: %v, memory: %s",
+				uniqueJobName, jobReplicas, workloadMemRequest.String()))
+			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, uniqueJobName, autoscalingTestLabel, targetedNodeLabel, "")
 			cleanupObjects[workload.GetName()] = workload
 			Expect(client.Create(ctx, workload)).Should(Succeed())
 
 			// At this point the autoscaler should be growing the cluster, we
 			// wait until the cluster has grown to reach MaxNodesTotal size.
+			// Because the autoscaler will ignore nodes that are not ready or unschedulable,
+			// we need to check against the number of ready nodes in the cluster since
+			// previous tests might have left nodes that are not ready or unschedulable.
 			By(fmt.Sprintf("Waiting for cluster to scale up to %d nodes", caMaxNodesTotal))
 			Eventually(func() (bool, error) {
-				nodes, err := framework.GetNodes(client)
+				nodes, err := framework.GetReadyAndSchedulableNodes(client)
 				return len(nodes) == caMaxNodesTotal, err
 			}, framework.WaitLong, pollingInterval).Should(BeTrue())
 
@@ -566,9 +534,12 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 
 			// Now that the cluster has reached maximum size, we want to ensure
 			// that it doesn't try to grow larger.
+			// Because the autoscaler will ignore nodes that are not ready or unschedulable,
+			// we need to check against the number of ready nodes in the cluster since
+			// previous tests might have left nodes that are not ready or unschedulable.
 			By("Watching Cluster node count to ensure it remains consistent")
 			Consistently(func() (bool, error) {
-				nodes, err := framework.GetNodes(client)
+				nodes, err := framework.GetReadyAndSchedulableNodes(client)
 				return len(nodes) == caMaxNodesTotal, err
 			}, framework.WaitShort, pollingInterval).Should(BeTrue())
 
@@ -600,7 +571,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 
 		It("places nodes evenly across node groups [Slow]", func() {
 			By("Creating 2 MachineSets each with 1 replica")
-			var transientMachineSets [2]*mapiv1beta1.MachineSet
+			var transientMachineSets [2]*machinev1.MachineSet
 			targetedNodeLabel := fmt.Sprintf("%v-balance-nodes", autoscalerWorkerNodeRoleLabel)
 			for i, machineSet := range transientMachineSets {
 				machineSetParams := framework.BuildMachineSetParams(client, 1)
@@ -637,9 +608,10 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 			// expand its size by 2 nodes. the cluster autoscaler should
 			// place 1 node in each of the 2 MachineSets created.
 			jobReplicas := int32(4)
-			By(fmt.Sprintf("Creating scale-out workload: jobs: %v, memory: %s",
-				jobReplicas, workloadMemRequest.String()))
-			workload := newWorkLoad(jobReplicas, workloadMemRequest, targetedNodeLabel)
+			uniqueJobName := fmt.Sprintf("%s-balance-nodegroups", workloadJobName)
+			By(fmt.Sprintf("Creating scale-out workload %s: jobs: %v, memory: %s",
+				uniqueJobName, jobReplicas, workloadMemRequest.String()))
+			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, uniqueJobName, autoscalingTestLabel, targetedNodeLabel, "")
 			cleanupObjects[workload.GetName()] = workload
 			Expect(client.Create(ctx, workload)).Should(Succeed())
 

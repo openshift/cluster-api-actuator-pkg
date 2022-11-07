@@ -7,7 +7,8 @@ import (
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
 
-	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -28,7 +29,8 @@ type MachineSetParams struct {
 	Name         string
 	Replicas     int32
 	Labels       map[string]string
-	ProviderSpec *mapiv1beta1.ProviderSpec
+	Taints       []corev1.Taint
+	ProviderSpec *machinev1.ProviderSpec
 }
 
 const (
@@ -59,12 +61,18 @@ func BuildMachineSetParams(client runtimeclient.Client, replicas int) MachineSet
 			"e2e.openshift.io": uid.String(),
 			ClusterKey:         clusterName,
 		},
+		Taints: []corev1.Taint{
+			corev1.Taint{
+				Key:    ClusterAPIActuatorPkgTaint,
+				Effect: corev1.TaintEffectPreferNoSchedule,
+			},
+		},
 	}
 }
 
 // CreateMachineSet creates a new MachineSet resource.
-func CreateMachineSet(c client.Client, params MachineSetParams) (*mapiv1beta1.MachineSet, error) {
-	ms := &mapiv1beta1.MachineSet{
+func CreateMachineSet(c client.Client, params MachineSetParams) (*machinev1.MachineSet, error) {
+	ms := &machinev1.MachineSet{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "MachineSet",
 			APIVersion: "machine.openshift.io/v1beta1",
@@ -74,19 +82,20 @@ func CreateMachineSet(c client.Client, params MachineSetParams) (*mapiv1beta1.Ma
 			Namespace:    MachineAPINamespace,
 			Labels:       params.Labels,
 		},
-		Spec: mapiv1beta1.MachineSetSpec{
+		Spec: machinev1.MachineSetSpec{
 			Selector: metav1.LabelSelector{
 				MatchLabels: params.Labels,
 			},
-			Template: mapiv1beta1.MachineTemplateSpec{
-				ObjectMeta: mapiv1beta1.ObjectMeta{
+			Template: machinev1.MachineTemplateSpec{
+				ObjectMeta: machinev1.ObjectMeta{
 					Labels: params.Labels,
 				},
-				Spec: mapiv1beta1.MachineSpec{
-					ObjectMeta: mapiv1beta1.ObjectMeta{
+				Spec: machinev1.MachineSpec{
+					ObjectMeta: machinev1.ObjectMeta{
 						Labels: params.Labels,
 					},
 					ProviderSpec: *params.ProviderSpec,
+					Taints:       params.Taints,
 				},
 			},
 			Replicas: pointer.Int32Ptr(params.Replicas),
@@ -102,8 +111,8 @@ func CreateMachineSet(c client.Client, params MachineSetParams) (*mapiv1beta1.Ma
 
 // GetMachineSets gets a list of machinesets from the default machine API namespace.
 // Optionaly, labels may be used to constrain listed machinesets.
-func GetMachineSets(client runtimeclient.Client, selectors ...*metav1.LabelSelector) ([]*mapiv1beta1.MachineSet, error) {
-	machineSetList := &mapiv1beta1.MachineSetList{}
+func GetMachineSets(client runtimeclient.Client, selectors ...*metav1.LabelSelector) ([]*machinev1.MachineSet, error) {
+	machineSetList := &machinev1.MachineSetList{}
 
 	listOpts := append([]runtimeclient.ListOption{},
 		runtimeclient.InNamespace(MachineAPINamespace),
@@ -124,7 +133,7 @@ func GetMachineSets(client runtimeclient.Client, selectors ...*metav1.LabelSelec
 		return nil, fmt.Errorf("error querying api for machineSetList object: %w", err)
 	}
 
-	machineSets := []*mapiv1beta1.MachineSet{}
+	machineSets := []*machinev1.MachineSet{}
 	for _, ms := range machineSetList.Items {
 		machineSet := ms
 		machineSets = append(machineSets, &machineSet)
@@ -134,8 +143,8 @@ func GetMachineSets(client runtimeclient.Client, selectors ...*metav1.LabelSelec
 }
 
 // GetMachineSet gets a machineset by its name from the default machine API namespace.
-func GetMachineSet(client runtimeclient.Client, name string) (*mapiv1beta1.MachineSet, error) {
-	machineSet := &mapiv1beta1.MachineSet{}
+func GetMachineSet(client runtimeclient.Client, name string) (*machinev1.MachineSet, error) {
+	machineSet := &machinev1.MachineSet{}
 	key := runtimeclient.ObjectKey{Namespace: MachineAPINamespace, Name: name}
 
 	if err := client.Get(context.Background(), key, machineSet); err != nil {
@@ -147,14 +156,14 @@ func GetMachineSet(client runtimeclient.Client, name string) (*mapiv1beta1.Machi
 
 // GetWorkerMachineSets returns the MachineSets that label their Machines with
 // the "worker" role.
-func GetWorkerMachineSets(client runtimeclient.Client) ([]*mapiv1beta1.MachineSet, error) {
-	machineSets := &mapiv1beta1.MachineSetList{}
+func GetWorkerMachineSets(client runtimeclient.Client) ([]*machinev1.MachineSet, error) {
+	machineSets := &machinev1.MachineSetList{}
 
 	if err := client.List(context.Background(), machineSets); err != nil {
 		return nil, err
 	}
 
-	var result []*mapiv1beta1.MachineSet
+	var result []*machinev1.MachineSet
 
 	// The OpenShift installer does not label MachinSets with a type or role,
 	// but the Machines themselves are labled as such via the template., so we
@@ -179,12 +188,12 @@ func GetWorkerMachineSets(client runtimeclient.Client) ([]*mapiv1beta1.MachineSe
 }
 
 // GetMachinesFromMachineSet returns an array of machines owned by a given machineSet
-func GetMachinesFromMachineSet(client runtimeclient.Client, machineSet *mapiv1beta1.MachineSet) ([]*mapiv1beta1.Machine, error) {
+func GetMachinesFromMachineSet(client runtimeclient.Client, machineSet *machinev1.MachineSet) ([]*machinev1.Machine, error) {
 	machines, err := GetMachines(client)
 	if err != nil {
 		return nil, fmt.Errorf("error getting machines: %w", err)
 	}
-	var machinesForSet []*mapiv1beta1.Machine
+	var machinesForSet []*machinev1.Machine
 	for key := range machines {
 		if metav1.IsControlledBy(machines[key], machineSet) {
 			machinesForSet = append(machinesForSet, machines[key])
@@ -198,10 +207,10 @@ func NewMachineSet(
 	clusterName, namespace, name string,
 	selectorLabels map[string]string,
 	templateLabels map[string]string,
-	providerSpec *mapiv1beta1.ProviderSpec,
+	providerSpec *machinev1.ProviderSpec,
 	replicas int32,
-) *mapiv1beta1.MachineSet {
-	ms := mapiv1beta1.MachineSet{
+) *machinev1.MachineSet {
+	ms := machinev1.MachineSet{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "MachineSet",
 			APIVersion: "machine.openshift.io/v1beta1",
@@ -213,21 +222,21 @@ func NewMachineSet(
 				ClusterKey: clusterName,
 			},
 		},
-		Spec: mapiv1beta1.MachineSetSpec{
+		Spec: machinev1.MachineSetSpec{
 			Selector: metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					ClusterKey:    clusterName,
 					MachineSetKey: name,
 				},
 			},
-			Template: mapiv1beta1.MachineTemplateSpec{
-				ObjectMeta: mapiv1beta1.ObjectMeta{
+			Template: machinev1.MachineTemplateSpec{
+				ObjectMeta: machinev1.ObjectMeta{
 					Labels: map[string]string{
 						ClusterKey:    clusterName,
 						MachineSetKey: name,
 					},
 				},
-				Spec: mapiv1beta1.MachineSpec{
+				Spec: machinev1.MachineSpec{
 					ProviderSpec: *providerSpec.DeepCopy(),
 				},
 			},
@@ -294,7 +303,8 @@ func getScaleClient() (scale.ScalesGetter, error) {
 
 // WaitForMachineSet waits for the all Machines belonging to the named
 // MachineSet to enter the "Running" phase, and for all nodes belonging to those
-// Machines to be ready.
+// Machines to be ready. If a Machine is detected in "Failed" phase, the test
+// will exit early.
 func WaitForMachineSet(c client.Client, name string) {
 	machineSet, err := GetMachineSet(c, name)
 	Expect(err).ToNot(HaveOccurred())
@@ -311,6 +321,24 @@ func WaitForMachineSet(c client.Client, name string) {
 			return fmt.Errorf("%q: found %d Machines, but MachineSet has %d replicas",
 				name, len(machines), int(replicas))
 		}
+
+		failed := FilterMachines(machines, MachinePhaseFailed)
+		if len(failed) > 0 {
+			// if there are failed machines, print them out before we exit
+			klog.Errorf("found %d Machines in failed phase: ", len(failed))
+			for _, m := range failed {
+				reason := "failureReason not present in Machine.status"
+				if m.Status.ErrorReason != nil {
+					reason = string(*m.Status.ErrorReason)
+				}
+				message := "failureMessage not present in Machine.status"
+				if m.Status.ErrorMessage != nil {
+					message = string(*m.Status.ErrorMessage)
+				}
+				klog.Errorf("Failed machine: %s, Reason: %s, Message: %s", m.Name, reason, message)
+			}
+		}
+		Expect(len(failed)).To(Equal(0))
 
 		running := FilterRunningMachines(machines)
 
@@ -337,38 +365,68 @@ func WaitForMachineSet(c client.Client, name string) {
 
 // WaitForMachineSetDelete polls until the given MachineSet is not found, and
 // there are zero Machines found matching the MachineSet's label selector.
-func WaitForMachineSetDelete(c runtimeclient.Client, machineSet *mapiv1beta1.MachineSet) {
+func WaitForMachineSetDelete(c runtimeclient.Client, machineSet *machinev1.MachineSet) {
 	WaitForMachineSetsDeleted(c, machineSet)
 }
 
 // WaitForMachineSetsDeleted polls until the given MachineSets are not found, and
 // there are zero Machines found matching the MachineSet's label selector.
-func WaitForMachineSetsDeleted(c runtimeclient.Client, machineSets ...*mapiv1beta1.MachineSet) {
+func WaitForMachineSetsDeleted(c runtimeclient.Client, machineSets ...*machinev1.MachineSet) {
 	for _, ms := range machineSets {
-		Eventually(func() bool {
+		// Run a short check to wait for the deletion timestamp to show up.
+		// If it doesn't show there's no reason to run the longer check.
+		Eventually(func() error {
+			machineSet := &machinev1.MachineSet{}
+			err := c.Get(context.Background(), runtimeclient.ObjectKey{
+				Name:      ms.GetName(),
+				Namespace: ms.GetNamespace(),
+			}, machineSet)
+			if err != nil && !apierrors.IsNotFound(err) {
+				return fmt.Errorf("could not fetch MachineSet %s: %v", ms.GetName(), err)
+			} else if apierrors.IsNotFound(err) {
+				return nil
+			}
+
+			if machineSet.DeletionTimestamp.IsZero() {
+				return fmt.Errorf("MachineSet %s still exists and does not have a deletion timestamp", ms.GetName())
+			}
+
+			// Deletion timestamp is set, so we can move on to the longer check.
+			return nil
+		}, WaitShort).Should(Succeed())
+
+		Eventually(func() error {
 			selector := ms.Spec.Selector
 
 			machines, err := GetMachines(c, &selector)
-			if err != nil || len(machines) != 0 {
-				return false // Still have Machines, or other error.
+			if err != nil {
+				return fmt.Errorf("could not fetch Machines for MachineSet %s: %v", ms.GetName(), err)
 			}
 
-			err = c.Get(context.Background(), runtimeclient.ObjectKey{
+			if len(machines) != 0 {
+				return fmt.Errorf("%d Machines still present for MachineSet %s", len(machines), ms.GetName())
+			}
+
+			machineSetErr := c.Get(context.Background(), runtimeclient.ObjectKey{
 				Name:      ms.GetName(),
 				Namespace: ms.GetNamespace(),
-			}, &mapiv1beta1.MachineSet{})
-
-			if !apierrors.IsNotFound(err) {
-				return false // MachineSet not deleted, or other error.
+			}, &machinev1.MachineSet{})
+			if machineSetErr != nil && !apierrors.IsNotFound(machineSetErr) {
+				return fmt.Errorf("could not fetch MachineSet %s: %v", ms.GetName(), err)
 			}
 
-			return true // MachineSet and Machines were deleted.
-		}, WaitLong, RetryMedium).Should(BeTrue())
+			// No error means the MachineSet still exists.
+			if machineSetErr == nil {
+				return fmt.Errorf("MachineSet %s still present, but has no Machines", ms.GetName())
+			}
+
+			return nil // MachineSet and Machines were deleted.
+		}, WaitLong, RetryMedium).ShouldNot(HaveOccurred())
 	}
 }
 
 // DeleteMachineSets deletes the specified machinesets and returns an error on failure.
-func DeleteMachineSets(client runtimeclient.Client, machineSets ...*mapiv1beta1.MachineSet) error {
+func DeleteMachineSets(client runtimeclient.Client, machineSets ...*machinev1.MachineSet) error {
 	for _, ms := range machineSets {
 		if err := client.Delete(context.TODO(), ms); err != nil {
 			klog.Errorf("Error querying api for machine object %q: %v, retrying...", ms.Name, err)

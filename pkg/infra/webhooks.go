@@ -10,7 +10,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	gcp "github.com/openshift/cluster-api-provider-gcp/pkg/apis/gcpprovider/v1beta1"
-	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	vsphere "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -53,6 +53,16 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 		testSelector = &metav1.LabelSelector{
 			MatchLabels: machineSetParams.Labels,
 		}
+
+		By("Checking the webhook configurations are synced", func() {
+			Eventually(func() bool {
+				return framework.IsMutatingWebhookConfigurationSynced(client)
+			}, framework.WaitShort).Should(BeTrue(), "MutatingWebhookConfiguration must be synced before running these tests")
+
+			Eventually(func() bool {
+				return framework.IsValidatingWebhookConfigurationSynced(client)
+			}, framework.WaitShort).Should(BeTrue(), "ValidingWebhookConfiguration must be synced before running these tests")
+		})
 	})
 
 	AfterEach(func() {
@@ -68,13 +78,13 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 	})
 
 	It("should be able to create a machine from a minimal providerSpec", func() {
-		machine := &mapiv1.Machine{
+		machine := &machinev1beta1.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: fmt.Sprintf("%s-webhook-", machineSetParams.Name),
 				Namespace:    framework.MachineAPINamespace,
 				Labels:       machineSetParams.Labels,
 			},
-			Spec: mapiv1.MachineSpec{
+			Spec: machinev1beta1.MachineSpec{
 				ProviderSpec: *machineSetParams.ProviderSpec,
 			},
 		}
@@ -85,7 +95,7 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 			if err != nil {
 				return err
 			}
-			running := framework.FilterRunningMachines([]*mapiv1.Machine{m})
+			running := framework.FilterRunningMachines([]*machinev1beta1.Machine{m})
 			if len(running) == 0 {
 				return fmt.Errorf("machine not yet running")
 			}
@@ -101,13 +111,13 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 	})
 
 	It("should return an error when removing required fields from the Machine providerSpec", func() {
-		machine := &mapiv1.Machine{
+		machine := &machinev1beta1.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: fmt.Sprintf("%s-webhook-", machineSetParams.Name),
 				Namespace:    framework.MachineAPINamespace,
 				Labels:       machineSetParams.Labels,
 			},
-			Spec: mapiv1.MachineSpec{
+			Spec: machinev1beta1.MachineSpec{
 				ProviderSpec: *machineSetParams.ProviderSpec,
 			},
 		}
@@ -163,7 +173,7 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 	})
 })
 
-func createMinimalProviderSpec(platform configv1.PlatformType, ps *mapiv1.ProviderSpec) (*mapiv1.ProviderSpec, error) {
+func createMinimalProviderSpec(platform configv1.PlatformType, ps *machinev1beta1.ProviderSpec) (*machinev1beta1.ProviderSpec, error) {
 	switch platform {
 	case configv1.AWSPlatformType:
 		return minimalAWSProviderSpec(ps)
@@ -179,31 +189,32 @@ func createMinimalProviderSpec(platform configv1.PlatformType, ps *mapiv1.Provid
 	}
 }
 
-func minimalAWSProviderSpec(ps *mapiv1.ProviderSpec) (*mapiv1.ProviderSpec, error) {
+func minimalAWSProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta1.ProviderSpec, error) {
 	fullProviderSpec := &aws.AWSMachineProviderConfig{}
 	err := json.Unmarshal(ps.Value.Raw, fullProviderSpec)
 	if err != nil {
 		return nil, err
 	}
-	return &mapiv1.ProviderSpec{
+	return &machinev1beta1.ProviderSpec{
 		Value: &runtime.RawExtension{
 			Object: &aws.AWSMachineProviderConfig{
 				AMI:                fullProviderSpec.AMI,
 				Placement:          fullProviderSpec.Placement,
 				Subnet:             *fullProviderSpec.Subnet.DeepCopy(),
 				IAMInstanceProfile: fullProviderSpec.IAMInstanceProfile.DeepCopy(),
+				SecurityGroups:     fullProviderSpec.SecurityGroups,
 			},
 		},
 	}, nil
 }
 
-func minimalAzureProviderSpec(ps *mapiv1.ProviderSpec) (*mapiv1.ProviderSpec, error) {
+func minimalAzureProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta1.ProviderSpec, error) {
 	fullProviderSpec := &azure.AzureMachineProviderSpec{}
 	err := json.Unmarshal(ps.Value.Raw, fullProviderSpec)
 	if err != nil {
 		return nil, err
 	}
-	return &mapiv1.ProviderSpec{
+	return &machinev1beta1.ProviderSpec{
 		Value: &runtime.RawExtension{
 			Object: &azure.AzureMachineProviderSpec{
 				Location: fullProviderSpec.Location,
@@ -215,13 +226,13 @@ func minimalAzureProviderSpec(ps *mapiv1.ProviderSpec) (*mapiv1.ProviderSpec, er
 	}, nil
 }
 
-func minimalGCPProviderSpec(ps *mapiv1.ProviderSpec) (*mapiv1.ProviderSpec, error) {
+func minimalGCPProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta1.ProviderSpec, error) {
 	fullProviderSpec := &gcp.GCPMachineProviderSpec{}
 	err := json.Unmarshal(ps.Value.Raw, fullProviderSpec)
 	if err != nil {
 		return nil, err
 	}
-	return &mapiv1.ProviderSpec{
+	return &machinev1beta1.ProviderSpec{
 		Value: &runtime.RawExtension{
 			Object: &gcp.GCPMachineProviderSpec{
 				Region:          fullProviderSpec.Region,
@@ -232,27 +243,18 @@ func minimalGCPProviderSpec(ps *mapiv1.ProviderSpec) (*mapiv1.ProviderSpec, erro
 	}, nil
 }
 
-func minimalVSphereProviderSpec(ps *mapiv1.ProviderSpec) (*mapiv1.ProviderSpec, error) {
-	fullProviderSpec := &vsphere.VSphereMachineProviderSpec{}
-	err := json.Unmarshal(ps.Value.Raw, fullProviderSpec)
+func minimalVSphereProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta1.ProviderSpec, error) {
+	providerSpec := &vsphere.VSphereMachineProviderSpec{}
+	err := json.Unmarshal(ps.Value.Raw, providerSpec)
 	if err != nil {
 		return nil, err
 	}
-	return &mapiv1.ProviderSpec{
+	// For vSphere only these 2 fields are defaultable
+	providerSpec.UserDataSecret = nil
+	providerSpec.CredentialsSecret = nil
+	return &machinev1beta1.ProviderSpec{
 		Value: &runtime.RawExtension{
-			Object: &vsphere.VSphereMachineProviderSpec{
-				Template: fullProviderSpec.Template,
-				Workspace: &vsphere.Workspace{
-					Datacenter: fullProviderSpec.Workspace.Datacenter,
-					Server:     fullProviderSpec.Workspace.Server,
-				},
-				Network: vsphere.NetworkSpec{
-					Devices: fullProviderSpec.Network.Devices,
-				},
-				NumCPUs:   fullProviderSpec.NumCPUs,
-				MemoryMiB: fullProviderSpec.MemoryMiB,
-				DiskGiB:   fullProviderSpec.DiskGiB,
-			},
+			Object: providerSpec,
 		},
 	}, nil
 }

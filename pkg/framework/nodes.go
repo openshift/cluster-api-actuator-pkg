@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,7 +26,7 @@ func AddNodeCondition(c client.Client, node *corev1.Node, cond corev1.NodeCondit
 	return c.Status().Patch(context.Background(), nodeCopy, client.MergeFrom(node))
 }
 
-// FilterReadyNodes fileter the list of nodes and returns the list with ready nodes
+// FilterReadyNodes filters the list of nodes and returns a list with ready nodes
 func FilterReadyNodes(nodes []corev1.Node) []corev1.Node {
 	var readyNodes []corev1.Node
 	for _, n := range nodes {
@@ -35,6 +35,17 @@ func FilterReadyNodes(nodes []corev1.Node) []corev1.Node {
 		}
 	}
 	return readyNodes
+}
+
+// FilterSchedulableNodes filters the list of nodes and returns a list with schedulable nodes
+func FilterSchedulableNodes(nodes []corev1.Node) []corev1.Node {
+	var schedulableNodes []corev1.Node
+	for _, n := range nodes {
+		if IsNodeSchedulable(&n) {
+			schedulableNodes = append(schedulableNodes, n)
+		}
+	}
+	return schedulableNodes
 }
 
 // GetNodes gets a list of nodes from a running cluster
@@ -63,7 +74,7 @@ func GetNodes(c client.Client, selectors ...*metav1.LabelSelector) ([]corev1.Nod
 }
 
 // GetNodesFromMachineSet returns an array of nodes backed by machines owned by a given machineSet
-func GetNodesFromMachineSet(client runtimeclient.Client, machineSet *mapiv1beta1.MachineSet) ([]*corev1.Node, error) {
+func GetNodesFromMachineSet(client runtimeclient.Client, machineSet *machinev1.MachineSet) ([]*corev1.Node, error) {
 	machines, err := GetMachinesFromMachineSet(client, machineSet)
 	if err != nil {
 		return nil, fmt.Errorf("error calling getMachinesFromMachineSet %w", err)
@@ -87,7 +98,7 @@ func GetNodesFromMachineSet(client runtimeclient.Client, machineSet *mapiv1beta1
 }
 
 // GetNodeForMachine retrieves the node backing the given Machine.
-func GetNodeForMachine(c client.Client, m *mapiv1beta1.Machine) (*corev1.Node, error) {
+func GetNodeForMachine(c client.Client, m *machinev1.Machine) (*corev1.Node, error) {
 	if m.Status.NodeRef == nil {
 		return nil, fmt.Errorf("%s: machine has no NodeRef", m.Name)
 	}
@@ -100,6 +111,19 @@ func GetNodeForMachine(c client.Client, m *mapiv1beta1.Machine) (*corev1.Node, e
 	}
 
 	return node, nil
+}
+
+// GetReadyAndSchedulableNodes returns all the nodes that have the Ready condition and can schedule workloads
+func GetReadyAndSchedulableNodes(c client.Client) ([]corev1.Node, error) {
+	nodes, err := GetNodes(c)
+	if err != nil {
+		return nodes, err
+	}
+
+	nodes = FilterReadyNodes(nodes)
+	nodes = FilterSchedulableNodes(nodes)
+
+	return nodes, nil
 }
 
 // GetWorkerNodes returns all nodes with the nodeWorkerRoleLabel label
@@ -127,6 +151,14 @@ func IsNodeReady(node *corev1.Node) bool {
 	return false
 }
 
+// IsNodeSchedulable returns true is the given node can schedule workloads.
+func IsNodeSchedulable(node *corev1.Node) bool {
+	if node.Spec.Unschedulable {
+		return false
+	}
+	return true
+}
+
 // NodesAreReady returns true if an array of nodes are all ready
 func NodesAreReady(nodes []*corev1.Node) bool {
 	// All nodes needs to be ready
@@ -140,11 +172,11 @@ func NodesAreReady(nodes []*corev1.Node) bool {
 	return true
 }
 
-func VerifyNodeDraining(client runtimeclient.Client, targetMachine *mapiv1beta1.Machine, rc *corev1.ReplicationController) (string, error) {
+func VerifyNodeDraining(client runtimeclient.Client, targetMachine *machinev1.Machine, rc *corev1.ReplicationController) (string, error) {
 	endTime := time.Now().Add(time.Duration(WaitLong))
 	var drainedNodeName string
 	err := wait.PollImmediate(RetryMedium, WaitLong, func() (bool, error) {
-		machine := mapiv1beta1.Machine{}
+		machine := machinev1.Machine{}
 
 		key := types.NamespacedName{
 			Namespace: targetMachine.Namespace,

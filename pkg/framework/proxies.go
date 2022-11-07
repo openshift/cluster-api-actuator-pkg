@@ -2,11 +2,13 @@ package framework
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	configv1 "github.com/openshift/api/config/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -14,12 +16,11 @@ import (
 )
 
 const proxySetup = `
-cd /root
-mkdir /root/.mitmproxy
-cat /root/certs/tls.key /root/certs/tls.crt > /root/.mitmproxy/mitmproxy-ca.pem  
+cd /.mitmproxy
+cat /root/certs/tls.key /root/certs/tls.crt > /.mitmproxy/mitmproxy-ca.pem
 curl -O https://snapshots.mitmproxy.org/5.3.0/mitmproxy-5.3.0-linux.tar.gz
 tar xvf mitmproxy-5.3.0-linux.tar.gz
-./mitmdump 
+HOME=/.mitmproxy ./mitmdump
 `
 
 const mitmSignerCert = `
@@ -65,14 +66,14 @@ func DeployClusterProxy(c runtimeclient.Client) error {
 
 	objectMeta := metav1.ObjectMeta{
 		Name:      "mitm-proxy",
-		Namespace: "default",
+		Namespace: MachineAPINamespace,
 		Labels:    mitmDeploymentLabels,
 	}
 
 	mitmSigner := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "mitm-signer",
-			Namespace: "default",
+			Namespace: MachineAPINamespace,
 			Labels:    mitmDeploymentLabels,
 		},
 		Data: map[string][]byte{
@@ -87,7 +88,7 @@ func DeployClusterProxy(c runtimeclient.Client) error {
 	mitmBootstrapConfigMap := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "mitm-bootstrap",
-			Namespace: "default",
+			Namespace: MachineAPINamespace,
 		},
 		Data: map[string]string{
 			"startup.sh": proxySetup,
@@ -143,6 +144,12 @@ func DeployClusterProxy(c runtimeclient.Client) error {
 								},
 							},
 						},
+						{
+							Name: "mitm-workdir",
+							VolumeSource: corev1.VolumeSource{
+								EmptyDir: &corev1.EmptyDirVolumeSource{},
+							},
+						},
 					},
 					Containers: []corev1.Container{
 						{
@@ -166,6 +173,11 @@ func DeployClusterProxy(c runtimeclient.Client) error {
 									ReadOnly:  false,
 									MountPath: "/root/certs",
 								},
+								{
+									Name:      "mitm-workdir",
+									ReadOnly:  false,
+									MountPath: "/.mitmproxy",
+								},
 							},
 						},
 					},
@@ -178,7 +190,9 @@ func DeployClusterProxy(c runtimeclient.Client) error {
 		return err
 	}
 
-	IsDaemonsetAvailable(c, "mitm-proxy", "default")
+	if !IsDaemonsetAvailable(c, objectMeta.Name, objectMeta.Namespace) {
+		return errors.New("daemonset did not become available")
+	}
 
 	service := &corev1.Service{
 		ObjectMeta: objectMeta,
@@ -199,7 +213,9 @@ func DeployClusterProxy(c runtimeclient.Client) error {
 	if err != nil {
 		return err
 	}
-	IsServiceAvailable(c, "mitm-proxy", "default")
+	if !IsServiceAvailable(c, objectMeta.Name, objectMeta.Namespace) {
+		return errors.New("service did not become available")
+	}
 
 	return err
 }
@@ -212,18 +228,17 @@ func DestroyClusterProxy(c runtimeclient.Client) error {
 
 	mitmObjectMeta := metav1.ObjectMeta{
 		Name:      "mitm-proxy",
-		Namespace: "default",
+		Namespace: MachineAPINamespace,
 		Labels:    mitmDeploymentLabels,
 	}
 
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "mitm-bootstrap",
-			Namespace: "default",
+			Namespace: MachineAPINamespace,
 		},
 	}
-	err := c.Delete(context.Background(), configMap)
-	if err != nil {
+	if err := c.Delete(context.Background(), configMap); err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
 
@@ -233,35 +248,35 @@ func DestroyClusterProxy(c runtimeclient.Client) error {
 			Namespace: "openshift-config",
 		},
 	}
-	err = c.Delete(context.Background(), configMap)
-	if err != nil {
+	if err := c.Delete(context.Background(), configMap); err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
 
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "mitm-signer",
-			Namespace: "default",
+			Namespace: MachineAPINamespace,
 		},
 	}
-	err = c.Delete(context.Background(), secret)
-	if err != nil {
+	if err := c.Delete(context.Background(), secret); err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
 
 	daemonset := &appsv1.DaemonSet{
 		ObjectMeta: mitmObjectMeta,
 	}
-	err = c.Delete(context.Background(), daemonset)
-	if err != nil {
+	if err := c.Delete(context.Background(), daemonset); err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
 
 	service := &corev1.Service{
 		ObjectMeta: mitmObjectMeta,
 	}
+	if err := c.Delete(context.Background(), service); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
 
-	return c.Delete(context.Background(), service)
+	return nil
 }
 
 // WaitForProxyInjectionSync waits for the deployment to sync with the state of the cluster-proxy
