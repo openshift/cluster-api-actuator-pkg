@@ -3,6 +3,8 @@ package framework
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -15,6 +17,8 @@ import (
 	"k8s.io/klog"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 )
 
 // Various constants used by E2E tests.
@@ -36,6 +40,11 @@ const (
 	MachineTypeLabel           = "machine.openshift.io/cluster-api-machine-type"
 	MachineAnnotationKey       = "machine.openshift.io/machine"
 	ClusterAPIActuatorPkgTaint = "cluster-api-actuator-pkg"
+
+	// Openshift CI specific env variables
+	IS_CI        = "OPENSHIFT_CI"
+	ARTIFACT_DIR = "ARTIFACT_DIR"
+	CLI_DIR      = "CLI_DIR"
 )
 
 var (
@@ -182,4 +191,64 @@ func WaitForEvent(c runtimeclient.Client, kind, name, reason string) error {
 
 		return false, nil
 	})
+}
+
+// NewCLI initializes oc binary wrapper helper.
+// Output and oc executable path configure depending on the environment.
+// If Openshift CI is detected, respective parameters are set up.
+func NewCLI() (*gatherer.CLI, error) {
+	client, err := LoadClient()
+	if err != nil {
+		return nil, err
+	}
+	baseOutputPath, err := getCliOutputFilesPath()
+	if err != nil {
+		return nil, err
+	}
+
+	cli, err := gatherer.NewCLI(MachineAPINamespace, client, baseOutputPath)
+	if err != nil {
+		return nil, err
+	}
+	cli = cli.WithExec(getOcExecPath())
+	return cli, nil
+}
+
+// isOpenshiftCI tries to detect Openshift CI environment
+func isOpenshiftCI() bool {
+	envCI := os.Getenv(IS_CI)
+	envArtifactsDir := os.Getenv(ARTIFACT_DIR)
+	return envCI == "true" && len(envArtifactsDir) > 0
+}
+
+// getCliOutputFilesPath returns output path for the CLI wrapper.
+// In case Openshift CI env detected, returns '$ARTIFACT_DIR/machine-api-e2e-suite' path.
+// If not, returns '%current_directory%/_out'.
+func getCliOutputFilesPath() (string, error) {
+	if isOpenshiftCI() {
+		return filepath.Join(os.Getenv(ARTIFACT_DIR), "machine-api-e2e-suite"), nil
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", nil
+	}
+	return filepath.Join(cwd, "_out"), nil
+}
+
+func getOcExecPath() string {
+	if isOpenshiftCI() {
+		return filepath.Join(os.Getenv(CLI_DIR), "oc")
+	}
+	return "oc"
+}
+
+// NewGatherer initializes StateGatherer - helper for collection of MAPI-related resources and pod logs in tests.
+func NewGatherer() (*gatherer.StateGatherer, error) {
+	cli, err := NewCLI()
+	if err != nil {
+		return nil, err
+	}
+
+	return gatherer.NewStateGatherer(context.Background(), cli, time.Now()), nil
 }
