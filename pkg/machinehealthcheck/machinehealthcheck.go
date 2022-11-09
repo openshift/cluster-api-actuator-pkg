@@ -8,14 +8,18 @@ import (
 	. "github.com/onsi/gomega"
 
 	machinev1 "github.com/openshift/api/machine/v1beta1"
-	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 )
 
 var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck", func() {
 	var client client.Client
+
+	var gatherer *gatherer.StateGatherer
 
 	var machineSet *machinev1.MachineSet
 	var machinehealthcheck *machinev1.MachineHealthCheck
@@ -36,6 +40,9 @@ var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck", func() {
 	BeforeEach(func() {
 		var err error
 
+		gatherer, err = framework.NewGatherer()
+		Expect(err).ToNot(HaveOccurred())
+
 		client, err = framework.LoadClient()
 		Expect(err).ToNot(HaveOccurred())
 
@@ -49,6 +56,11 @@ var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck", func() {
 	})
 
 	AfterEach(func() {
+		testDescription := CurrentGinkgoTestDescription()
+		if testDescription.Failed == true {
+			Expect(gatherer.WithTestDescription(testDescription).GatherAll()).To(Succeed())
+		}
+
 		By("Deleting the MachineHealthCheck resource")
 		Expect(client.Delete(context.Background(), machinehealthcheck)).ToNot(HaveOccurred())
 

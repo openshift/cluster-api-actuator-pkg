@@ -7,15 +7,19 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	configv1 "github.com/openshift/api/config/v1"
-	machinev1 "github.com/openshift/api/machine/v1"
-	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
-	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
+
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	configv1 "github.com/openshift/api/config/v1"
+	machinev1 "github.com/openshift/api/machine/v1"
+	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
+
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 )
 
 var _ = Describe("[Feature:Machines] Webhooks", func() {
@@ -24,10 +28,15 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 	var machineSetParams framework.MachineSetParams
 	var testSelector *metav1.LabelSelector
 
+	var gatherer *gatherer.StateGatherer
+
 	var ctx = context.Background()
 
 	BeforeEach(func() {
 		var err error
+		gatherer, err = framework.NewGatherer()
+		Expect(err).ToNot(HaveOccurred())
+
 		client, err = framework.LoadClient()
 		Expect(err).ToNot(HaveOccurred())
 
@@ -64,6 +73,11 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 	})
 
 	AfterEach(func() {
+		testDescription := CurrentGinkgoTestDescription()
+		if testDescription.Failed == true {
+			Expect(gatherer.WithTestDescription(testDescription).GatherAll()).To(Succeed())
+		}
+
 		machineSets, err := framework.GetMachineSets(client, testSelector)
 		Expect(err).ToNot(HaveOccurred())
 		framework.DeleteMachineSets(client, machineSets...)

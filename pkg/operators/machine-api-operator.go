@@ -6,13 +6,17 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	v1 "github.com/openshift/api/config/v1"
-	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
+
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	v1 "github.com/openshift/api/config/v1"
+
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 )
 
 var (
@@ -22,6 +26,21 @@ var (
 
 var _ = Describe("[Feature:Operators][Disruptive] Machine API operator deployment should", func() {
 	defer GinkgoRecover()
+
+	var gatherer *gatherer.StateGatherer
+
+	BeforeEach(func() {
+		var err error
+		gatherer, err = framework.NewGatherer()
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		testDescription := CurrentGinkgoTestDescription()
+		if testDescription.Failed == true {
+			Expect(gatherer.WithTestDescription(testDescription).GatherAll()).To(Succeed())
+		}
+	})
 
 	It("be available", func() {
 		client, err := framework.LoadClient()
@@ -192,7 +211,6 @@ var _ = Describe("[Feature:Operators][Disruptive] Machine API operator deploymen
 			Expect(webhook.ClientConfig.CABundle).To(Equal(initial.Webhooks[i].ClientConfig.CABundle))
 		}
 	})
-
 })
 
 var _ = Describe("[Feature:Operators] Machine API cluster operator status should", func() {
@@ -206,6 +224,14 @@ var _ = Describe("[Feature:Operators] Machine API cluster operator status should
 })
 
 var _ = Describe("[Serial][Feature:Operators][Disruptive] When cluster-wide proxy is configured, Machine API cluster operator should ", func() {
+	var gatherer *gatherer.StateGatherer
+
+	BeforeEach(func() {
+		var err error
+		gatherer, err = framework.NewGatherer()
+		Expect(err).ToNot(HaveOccurred())
+	})
+
 	It("create machines when configured behind a proxy", func() {
 		// This test case takes upwards of 20 minutes to complete.
 		// This test cannot be run in parallel with other tests and as such,
@@ -263,6 +289,11 @@ var _ = Describe("[Serial][Feature:Operators][Disruptive] When cluster-wide prox
 	})
 
 	AfterEach(func() {
+		testDescription := CurrentGinkgoTestDescription()
+		if testDescription.Failed == true {
+			Expect(gatherer.WithTestDescription(testDescription).GatherAll()).To(Succeed())
+		}
+
 		By("waiting for MAO, KAPI and KCM cluster operators to become available")
 		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
