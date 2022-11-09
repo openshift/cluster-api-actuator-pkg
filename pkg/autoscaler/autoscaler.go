@@ -9,11 +9,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	configv1 "github.com/openshift/api/config/v1"
-	machinev1 "github.com/openshift/api/machine/v1beta1"
-	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
-	caov1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1"
-	caov1beta1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1beta1"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -21,6 +17,14 @@ import (
 	"k8s.io/klog"
 	"k8s.io/utils/pointer"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	configv1 "github.com/openshift/api/config/v1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
+	caov1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1"
+	caov1beta1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1beta1"
+
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 )
 
 const (
@@ -160,6 +164,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 
 	var workloadMemRequest resource.Quantity
 	var client runtimeclient.Client
+	var gatherer *gatherer.StateGatherer
 	var err error
 	var cleanupObjects map[string]runtimeclient.Object
 
@@ -223,6 +228,9 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		var caEventWatcher *eventWatcher
 
 		BeforeEach(func() {
+			gatherer, err = framework.NewGatherer()
+			Expect(err).ToNot(HaveOccurred())
+
 			By("Creating ClusterAutoscaler")
 			clusterAutoscaler = clusterAutoscalerResource(100)
 			Expect(client.Create(ctx, clusterAutoscaler)).Should(Succeed())
@@ -242,6 +250,11 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		})
 
 		AfterEach(func() {
+			testDescription := CurrentGinkgoTestDescription()
+			if testDescription.Failed == true {
+				Expect(gatherer.WithTestDescription(testDescription).GatherAll()).To(Succeed())
+			}
+
 			By("Stopping Cluster Autoscaler event watcher")
 			caEventWatcher.stop()
 
@@ -453,6 +466,9 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		const caMaxNodesTotal = 12
 
 		BeforeEach(func() {
+			gatherer, err = framework.NewGatherer()
+			Expect(err).ToNot(HaveOccurred())
+
 			By("Creating ClusterAutoscaler")
 			clusterAutoscaler = clusterAutoscalerResource(caMaxNodesTotal)
 			clusterAutoscaler.Spec.BalanceSimilarNodeGroups = pointer.BoolPtr(true)
@@ -461,6 +477,11 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 		})
 
 		AfterEach(func() {
+			testDescription := CurrentGinkgoTestDescription()
+			if testDescription.Failed == true {
+				Expect(gatherer.WithTestDescription(testDescription).GatherAll()).To(Succeed())
+			}
+
 			// explicitly delete the ClusterAutoscaler
 			// this is needed due to the autoscaler tests requiring singleton
 			// deployments of the ClusterAutoscaler.

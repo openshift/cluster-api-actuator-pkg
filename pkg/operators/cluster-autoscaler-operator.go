@@ -8,27 +8,40 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	caov1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1"
 	caov1beta1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 )
 
 var _ = Describe("[Feature:Operators] Cluster autoscaler operator should", func() {
 	var client runtimeclient.Client
+	var gatherer *gatherer.StateGatherer
 
 	defer GinkgoRecover()
 
 	BeforeEach(func() {
 		var err error
 
+		gatherer, err = framework.NewGatherer()
+		Expect(err).ToNot(HaveOccurred())
+
 		client, err = framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
 
 		ok := framework.WaitForValidatingWebhook(client, "autoscaling.openshift.io")
 		Expect(ok).To(BeTrue())
+	})
+
+	AfterEach(func() {
+		testDescription := CurrentGinkgoTestDescription()
+		if testDescription.Failed == true {
+			Expect(gatherer.WithTestDescription(testDescription).GatherAll()).To(Succeed())
+		}
 	})
 
 	It("reject invalid ClusterAutoscaler resources early via webhook", func() {

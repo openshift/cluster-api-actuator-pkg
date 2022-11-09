@@ -5,14 +5,18 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"k8s.io/client-go/kubernetes"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
 	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
-	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	corev1 "k8s.io/api/core/v1"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 )
 
 const (
@@ -20,15 +24,24 @@ const (
 )
 
 var _ = Describe("[Feature:Machines] [AWS] MetadataServiceOptions", func() {
-	client, err := framework.LoadClient()
-	Expect(err).ToNot(HaveOccurred())
+	var client runtimeclient.Client
+	var clientset *kubernetes.Clientset
 
-	clientset, err := framework.LoadClientset()
-	Expect(err).ToNot(HaveOccurred())
+	var gatherer *gatherer.StateGatherer
 
 	toDelete := make([]*machinev1.MachineSet, 0, 3)
 
 	BeforeEach(func() {
+		var err error
+		client, err = framework.LoadClient()
+		Expect(err).ToNot(HaveOccurred())
+
+		clientset, err = framework.LoadClientset()
+		Expect(err).ToNot(HaveOccurred())
+
+		gatherer, err = framework.NewGatherer()
+		Expect(err).ToNot(HaveOccurred())
+
 		platform, err := framework.GetPlatform(client)
 		Expect(err).ToNot(HaveOccurred())
 		if platform != configv1.AWSPlatformType {
@@ -37,6 +50,11 @@ var _ = Describe("[Feature:Machines] [AWS] MetadataServiceOptions", func() {
 	})
 
 	AfterEach(func() {
+		testDescription := CurrentGinkgoTestDescription()
+		if testDescription.Failed == true {
+			Expect(gatherer.WithTestDescription(testDescription).GatherAll()).To(Succeed())
+		}
+
 		Expect(framework.DeleteMachineSets(client, toDelete...)).To(Succeed())
 		toDelete = make([]*machinev1.MachineSet, 0, 3)
 

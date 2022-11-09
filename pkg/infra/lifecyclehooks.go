@@ -6,16 +6,19 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/types"
 
-	machinev1 "github.com/openshift/api/machine/v1beta1"
-	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	machinev1 "github.com/openshift/api/machine/v1beta1"
+
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 )
 
 const (
@@ -32,8 +35,13 @@ var _ = Describe("[Feature:Machine] Lifecycle Hooks should", func() {
 	var workload *batchv1.Job
 	var pod corev1.Pod
 
+	var gatherer *gatherer.StateGatherer
+
 	BeforeEach(func() {
 		var err error
+
+		gatherer, err = framework.NewGatherer()
+		Expect(err).ToNot(HaveOccurred())
 
 		By("Creating the machineset")
 		client, err = framework.LoadClient()
@@ -70,6 +78,11 @@ var _ = Describe("[Feature:Machine] Lifecycle Hooks should", func() {
 	})
 
 	AfterEach(func() {
+		testDescription := CurrentGinkgoTestDescription()
+		if testDescription.Failed == true {
+			Expect(gatherer.WithTestDescription(testDescription).GatherAll()).To(Succeed())
+		}
+
 		By("Deleting the machineset")
 		cascadeDelete := metav1.DeletePropagationForeground
 		Expect(client.Delete(context.Background(), machineSet, &runtimeclient.DeleteOptions{

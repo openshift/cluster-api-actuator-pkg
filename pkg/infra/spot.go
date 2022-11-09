@@ -10,10 +10,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	configv1 "github.com/openshift/api/config/v1"
-	machinev1 "github.com/openshift/api/machine/v1beta1"
-	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
-	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
+
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -23,6 +20,13 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	configv1 "github.com/openshift/api/config/v1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
+	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
+
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 )
 
 const machinesCount = 3
@@ -37,10 +41,16 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 
 	var delObjects map[string]runtimeclient.Object
 
+	var gatherer *gatherer.StateGatherer
+
 	BeforeEach(func() {
 		delObjects = make(map[string]runtimeclient.Object)
 
 		var err error
+
+		gatherer, err = framework.NewGatherer()
+		Expect(err).ToNot(HaveOccurred())
+
 		client, err = framework.LoadClient()
 		Expect(err).ToNot(HaveOccurred())
 
@@ -77,6 +87,11 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 	})
 
 	AfterEach(func() {
+		testDescription := CurrentGinkgoTestDescription()
+		if testDescription.Failed == true {
+			Expect(gatherer.WithTestDescription(testDescription).GatherAll()).To(Succeed())
+		}
+
 		var machineSets []*machinev1.MachineSet
 
 		for _, obj := range delObjects {
