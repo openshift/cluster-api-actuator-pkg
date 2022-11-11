@@ -6,17 +6,17 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/config"
-	"github.com/onsi/ginkgo/reporters"
+	. "github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo/v2/reporters"
 	. "github.com/onsi/gomega"
+
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/klog"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	caov1alpha1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis"
-	"k8s.io/client-go/kubernetes/scheme"
 
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/autoscaler"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/infra"
@@ -55,7 +55,7 @@ func e2eReporters() []Reporter {
 		// Include `ParallelNode` so tests running in parallel do not overwrite the same file.
 		// Include timestamp so test suite can be called multiple times with focus within same CI job
 		// without overwriting files.
-		junitFileName := fmt.Sprintf("%s/junit_cluster_api_actuator_pkg_e2e_%d_%d.xml", reportDir, time.Now().UnixNano(), config.GinkgoConfig.ParallelNode)
+		junitFileName := fmt.Sprintf("%s/junit_cluster_api_actuator_pkg_e2e_%d_%d.xml", reportDir, time.Now().UnixNano(), GinkgoParallelProcess())
 		return []Reporter{reporters.NewJUnitReporter(junitFileName)}
 	}
 	return []Reporter{}
@@ -74,6 +74,5 @@ var _ = BeforeSuite(func() {
 		framework.WaitShort = 2 * time.Minute  // Normally 1m
 		framework.WaitMedium = 6 * time.Minute // Normally 3m
 		framework.WaitLong = 30 * time.Minute  // Normally 15m
-
 	}
 })

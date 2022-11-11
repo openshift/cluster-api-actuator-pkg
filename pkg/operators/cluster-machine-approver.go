@@ -1,8 +1,9 @@
 package operators
 
 import (
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 )
 
