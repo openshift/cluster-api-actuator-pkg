@@ -2,16 +2,22 @@ package framework
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
 
+	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/scale"
@@ -35,6 +41,17 @@ type MachineSetParams struct {
 
 const (
 	machineAPIGroup = "machine.openshift.io"
+)
+
+var (
+	// ErrMachineNotProvisionedInsufficientCloudCapacity is used when we detect that the machine is not being provisioned due to insufficient provider capacity.
+	ErrMachineNotProvisionedInsufficientCloudCapacity = errors.New("machine creation failed due to insufficient cloud provider capacity")
+
+	// errTestForPlatformNotImplemented is used when platform specific test is run on a platform that does not have it implemented.
+	errTestForPlatformNotImplemented = errors.New("test for current platform not implemented")
+
+	// errMachineInMachineSetFailed is used when one of the machines in the machine set is in a failed state.
+	errMachineInMachineSetFailed = errors.New("machine in the machineset is in a failed phase")
 )
 
 func BuildMachineSetParams(client runtimeclient.Client, replicas int) MachineSetParams {
@@ -107,6 +124,79 @@ func CreateMachineSet(c client.Client, params MachineSetParams) (*machinev1.Mach
 	}
 
 	return ms, nil
+}
+
+// BuildMachineSetParamsList creates a list of MachineSetParams based on the given machineSetParams with modified instance type.
+func BuildAlternativeMachineSetParams(machineSetParams MachineSetParams, platform configv1.PlatformType) ([]MachineSetParams, error) {
+	baseMachineSetParams := machineSetParams
+	baseProviderSpec := baseMachineSetParams.ProviderSpec.DeepCopy()
+
+	output := []MachineSetParams{}
+	switch platform {
+	case configv1.AWSPlatformType:
+		// Using cheapest compute optimized instances that meet openshift minimum requirements (4 vCPU, 8GiB RAM)
+		alternativeInstanceTypes := []string{"c5.xlarge", "c5a.xlarge", "m5.xlarge"}
+		for _, instanceType := range alternativeInstanceTypes {
+			updatedProviderSpec, err := updateProviderSpecAWSInstanceType(baseProviderSpec, instanceType)
+			if err != nil {
+				return nil, fmt.Errorf("failed to update provider spec with instance type %s: %v", instanceType, err)
+			}
+			baseMachineSetParams.ProviderSpec = &updatedProviderSpec
+			output = append(output, baseMachineSetParams)
+		}
+	case configv1.AzurePlatformType:
+		alternativeVMSizes := []string{"Standard_F4s_v2", "Standard_D4as_v5", "Standard_D4as_v4"}
+		for _, VMSize := range alternativeVMSizes {
+			updatedProviderSpec, err := updateProviderSpecAzureVMSize(baseProviderSpec, VMSize)
+			if err != nil {
+				return nil, fmt.Errorf("failed to update provider spec with VM size %s: %v", VMSize, err)
+			}
+			baseMachineSetParams.ProviderSpec = &updatedProviderSpec
+			output = append(output, baseMachineSetParams)
+		}
+	default:
+		return nil, fmt.Errorf("alternative instance types for platform %s not set", platform)
+	}
+
+	return output, nil
+}
+
+// updateProviderSpecAWSInstanceType creates a new ProviderSpec with the given instance type.
+func updateProviderSpecAWSInstanceType(providerSpec *machinev1.ProviderSpec, instanceType string) (machinev1.ProviderSpec, error) {
+	var awsProviderConfig machinev1.AWSMachineProviderConfig
+	if err := json.Unmarshal(providerSpec.Value.Raw, &awsProviderConfig); err != nil {
+		return machinev1.ProviderSpec{}, err
+	}
+
+	awsProviderConfig.InstanceType = instanceType
+
+	updatedProviderSpec, err := json.Marshal(awsProviderConfig)
+	if err != nil {
+		return machinev1.ProviderSpec{}, err
+	}
+	newProviderSpec := machinev1.ProviderSpec{
+		Value: &runtime.RawExtension{Raw: updatedProviderSpec},
+	}
+	return newProviderSpec, nil
+}
+
+// updateProviderSpecAzureVMSize creates a new ProviderSpec with the given VMSize.
+func updateProviderSpecAzureVMSize(providerSpec *machinev1.ProviderSpec, VMSize string) (machinev1.ProviderSpec, error) {
+	var azureProviderConfig machinev1.AzureMachineProviderSpec
+	if err := json.Unmarshal(providerSpec.Value.Raw, &azureProviderConfig); err != nil {
+		return machinev1.ProviderSpec{}, err
+	}
+
+	azureProviderConfig.VMSize = VMSize
+
+	updatedProviderSpec, err := json.Marshal(azureProviderConfig)
+	if err != nil {
+		return machinev1.ProviderSpec{}, err
+	}
+	newProviderSpec := machinev1.ProviderSpec{
+		Value: &runtime.RawExtension{Raw: updatedProviderSpec},
+	}
+	return newProviderSpec, nil
 }
 
 // GetMachineSets gets a list of machinesets from the default machine API namespace.
@@ -367,6 +457,126 @@ func WaitForMachineSet(c client.Client, name string) {
 // there are zero Machines found matching the MachineSet's label selector.
 func WaitForMachineSetDelete(c runtimeclient.Client, machineSet *machinev1.MachineSet) {
 	WaitForMachineSetsDeleted(c, machineSet)
+}
+
+// WaitForSpotMachineSet waits for all Machines belonging to the machineSet to be running and their nodes to be ready.
+// Unlike WaitForMachineSet, this function does not fail the test when machine cannoct be provisioned due to insufficient spot capacity.
+func WaitForSpotMachineSet(c client.Client, name string) error {
+	machineSet, err := GetMachineSet(c, name)
+	if err != nil {
+		return fmt.Errorf("could not get machineset %s: %v", name, err)
+	}
+
+	// Retry until the MachineSet is ready.
+	err = wait.PollImmediate(RetryMedium, WaitLong, func() (bool, error) {
+		machines, err := GetMachinesFromMachineSet(c, machineSet)
+		if err != nil {
+			return false, fmt.Errorf("error getting machines from machineSet %s: %v", machineSet.Name, err)
+		}
+
+		replicas := pointer.Int32PtrDerefOr(machineSet.Spec.Replicas, 0)
+		if len(machines) != int(replicas) {
+			klog.Infof("%q: found %d Machines, but MachineSet has %d replicas", name, len(machines), int(replicas))
+			return false, nil
+		}
+
+		failed := FilterMachines(machines, MachinePhaseFailed)
+		if len(failed) > 0 {
+			// if there are failed machines, print them out before we exit
+			klog.Errorf("found %d Machines in failed phase: ", len(failed))
+			for _, m := range failed {
+				reason := "failureReason not present in Machine.status"
+				if m.Status.ErrorReason != nil {
+					reason = string(*m.Status.ErrorReason)
+				}
+				message := "failureMessage not present in Machine.status"
+				if m.Status.ErrorMessage != nil {
+					message = string(*m.Status.ErrorMessage)
+				}
+				klog.Errorf("Failed machine: %s, Reason: %s, Message: %s", m.Name, reason, message)
+			}
+			return false, errMachineInMachineSetFailed
+		}
+
+		// Check if any machine did not get provisioned because of insufficient spot capacity.
+		for _, m := range machines {
+			insufficientCapacityResult, err := hasInsufficientCapacity(m, platform)
+			if err != nil {
+				return false, fmt.Errorf("error checking if machine %s has insufficient capacity: %v", m.Name, err)
+			}
+			if insufficientCapacityResult {
+				return false, ErrMachineNotProvisionedInsufficientCloudCapacity
+			}
+		}
+
+		running := FilterRunningMachines(machines)
+		// This could probably be smarter, but seems fine for now.
+		if len(running) != len(machines) {
+			klog.Infof("%q: not all Machines are running: %d of %d", name, len(running), len(machines))
+			return false, nil
+		}
+
+		for _, m := range running {
+			node, err := GetNodeForMachine(c, m)
+			if err != nil {
+				klog.Infof("Node for machine %s not found yet: %v", m.Name, err)
+				return false, nil
+			}
+
+			if !IsNodeReady(node) {
+				klog.Infof("%s: node is not ready", node.Name)
+				return false, nil
+			}
+		}
+
+		return true, nil
+	})
+	return err
+}
+
+// hasInsufficientCapacity return true if the machine cannot be provisioned due to insufficient spot capacity.
+func hasInsufficientCapacity(m *machinev1.Machine, platform configv1.PlatformType) (bool, error) {
+	switch platform {
+	case configv1.AWSPlatformType:
+		awsProviderStatus := machinev1.AWSMachineProviderStatus{}
+		if m.Status.ProviderStatus != nil {
+			err := json.Unmarshal(m.Status.ProviderStatus.Raw, &awsProviderStatus)
+			if err != nil {
+				return false, fmt.Errorf("error unmarshalling provider status: %v", err)
+			}
+			return hasInsufficientCapacityCondition(awsProviderStatus.Conditions, configv1.AWSPlatformType)
+		}
+	case configv1.AzurePlatformType:
+		azureProviderStatus := machinev1.AzureMachineProviderStatus{}
+		if m.Status.ProviderStatus != nil {
+			err := json.Unmarshal(m.Status.ProviderStatus.Raw, &azureProviderStatus)
+			if err != nil {
+				return false, fmt.Errorf("error unmarshalling provider status: %v", err)
+			}
+			return hasInsufficientCapacityCondition(azureProviderStatus.Conditions, configv1.AzurePlatformType)
+		}
+	default:
+		return false, errTestForPlatformNotImplemented
+	}
+	return false, nil
+}
+
+// hasInsufficientCapacity return true if there is an insufficient spot capacity condition.
+func hasInsufficientCapacityCondition(conditions []metav1.Condition, platform configv1.PlatformType) (bool, error) {
+	for _, condition := range conditions {
+		if (condition.Type == string(machinev1.MachineCreation) || condition.Type == string(machinev1.MachineCreated)) &&
+			condition.Status == metav1.ConditionFalse {
+			switch platform {
+			case configv1.AWSPlatformType:
+				return strings.Contains(condition.Message, "InsufficientInstanceCapacity"), nil
+			case configv1.AzurePlatformType:
+				return strings.Contains(condition.Message, "SkuNotAvailable"), nil
+			default:
+				return false, errTestForPlatformNotImplemented
+			}
+		}
+	}
+	return false, nil
 }
 
 // WaitForMachineSetsDeleted polls until the given MachineSets are not found, and

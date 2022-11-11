@@ -29,14 +29,19 @@ import (
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 )
 
-const machinesCount = 3
+const (
+	// Spot machineSet replicas
+	machinesCount = 3
+
+	// Maximum retries when provisioning a spot machineSet
+	spotMachineSetMaxProvisioningRetryCount = 3
+)
 
 var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot, func() {
 	var ctx = context.Background()
 
 	var client runtimeclient.Client
 	var machineSet *machinev1.MachineSet
-	var machineSetParams framework.MachineSetParams
 	var platform configv1.PlatformType
 
 	var delObjects map[string]runtimeclient.Object
@@ -58,11 +63,7 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 		Expect(err).NotTo(HaveOccurred())
 		switch platform {
 		case configv1.AWSPlatformType, configv1.AzurePlatformType:
-			// The failure rate of this test has increased significantly on Azure and AWS.
-			// We are seeing a massive spike in not being able to create instances due to
-			// a lack of capacity on the platform.
-			// Skip the test until we have time to work out how to mitigate this.
-			Skip("This test has a high failure rate, skipping until further notice")
+			// Supported platforms, ok to continue
 		case configv1.GCPPlatformType:
 			// TODO: GCP relies on the metadata IP for DNS.
 			// This test prevents it from accessing the DNS, therefore
@@ -75,14 +76,33 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 		}
 
 		By("Creating a Spot backed MachineSet", func() {
-			machineSetParams = framework.BuildMachineSetParams(client, machinesCount)
-			Expect(setSpotOnProviderSpec(platform, machineSetParams, "")).To(Succeed())
-
-			machineSet, err = framework.CreateMachineSet(client, machineSetParams)
+			machineSetReady := false
+			machineSetParams := framework.BuildMachineSetParams(client, machinesCount)
+			machineSetParamsList, err := framework.BuildAlternativeMachineSetParams(machineSetParams, platform)
 			Expect(err).ToNot(HaveOccurred())
-			delObjects[machineSet.Name] = machineSet
+			for i, machineSetParams := range machineSetParamsList {
+				if i >= spotMachineSetMaxProvisioningRetryCount {
+					// If there are many alternatives, only try the specified number of times
+					break
+				}
+				Expect(setSpotOnProviderSpec(platform, machineSetParams, "")).To(Succeed())
 
-			framework.WaitForMachineSet(client, machineSet.GetName())
+				machineSet, err = framework.CreateMachineSet(client, machineSetParams)
+				Expect(err).ToNot(HaveOccurred())
+				delObjects[machineSet.Name] = machineSet
+
+				err = framework.WaitForSpotMachineSet(client, machineSet.GetName())
+				if err == framework.ErrMachineNotProvisionedInsufficientCloudCapacity {
+					By("Trying alternative machineSet because current one could not provision due to insufficient spot capacity")
+					// If machineSet cannot scale up due to insufficient capacity, try again with different machineSetParams
+					framework.WaitForMachineSetDelete(client, machineSet)
+					continue
+				}
+				Expect(err).ToNot(HaveOccurred())
+				machineSetReady = true
+				break // MachineSet created successfully
+			}
+			Expect(machineSetReady).To(BeTrue(), "Failed to create a spot backed MachineSet")
 		})
 	})
 
