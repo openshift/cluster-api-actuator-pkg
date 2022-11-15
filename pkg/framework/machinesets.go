@@ -62,7 +62,7 @@ func BuildMachineSetParams(client runtimeclient.Client, replicas int) MachineSet
 			ClusterKey:         clusterName,
 		},
 		Taints: []corev1.Taint{
-			corev1.Taint{
+			{
 				Key:    ClusterAPIActuatorPkgTaint,
 				Effect: corev1.TaintEffectPreferNoSchedule,
 			},
