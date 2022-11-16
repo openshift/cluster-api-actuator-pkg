@@ -50,9 +50,9 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 	})
 
 	AfterEach(func() {
-		testDescription := CurrentGinkgoTestDescription()
-		if testDescription.Failed == true {
-			Expect(gatherer.WithTestDescription(testDescription).GatherAll()).To(Succeed())
+		specReport := CurrentSpecReport()
+		if specReport.Failed() == true {
+			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
 		}
 
 		Expect(framework.DeleteMachineSets(client, toDelete...)).To(Succeed())

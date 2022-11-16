@@ -189,9 +189,9 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 		})
 
 		AfterEach(func() {
-			testDescription := CurrentGinkgoTestDescription()
-			if testDescription.Failed == true {
-				Expect(gatherer.WithTestDescription(testDescription).GatherAll()).To(Succeed())
+			specReport := CurrentSpecReport()
+			if specReport.Failed() == true {
+				Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
 			}
 
 			By("Stopping Cluster Autoscaler event watcher")
@@ -416,9 +416,9 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 		})
 
 		AfterEach(func() {
-			testDescription := CurrentGinkgoTestDescription()
-			if testDescription.Failed == true {
-				Expect(gatherer.WithTestDescription(testDescription).GatherAll()).To(Succeed())
+			specReport := CurrentSpecReport()
+			if specReport.Failed() == true {
+				Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
 			}
 
 			// explicitly delete the ClusterAutoscaler
