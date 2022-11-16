@@ -18,11 +18,9 @@ import (
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 )
 
-var _ = Describe("[Feature:Operators] Cluster autoscaler operator should", func() {
+var _ = Describe("Cluster autoscaler operator should", framework.LabelOperators, framework.LabelAutoscaler, func() {
 	var client runtimeclient.Client
 	var gatherer *gatherer.StateGatherer
-
-	defer GinkgoRecover()
 
 	BeforeEach(func() {
 		var err error
@@ -87,8 +85,7 @@ var _ = Describe("[Feature:Operators] Cluster autoscaler operator should", func(
 	})
 })
 
-var _ = Describe("[Feature:Operators] Cluster autoscaler operator deployment should", func() {
-	defer GinkgoRecover()
+var _ = Describe("Cluster autoscaler operator deployment should", framework.LabelOperators, framework.LabelAutoscaler, func() {
 
 	It("be available", func() {
 		var err error
@@ -98,9 +95,7 @@ var _ = Describe("[Feature:Operators] Cluster autoscaler operator deployment sho
 	})
 })
 
-var _ = Describe("[Feature:Operators] Cluster autoscaler cluster operator status should", func() {
-	defer GinkgoRecover()
-
+var _ = Describe("Cluster autoscaler cluster operator status should", framework.LabelOperators, framework.LabelAutoscaler, func() {
 	It("be available", func() {
 		var err error
 		client, err := framework.LoadClient()

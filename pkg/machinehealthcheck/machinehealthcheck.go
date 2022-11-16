@@ -16,7 +16,7 @@ import (
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 )
 
-var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck", func() {
+var _ = Describe("MachineHealthCheck", framework.LabelMachineHealthChecks, func() {
 	var client client.Client
 
 	var gatherer *gatherer.StateGatherer

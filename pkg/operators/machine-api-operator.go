@@ -24,289 +24,294 @@ var (
 	maoManagedDeployment = "machine-api-controllers"
 )
 
-var _ = Describe("[Feature:Operators][Disruptive] Machine API operator deployment should", func() {
-	defer GinkgoRecover()
+var _ = Describe(
+	"Machine API operator deployment should",
+	framework.LabelDisruptive, framework.LabelOperators, framework.LabelMachines,
+	Serial,
+	func() {
+		var gatherer *gatherer.StateGatherer
 
-	var gatherer *gatherer.StateGatherer
+		BeforeEach(func() {
+			var err error
+			gatherer, err = framework.NewGatherer()
+			Expect(err).ToNot(HaveOccurred())
+		})
 
-	BeforeEach(func() {
-		var err error
-		gatherer, err = framework.NewGatherer()
-		Expect(err).ToNot(HaveOccurred())
-	})
-
-	AfterEach(func() {
-		testDescription := CurrentGinkgoTestDescription()
-		if testDescription.Failed == true {
-			Expect(gatherer.WithTestDescription(testDescription).GatherAll()).To(Succeed())
-		}
-	})
-
-	It("be available", func() {
-		client, err := framework.LoadClient()
-		Expect(err).NotTo(HaveOccurred())
-		Expect(framework.IsDeploymentAvailable(client, maoDeployment, framework.MachineAPINamespace)).To(BeTrue())
-	})
-
-	It("reconcile controllers deployment", func() {
-		client, err := framework.LoadClient()
-		Expect(err).NotTo(HaveOccurred())
-
-		initialDeployment, err := framework.GetDeployment(client, maoManagedDeployment, framework.MachineAPINamespace)
-		Expect(err).NotTo(HaveOccurred())
-
-		By(fmt.Sprintf("checking deployment %q is available", maoManagedDeployment))
-		Expect(framework.IsDeploymentAvailable(client, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
-
-		By(fmt.Sprintf("deleting deployment %q", maoManagedDeployment))
-		Expect(framework.DeleteDeployment(client, initialDeployment)).NotTo(HaveOccurred())
-
-		By(fmt.Sprintf("checking deployment %q is available again", maoManagedDeployment))
-		Expect(framework.IsDeploymentAvailable(client, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
-
-		By(fmt.Sprintf("checking deployment %q spec matches", maoManagedDeployment))
-		Expect(framework.IsDeploymentSynced(client, initialDeployment, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
-	})
-
-	It("maintains deployment spec", func() {
-		client, err := framework.LoadClient()
-		Expect(err).NotTo(HaveOccurred())
-
-		initialDeployment, err := framework.GetDeployment(client, maoManagedDeployment, framework.MachineAPINamespace)
-		Expect(err).NotTo(HaveOccurred())
-
-		By(fmt.Sprintf("checking deployment %q is available", maoManagedDeployment))
-		Expect(framework.IsDeploymentAvailable(client, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
-
-		changedDeployment := initialDeployment.DeepCopy()
-		changedDeployment.Spec.Replicas = pointer.Int32Ptr(0)
-
-		By(fmt.Sprintf("updating deployment %q", maoManagedDeployment))
-		Expect(framework.UpdateDeployment(client, maoManagedDeployment, framework.MachineAPINamespace, changedDeployment)).NotTo(HaveOccurred())
-
-		By(fmt.Sprintf("checking deployment %q spec matches", maoManagedDeployment))
-		Expect(framework.IsDeploymentSynced(client, initialDeployment, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
-
-		By(fmt.Sprintf("checking deployment %q is available again", maoManagedDeployment))
-		Expect(framework.IsDeploymentAvailable(client, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
-
-	})
-
-	It("reconcile mutating webhook configuration", func() {
-		client, err := framework.LoadClient()
-		Expect(err).NotTo(HaveOccurred())
-
-		Expect(framework.IsMutatingWebhookConfigurationSynced(client)).To(BeTrue())
-	})
-
-	It("reconcile validating webhook configuration", func() {
-		client, err := framework.LoadClient()
-		Expect(err).NotTo(HaveOccurred())
-
-		Expect(framework.IsValidatingWebhookConfigurationSynced(client)).To(BeTrue())
-	})
-
-	It("recover after validating webhook configuration deletion", func() {
-		client, err := framework.LoadClient()
-		Expect(err).NotTo(HaveOccurred())
-
-		// Record the UID of the current ValidatingWebhookConfiguration
-		initial, err := framework.GetValidatingWebhookConfiguration(client, framework.DefaultValidatingWebhookConfiguration.Name)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(initial).ToNot(BeNil())
-		initialUID := initial.GetUID()
-
-		Expect(framework.DeleteValidatingWebhookConfiguration(client, initial)).To(Succeed())
-
-		// Ensure that either UID changes (to show a new object) or that the existing object is gone
-		key := runtimeclient.ObjectKey{Name: initial.Name}
-		Eventually(func() (apitypes.UID, error) {
-			current := &admissionregistrationv1.ValidatingWebhookConfiguration{}
-			if err := client.Get(context.Background(), key, current); err != nil && !apierrors.IsNotFound(err) {
-				return "", err
+		AfterEach(func() {
+			testDescription := CurrentGinkgoTestDescription()
+			if testDescription.Failed == true {
+				Expect(gatherer.WithTestDescription(testDescription).GatherAll()).To(Succeed())
 			}
-			return current.GetUID(), nil
-		}).ShouldNot(Equal(initialUID))
+		})
 
-		// Ensure that a new object has been created and matches expectations
-		Expect(framework.IsValidatingWebhookConfigurationSynced(client)).To(BeTrue())
-	})
+		It("be available", func() {
+			client, err := framework.LoadClient()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(framework.IsDeploymentAvailable(client, maoDeployment, framework.MachineAPINamespace)).To(BeTrue())
+		})
 
-	It("recover after mutating webhook configuration deletion", func() {
-		client, err := framework.LoadClient()
-		Expect(err).NotTo(HaveOccurred())
+		It("reconcile controllers deployment", func() {
+			client, err := framework.LoadClient()
+			Expect(err).NotTo(HaveOccurred())
 
-		// Record the UID of the current MutatingWebhookConfiguration
-		initial, err := framework.GetMutatingWebhookConfiguration(client, framework.DefaultMutatingWebhookConfiguration.Name)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(initial).ToNot(BeNil())
-		initialUID := initial.GetUID()
+			initialDeployment, err := framework.GetDeployment(client, maoManagedDeployment, framework.MachineAPINamespace)
+			Expect(err).NotTo(HaveOccurred())
 
-		Expect(framework.DeleteMutatingWebhookConfiguration(client, initial)).To(Succeed())
+			By(fmt.Sprintf("checking deployment %q is available", maoManagedDeployment))
+			Expect(framework.IsDeploymentAvailable(client, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
 
-		// Ensure that either UID changes (to show a new object) or that the existing object is gone
-		key := runtimeclient.ObjectKey{Name: initial.Name}
-		Eventually(func() (apitypes.UID, error) {
-			current := &admissionregistrationv1.MutatingWebhookConfiguration{}
-			if err := client.Get(context.Background(), key, current); err != nil && !apierrors.IsNotFound(err) {
-				return "", err
+			By(fmt.Sprintf("deleting deployment %q", maoManagedDeployment))
+			Expect(framework.DeleteDeployment(client, initialDeployment)).NotTo(HaveOccurred())
+
+			By(fmt.Sprintf("checking deployment %q is available again", maoManagedDeployment))
+			Expect(framework.IsDeploymentAvailable(client, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
+
+			By(fmt.Sprintf("checking deployment %q spec matches", maoManagedDeployment))
+			Expect(framework.IsDeploymentSynced(client, initialDeployment, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
+		})
+
+		It("maintains deployment spec", func() {
+			client, err := framework.LoadClient()
+			Expect(err).NotTo(HaveOccurred())
+
+			initialDeployment, err := framework.GetDeployment(client, maoManagedDeployment, framework.MachineAPINamespace)
+			Expect(err).NotTo(HaveOccurred())
+
+			By(fmt.Sprintf("checking deployment %q is available", maoManagedDeployment))
+			Expect(framework.IsDeploymentAvailable(client, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
+
+			changedDeployment := initialDeployment.DeepCopy()
+			changedDeployment.Spec.Replicas = pointer.Int32Ptr(0)
+
+			By(fmt.Sprintf("updating deployment %q", maoManagedDeployment))
+			Expect(framework.UpdateDeployment(client, maoManagedDeployment, framework.MachineAPINamespace, changedDeployment)).NotTo(HaveOccurred())
+
+			By(fmt.Sprintf("checking deployment %q spec matches", maoManagedDeployment))
+			Expect(framework.IsDeploymentSynced(client, initialDeployment, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
+
+			By(fmt.Sprintf("checking deployment %q is available again", maoManagedDeployment))
+			Expect(framework.IsDeploymentAvailable(client, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
+
+		})
+
+		It("reconcile mutating webhook configuration", func() {
+			client, err := framework.LoadClient()
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(framework.IsMutatingWebhookConfigurationSynced(client)).To(BeTrue())
+		})
+
+		It("reconcile validating webhook configuration", func() {
+			client, err := framework.LoadClient()
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(framework.IsValidatingWebhookConfigurationSynced(client)).To(BeTrue())
+		})
+
+		It("recover after validating webhook configuration deletion", func() {
+			client, err := framework.LoadClient()
+			Expect(err).NotTo(HaveOccurred())
+
+			// Record the UID of the current ValidatingWebhookConfiguration
+			initial, err := framework.GetValidatingWebhookConfiguration(client, framework.DefaultValidatingWebhookConfiguration.Name)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(initial).ToNot(BeNil())
+			initialUID := initial.GetUID()
+
+			Expect(framework.DeleteValidatingWebhookConfiguration(client, initial)).To(Succeed())
+
+			// Ensure that either UID changes (to show a new object) or that the existing object is gone
+			key := runtimeclient.ObjectKey{Name: initial.Name}
+			Eventually(func() (apitypes.UID, error) {
+				current := &admissionregistrationv1.ValidatingWebhookConfiguration{}
+				if err := client.Get(context.Background(), key, current); err != nil && !apierrors.IsNotFound(err) {
+					return "", err
+				}
+				return current.GetUID(), nil
+			}).ShouldNot(Equal(initialUID))
+
+			// Ensure that a new object has been created and matches expectations
+			Expect(framework.IsValidatingWebhookConfigurationSynced(client)).To(BeTrue())
+		})
+
+		It("recover after mutating webhook configuration deletion", func() {
+			client, err := framework.LoadClient()
+			Expect(err).NotTo(HaveOccurred())
+
+			// Record the UID of the current MutatingWebhookConfiguration
+			initial, err := framework.GetMutatingWebhookConfiguration(client, framework.DefaultMutatingWebhookConfiguration.Name)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(initial).ToNot(BeNil())
+			initialUID := initial.GetUID()
+
+			Expect(framework.DeleteMutatingWebhookConfiguration(client, initial)).To(Succeed())
+
+			// Ensure that either UID changes (to show a new object) or that the existing object is gone
+			key := runtimeclient.ObjectKey{Name: initial.Name}
+			Eventually(func() (apitypes.UID, error) {
+				current := &admissionregistrationv1.MutatingWebhookConfiguration{}
+				if err := client.Get(context.Background(), key, current); err != nil && !apierrors.IsNotFound(err) {
+					return "", err
+				}
+				return current.GetUID(), nil
+			}).ShouldNot(Equal(initialUID))
+
+			// Ensure that a new object has been created and matches expectations
+			Expect(framework.IsMutatingWebhookConfigurationSynced(client)).To(BeTrue())
+		})
+
+		It("maintains spec after mutating webhook configuration change and preserve caBundle", func() {
+			client, err := framework.LoadClient()
+			Expect(err).NotTo(HaveOccurred())
+
+			initial, err := framework.GetMutatingWebhookConfiguration(client, framework.DefaultMutatingWebhookConfiguration.Name)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(initial).ToNot(BeNil())
+
+			toUpdate := initial.DeepCopy()
+			for _, webhook := range toUpdate.Webhooks {
+				webhook.ClientConfig.CABundle = []byte("test")
+				webhook.AdmissionReviewVersions = []string{"test"}
 			}
-			return current.GetUID(), nil
-		}).ShouldNot(Equal(initialUID))
 
-		// Ensure that a new object has been created and matches expectations
-		Expect(framework.IsMutatingWebhookConfigurationSynced(client)).To(BeTrue())
+			Expect(framework.UpdateMutatingWebhookConfiguration(client, toUpdate)).To(Succeed())
+
+			Expect(framework.IsMutatingWebhookConfigurationSynced(client)).To(BeTrue())
+
+			updated, err := framework.GetMutatingWebhookConfiguration(client, framework.DefaultMutatingWebhookConfiguration.Name)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(updated).ToNot(BeNil())
+
+			for i, webhook := range updated.Webhooks {
+				Expect(webhook.ClientConfig.CABundle).To(Equal(initial.Webhooks[i].ClientConfig.CABundle))
+			}
+		})
+
+		It("maintains spec after validating webhook configuration change and preserve caBundle", func() {
+			client, err := framework.LoadClient()
+			Expect(err).NotTo(HaveOccurred())
+
+			initial, err := framework.GetValidatingWebhookConfiguration(client, framework.DefaultValidatingWebhookConfiguration.Name)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(initial).ToNot(BeNil())
+
+			toUpdate := initial.DeepCopy()
+			for _, webhook := range toUpdate.Webhooks {
+				webhook.ClientConfig.CABundle = []byte("test")
+				webhook.AdmissionReviewVersions = []string{"test"}
+			}
+
+			Expect(framework.UpdateValidatingWebhookConfiguration(client, toUpdate)).To(Succeed())
+
+			Expect(framework.IsValidatingWebhookConfigurationSynced(client)).To(BeTrue())
+
+			updated, err := framework.GetValidatingWebhookConfiguration(client, framework.DefaultValidatingWebhookConfiguration.Name)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(updated).ToNot(BeNil())
+
+			for i, webhook := range updated.Webhooks {
+				Expect(webhook.ClientConfig.CABundle).To(Equal(initial.Webhooks[i].ClientConfig.CABundle))
+			}
+		})
 	})
 
-	It("maintains spec after mutating webhook configuration change and preserve caBundle", func() {
-		client, err := framework.LoadClient()
-		Expect(err).NotTo(HaveOccurred())
-
-		initial, err := framework.GetMutatingWebhookConfiguration(client, framework.DefaultMutatingWebhookConfiguration.Name)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(initial).ToNot(BeNil())
-
-		toUpdate := initial.DeepCopy()
-		for _, webhook := range toUpdate.Webhooks {
-			webhook.ClientConfig.CABundle = []byte("test")
-			webhook.AdmissionReviewVersions = []string{"test"}
-		}
-
-		Expect(framework.UpdateMutatingWebhookConfiguration(client, toUpdate)).To(Succeed())
-
-		Expect(framework.IsMutatingWebhookConfigurationSynced(client)).To(BeTrue())
-
-		updated, err := framework.GetMutatingWebhookConfiguration(client, framework.DefaultMutatingWebhookConfiguration.Name)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(updated).ToNot(BeNil())
-
-		for i, webhook := range updated.Webhooks {
-			Expect(webhook.ClientConfig.CABundle).To(Equal(initial.Webhooks[i].ClientConfig.CABundle))
-		}
+var _ = Describe(
+	"Machine API cluster operator status should", framework.LabelOperators, framework.LabelMachines, func() {
+		It("be available", func() {
+			client, err := framework.LoadClient()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(framework.WaitForStatusAvailableShort(client, "machine-api")).To(BeTrue())
+		})
 	})
 
-	It("maintains spec after validating webhook configuration change and preserve caBundle", func() {
-		client, err := framework.LoadClient()
-		Expect(err).NotTo(HaveOccurred())
+var _ = Describe(
+	"When cluster-wide proxy is configured, Machine API cluster operator should ",
+	framework.LabelDisruptive, framework.LabelOperators, framework.LabelPeriodic, framework.LabelMachines,
+	Serial,
+	func() {
+		var gatherer *gatherer.StateGatherer
 
-		initial, err := framework.GetValidatingWebhookConfiguration(client, framework.DefaultValidatingWebhookConfiguration.Name)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(initial).ToNot(BeNil())
+		BeforeEach(func() {
+			var err error
+			gatherer, err = framework.NewGatherer()
+			Expect(err).ToNot(HaveOccurred())
+		})
 
-		toUpdate := initial.DeepCopy()
-		for _, webhook := range toUpdate.Webhooks {
-			webhook.ClientConfig.CABundle = []byte("test")
-			webhook.AdmissionReviewVersions = []string{"test"}
-		}
+		It("create machines when configured behind a proxy", func() {
+			// This test case takes upwards of 20 minutes to complete.
+			// This test cannot be run in parallel with other tests and as such,
+			// this test has a very high cost associated with it.
+			// The pass rate of this test is normally very good, so we can skip
+			// for now until we are able to move this into a periodic job.
+			Skip("This test is disruptive, slow and expensive. It should only be run periodically and not on presubmits. Skipping until we set up periodics")
 
-		Expect(framework.UpdateValidatingWebhookConfiguration(client, toUpdate)).To(Succeed())
+			client, err := framework.LoadClient()
+			Expect(err).NotTo(HaveOccurred())
 
-		Expect(framework.IsValidatingWebhookConfigurationSynced(client)).To(BeTrue())
+			By("deploying an HTTP proxy")
+			err = framework.DeployClusterProxy(client)
+			Expect(err).NotTo(HaveOccurred())
 
-		updated, err := framework.GetValidatingWebhookConfiguration(client, framework.DefaultValidatingWebhookConfiguration.Name)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(updated).ToNot(BeNil())
+			By("configuring cluster-wide proxy")
+			services, err := framework.GetServices(client, map[string]string{"app": "mitm-proxy"})
+			proxy, err := framework.GetClusterProxy(client)
+			Expect(err).NotTo(HaveOccurred())
+			proxy.Spec.HTTPProxy = "http://" + services.Items[0].Spec.ClusterIP + ":8080"
+			proxy.Spec.HTTPSProxy = "http://" + services.Items[0].Spec.ClusterIP + ":8080"
+			proxy.Spec.NoProxy = ".org,.com,quay.io"
+			proxy.Spec.TrustedCA = v1.ConfigMapNameReference{
+				Name: "mitm-custom-pki",
+			}
+			err = client.Update(context.Background(), proxy)
+			Expect(err).NotTo(HaveOccurred())
 
-		for i, webhook := range updated.Webhooks {
-			Expect(webhook.ClientConfig.CABundle).To(Equal(initial.Webhooks[i].ClientConfig.CABundle))
-		}
-	})
-})
+			By("waiting for machine-api-controller deployment to reflect configured cluster-wide proxy")
+			result, err := framework.WaitForProxyInjectionSync(client, maoManagedDeployment, framework.MachineAPINamespace, true)
+			Expect(result).To(BeTrue())
+			Expect(err).NotTo(HaveOccurred())
 
-var _ = Describe("[Feature:Operators] Machine API cluster operator status should", func() {
-	defer GinkgoRecover()
+			By("creating a machineset")
+			machineSetParams := framework.BuildMachineSetParams(client, 1)
+			machineSet, err := framework.CreateMachineSet(client, machineSetParams)
+			Expect(err).ToNot(HaveOccurred())
+			framework.WaitForMachineSet(client, machineSet.GetName())
 
-	It("be available", func() {
-		client, err := framework.LoadClient()
-		Expect(err).NotTo(HaveOccurred())
-		Expect(framework.WaitForStatusAvailableShort(client, "machine-api")).To(BeTrue())
-	})
-})
+			By("destroying a machineset")
+			Expect(client.Delete(context.Background(), machineSet)).To(Succeed())
+			framework.WaitForMachineSetDelete(client, machineSet)
 
-var _ = Describe("[Serial][Feature:Operators][Disruptive] When cluster-wide proxy is configured, Machine API cluster operator should ", func() {
-	var gatherer *gatherer.StateGatherer
-
-	BeforeEach(func() {
-		var err error
-		gatherer, err = framework.NewGatherer()
-		Expect(err).ToNot(HaveOccurred())
-	})
-
-	It("create machines when configured behind a proxy", func() {
-		// This test case takes upwards of 20 minutes to complete.
-		// This test cannot be run in parallel with other tests and as such,
-		// this test has a very high cost associated with it.
-		// The pass rate of this test is normally very good, so we can skip
-		// for now until we are able to move this into a periodic job.
-		Skip("This test is disruptive, slow and expensive. It should only be run periodically and not on presubmits. Skipping until we set up periodics")
-
-		client, err := framework.LoadClient()
-		Expect(err).NotTo(HaveOccurred())
-
-		By("deploying an HTTP proxy")
-		err = framework.DeployClusterProxy(client)
-		Expect(err).NotTo(HaveOccurred())
-
-		By("configuring cluster-wide proxy")
-		services, err := framework.GetServices(client, map[string]string{"app": "mitm-proxy"})
-		proxy, err := framework.GetClusterProxy(client)
-		Expect(err).NotTo(HaveOccurred())
-		proxy.Spec.HTTPProxy = "http://" + services.Items[0].Spec.ClusterIP + ":8080"
-		proxy.Spec.HTTPSProxy = "http://" + services.Items[0].Spec.ClusterIP + ":8080"
-		proxy.Spec.NoProxy = ".org,.com,quay.io"
-		proxy.Spec.TrustedCA = v1.ConfigMapNameReference{
-			Name: "mitm-custom-pki",
-		}
-		err = client.Update(context.Background(), proxy)
-		Expect(err).NotTo(HaveOccurred())
-
-		By("waiting for machine-api-controller deployment to reflect configured cluster-wide proxy")
-		result, err := framework.WaitForProxyInjectionSync(client, maoManagedDeployment, framework.MachineAPINamespace, true)
-		Expect(result).To(BeTrue())
-		Expect(err).NotTo(HaveOccurred())
-
-		By("creating a machineset")
-		machineSetParams := framework.BuildMachineSetParams(client, 1)
-		machineSet, err := framework.CreateMachineSet(client, machineSetParams)
-		Expect(err).ToNot(HaveOccurred())
-		framework.WaitForMachineSet(client, machineSet.GetName())
-
-		By("destroying a machineset")
-		Expect(client.Delete(context.Background(), machineSet)).To(Succeed())
-		framework.WaitForMachineSetDelete(client, machineSet)
-
-		By("unconfiguring cluster-wide proxy")
-		err = client.Patch(context.Background(), proxy, runtimeclient.RawPatch(apitypes.JSONPatchType, []byte(`[
+			By("unconfiguring cluster-wide proxy")
+			err = client.Patch(context.Background(), proxy, runtimeclient.RawPatch(apitypes.JSONPatchType, []byte(`[
 			{"op": "remove", "path": "/spec/httpProxy"},
 			{"op": "remove", "path": "/spec/httpsProxy"},
 			{"op": "remove", "path": "/spec/noProxy"},
 			{"op": "remove", "path": "/spec/trustedCA"}
 		]`)))
-		Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred())
 
-		By("waiting for machine-api-controller deployment to reflect unconfigured cluster-wide proxy")
-		Expect(framework.WaitForProxyInjectionSync(client, maoManagedDeployment, framework.MachineAPINamespace, false)).To(BeTrue())
+			By("waiting for machine-api-controller deployment to reflect unconfigured cluster-wide proxy")
+			Expect(framework.WaitForProxyInjectionSync(client, maoManagedDeployment, framework.MachineAPINamespace, false)).To(BeTrue())
+		})
+
+		AfterEach(func() {
+			testDescription := CurrentGinkgoTestDescription()
+			if testDescription.Failed == true {
+				Expect(gatherer.WithTestDescription(testDescription).GatherAll()).To(Succeed())
+			}
+
+			By("waiting for MAO, KAPI and KCM cluster operators to become available")
+			client, err := framework.LoadClient()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(framework.WaitForProxyInjectionSync(client, maoManagedDeployment, framework.MachineAPINamespace, false)).To(BeTrue())
+
+			By("waiting for KAPI cluster operator to become available")
+			Expect(framework.WaitForStatusAvailableOverLong(client, "kube-apiserver")).To(BeTrue())
+
+			By("waiting for KCM cluster operator to become available")
+			Expect(framework.WaitForStatusAvailableOverLong(client, "kube-controller-manager")).To(BeTrue())
+			Expect(framework.WaitForStatusAvailableMedium(client, "machine-api")).To(BeTrue())
+
+			By("Removing the mitm-proxy")
+			Expect(framework.DestroyClusterProxy(client)).ToNot(HaveOccurred())
+		})
 	})
-
-	AfterEach(func() {
-		testDescription := CurrentGinkgoTestDescription()
-		if testDescription.Failed == true {
-			Expect(gatherer.WithTestDescription(testDescription).GatherAll()).To(Succeed())
-		}
-
-		By("waiting for MAO, KAPI and KCM cluster operators to become available")
-		client, err := framework.LoadClient()
-		Expect(err).NotTo(HaveOccurred())
-		Expect(framework.WaitForProxyInjectionSync(client, maoManagedDeployment, framework.MachineAPINamespace, false)).To(BeTrue())
-
-		By("waiting for KAPI cluster operator to become available")
-		Expect(framework.WaitForStatusAvailableOverLong(client, "kube-apiserver")).To(BeTrue())
-
-		By("waiting for KCM cluster operator to become available")
-		Expect(framework.WaitForStatusAvailableOverLong(client, "kube-controller-manager")).To(BeTrue())
-		Expect(framework.WaitForStatusAvailableMedium(client, "machine-api")).To(BeTrue())
-
-		By("Removing the mitm-proxy")
-		Expect(framework.DestroyClusterProxy(client)).ToNot(HaveOccurred())
-	})
-})

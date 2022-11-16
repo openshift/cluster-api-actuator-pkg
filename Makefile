@@ -72,27 +72,7 @@ build-e2e:
 
 .PHONY: test-e2e
 test-e2e: ## Run openshift specific e2e test
-	# Run Disruptive tests first. Those might include things causing all masters to restart, and should run serially
-
-	hack/ci-integration.sh $(GINKGO_ARGS) -focus="\[Disruptive\]" || (hack/junitmerge.sh && exit 1)
-
-	# Run operator tests first to preserve logs for troubleshooting test
-	# failures and flakes.
-	# Feature:Operator tests remove deployments. Thus loosing all the logs
-	# previously acquired.
-	hack/ci-integration.sh $(GINKGO_ARGS) -focus="Feature:Operators" -skip="\[Disruptive\]" || (hack/junitmerge.sh && exit 1)
-	hack/ci-integration.sh $(GINKGO_ARGS) -p -skip="Feature:Operators|Autoscaler|\[Disruptive\]" || (hack/junitmerge.sh && exit 1)
-	# TODO: parallelise autoscaler
-	hack/ci-integration.sh $(GINKGO_ARGS) -focus="Autoscaler" -skip="\[Disruptive\]" || (hack/junitmerge.sh && exit 1)
-	# After success, merge all JUnit files into one
-	hack/junitmerge.sh
-
-.PHONY: test-e2e-lifecyclehooks
-test-e2e-lifecyclehooks:
-	hack/ci-integration.sh $(GINKGO_ARGS) -focus="Lifecycle" || (hack/junitmerge.sh && exit 1)
-
-test-e2e-tech-preview:
-	hack/ci-integration.sh $(GINKGO_ARGS) -focus="TechPreview"
+	hack/ci-integration.sh $(GINKGO_ARGS) --label-filter='!(periodic || spot-instances)' -p
 
 .PHONY: help
 help:

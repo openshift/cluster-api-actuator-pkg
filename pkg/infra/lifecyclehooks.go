@@ -29,7 +29,7 @@ const (
 	pollingInterval                   = 3 * time.Second
 )
 
-var _ = Describe("[Feature:Machine] Lifecycle Hooks should", func() {
+var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 	var client runtimeclient.Client
 	var machineSet *machinev1.MachineSet
 	var workload *batchv1.Job

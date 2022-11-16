@@ -99,7 +99,7 @@ func machineAutoscalerResource(targetMachineSet *machinev1.MachineSet, minReplic
 	}
 }
 
-var _ = Describe("[Feature:Machines] Autoscaler should", func() {
+var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() {
 
 	var workloadMemRequest resource.Quantity
 	var client runtimeclient.Client
@@ -515,7 +515,7 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 				if err != nil {
 					return false, err
 				}
-				return pointer.Int32PtrDerefOr(machineSet.Spec.Replicas, -1) == 1, nil
+				return pointer.Int32Deref(machineSet.Spec.Replicas, -1) == 1, nil
 			}, framework.WaitMedium, pollingInterval).Should(BeTrue())
 			By(fmt.Sprintf("Waiting for Deleted MachineSet %s nodes to go away", transientMachineSet.GetName()))
 			Eventually(func() (bool, error) {
@@ -583,11 +583,11 @@ var _ = Describe("[Feature:Machines] Autoscaler should", func() {
 					if err != nil {
 						return false, err
 					}
-					if pointer.Int32PtrDerefOr(current.Spec.Replicas, 0) != expectedReplicas {
+					if pointer.Int32Deref(current.Spec.Replicas, 0) != expectedReplicas {
 						return false, nil
 					}
 					return true, nil
-				}, framework.WaitMedium, pollingInterval).Should(BeTrue())
+				}, framework.WaitOverMedium, pollingInterval).Should(BeTrue())
 			}
 		})
 	})

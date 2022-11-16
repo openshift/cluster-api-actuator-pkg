@@ -1,13 +1,10 @@
 package e2e
 
 import (
-	"fmt"
-	"os"
 	"testing"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
-	"github.com/onsi/ginkgo/v2/reporters"
 	. "github.com/onsi/gomega"
 
 	"k8s.io/client-go/kubernetes/scheme"
@@ -24,8 +21,6 @@ import (
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/operators"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/providers"
 )
-
-const junitDirEnvVar = "JUNIT_DIR"
 
 func init() {
 	klog.InitFlags(nil)
@@ -46,19 +41,7 @@ func init() {
 
 func TestE2E(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecsWithDefaultAndCustomReporters(t, "Machine Suite", e2eReporters())
-}
-
-func e2eReporters() []Reporter {
-	reportDir := os.Getenv(junitDirEnvVar)
-	if reportDir != "" {
-		// Include `ParallelNode` so tests running in parallel do not overwrite the same file.
-		// Include timestamp so test suite can be called multiple times with focus within same CI job
-		// without overwriting files.
-		junitFileName := fmt.Sprintf("%s/junit_cluster_api_actuator_pkg_e2e_%d_%d.xml", reportDir, time.Now().UnixNano(), GinkgoParallelProcess())
-		return []Reporter{reporters.NewJUnitReporter(junitFileName)}
-	}
-	return []Reporter{}
+	RunSpecs(t, "Machine Suite")
 }
 
 var _ = BeforeSuite(func() {
