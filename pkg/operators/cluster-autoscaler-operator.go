@@ -29,6 +29,13 @@ var _ = Describe("Cluster autoscaler operator should", framework.LabelOperators,
 		Expect(ok).To(BeTrue())
 	})
 
+	AfterEach(func() {
+		specReport := CurrentSpecReport()
+		if specReport.Failed() == true {
+			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
+		}
+	})
+
 	It("reject invalid ClusterAutoscaler resources early via webhook", func() {
 		invalidCA := &caov1.ClusterAutoscaler{
 			TypeMeta: metav1.TypeMeta{

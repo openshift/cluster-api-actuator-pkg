@@ -70,6 +70,11 @@ var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 	})
 
 	AfterEach(func() {
+		specReport := CurrentSpecReport()
+		if specReport.Failed() == true {
+			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
+		}
+
 		By("Deleting the machineset")
 		cascadeDelete := metav1.DeletePropagationForeground
 		Expect(client.Delete(context.Background(), machineSet, &runtimeclient.DeleteOptions{

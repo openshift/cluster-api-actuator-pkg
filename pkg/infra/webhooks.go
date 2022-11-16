@@ -64,6 +64,11 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 	})
 
 	AfterEach(func() {
+		specReport := CurrentSpecReport()
+		if specReport.Failed() == true {
+			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
+		}
+
 		machineSets, err := framework.GetMachineSets(client, testSelector)
 		Expect(err).ToNot(HaveOccurred())
 		framework.DeleteMachineSets(client, machineSets...)

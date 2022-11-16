@@ -77,6 +77,11 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 	})
 
 	AfterEach(func() {
+		specReport := CurrentSpecReport()
+		if specReport.Failed() == true {
+			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
+		}
+
 		var machineSets []*machinev1.MachineSet
 
 		for _, obj := range delObjects {

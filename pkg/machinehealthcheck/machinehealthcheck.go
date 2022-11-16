@@ -49,6 +49,11 @@ var _ = Describe("MachineHealthCheck", framework.LabelMachineHealthChecks, func(
 	})
 
 	AfterEach(func() {
+		specReport := CurrentSpecReport()
+		if specReport.Failed() == true {
+			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
+		}
+
 		By("Deleting the MachineHealthCheck resource")
 		Expect(client.Delete(context.Background(), machinehealthcheck)).ToNot(HaveOccurred())
 

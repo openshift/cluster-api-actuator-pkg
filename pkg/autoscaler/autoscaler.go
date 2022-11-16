@@ -242,6 +242,11 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 		})
 
 		AfterEach(func() {
+			specReport := CurrentSpecReport()
+			if specReport.Failed() == true {
+				Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
+			}
+
 			By("Stopping Cluster Autoscaler event watcher")
 			caEventWatcher.stop()
 
@@ -461,6 +466,11 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 		})
 
 		AfterEach(func() {
+			specReport := CurrentSpecReport()
+			if specReport.Failed() == true {
+				Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
+			}
+
 			// explicitly delete the ClusterAutoscaler
 			// this is needed due to the autoscaler tests requiring singleton
 			// deployments of the ClusterAutoscaler.

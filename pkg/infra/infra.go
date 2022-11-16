@@ -159,6 +159,11 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 	})
 
 	AfterEach(func() {
+		specReport := CurrentSpecReport()
+		if specReport.Failed() == true {
+			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
+		}
+
 		By("Deleting the new MachineSet")
 		err := client.Delete(context.Background(), machineSet)
 		Expect(err).ToNot(HaveOccurred())

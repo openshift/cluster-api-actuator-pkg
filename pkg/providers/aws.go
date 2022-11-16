@@ -39,6 +39,11 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 	})
 
 	AfterEach(func() {
+		specReport := CurrentSpecReport()
+		if specReport.Failed() == true {
+			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
+		}
+
 		Expect(framework.DeleteMachineSets(client, toDelete...)).To(Succeed())
 		toDelete = make([]*machinev1.MachineSet, 0, 3)
 
