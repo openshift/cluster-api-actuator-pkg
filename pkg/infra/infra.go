@@ -138,9 +138,7 @@ func deleteObjects(client runtimeclient.Client, delObjects map[string]runtimecli
 	return nil
 }
 
-var _ = Describe("[Feature:Machines] Managed cluster should", func() {
-	defer GinkgoRecover()
-
+var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 	var client runtimeclient.Client
 	var machineSet *machinev1.MachineSet
 	var machineSetParams framework.MachineSetParams

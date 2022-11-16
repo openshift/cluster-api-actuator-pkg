@@ -3,9 +3,10 @@ package gatherer
 import (
 	"context"
 	"fmt"
-	"github.com/onsi/ginkgo/v2"
 	"path/filepath"
 	"time"
+
+	"github.com/onsi/ginkgo/v2"
 
 	"k8s.io/klog"
 )

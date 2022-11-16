@@ -21,9 +21,9 @@ const (
 	amiIdMetadataEndpoint = "http://169.254.169.254/latest/meta-data/ami-id"
 )
 
-var _ = Describe("[Feature:Machines] [AWS] MetadataServiceOptions", func() {
-	client, err := framework.LoadClient()
-	Expect(err).ToNot(HaveOccurred())
+var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific, framework.LabelProviderAWS, func() {
+	var client runtimeclient.Client
+	var clientset *kubernetes.Clientset
 
 	clientset, err := framework.LoadClientset()
 	Expect(err).ToNot(HaveOccurred())
@@ -97,7 +97,7 @@ var _ = Describe("[Feature:Machines] [AWS] MetadataServiceOptions", func() {
 				default:
 					return false, nil
 				}
-			}, framework.WaitShort, framework.RetryShort).Should(BeTrue())
+			}, framework.WaitMedium, framework.RetryShort).Should(BeTrue())
 
 			logs, err := lastLog("curl-metadata", 100, false)
 			Expect(err).ToNot(HaveOccurred())

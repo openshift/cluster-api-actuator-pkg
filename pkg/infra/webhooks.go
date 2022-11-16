@@ -18,7 +18,7 @@ import (
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("[Feature:Machines] Webhooks", func() {
+var _ = Describe("Webhooks", framework.LabelMachines, func() {
 	var client runtimeclient.Client
 	var platform configv1.PlatformType
 	var machineSetParams framework.MachineSetParams

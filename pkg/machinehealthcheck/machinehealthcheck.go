@@ -14,7 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck", func() {
+var _ = Describe("MachineHealthCheck", framework.LabelMachineHealthChecks, func() {
 	var client client.Client
 
 	var machineSet *machinev1.MachineSet

@@ -27,7 +27,7 @@ import (
 
 const machinesCount = 3
 
-var _ = Describe("[Feature:Machines] Running on Spot", func() {
+var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot, func() {
 	var ctx = context.Background()
 
 	var client runtimeclient.Client

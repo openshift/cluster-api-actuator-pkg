@@ -13,7 +13,7 @@ const (
 	cmaNamespace       = "openshift-cluster-machine-approver"
 )
 
-var _ = Describe("[Feature:Operators] Cluster Machine Approver deployment", func() {
+var _ = Describe("Cluster Machine Approver deployment", framework.LabelOperators, func() {
 	It("should be available", func() {
 		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
@@ -22,7 +22,7 @@ var _ = Describe("[Feature:Operators] Cluster Machine Approver deployment", func
 	})
 })
 
-var _ = Describe("[Feature:Operators] Cluster Machine Approver Cluster Operator Status", func() {
+var _ = Describe("Cluster Machine Approver Cluster Operator Status", framework.LabelOperators, func() {
 	It("should be available", func() {
 		client, err := framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
