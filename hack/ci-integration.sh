@@ -5,7 +5,7 @@ REPORT_POSTFIX="$(date +%s)_${RANDOM}"
 
 go run ./vendor/github.com/onsi/ginkgo/v2/ginkgo \
     -v \
-    --timeout=90m \
+    --timeout=115m \
     --grace-period=5m \
     --fail-fast \
     --no-color \
