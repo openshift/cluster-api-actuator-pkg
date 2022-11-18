@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 
 	"k8s.io/klog"
 )
@@ -20,7 +20,9 @@ const (
 	machineApproverNamespace = "openshift-cluster-machine-approver"
 )
 
-var namespacedResourceToGather = []string{mapiMachinesets, mapiMachines, controlPlaneMachinesets, machineHealthChecks}
+var namespacedResourceToGather = []string{
+	mapiMachinesets, mapiMachines, controlPlaneMachinesets, machineHealthChecks, "pods",
+}
 
 var clusterResourceToGather = []string{"nodes", "clusterautoscaler", "machineautoscaler"}
 
@@ -30,7 +32,7 @@ type StateGatherer struct {
 	CLI       *CLI
 	sinceTime time.Time
 
-	testInfo *ginkgo.GinkgoTestDescription
+	specReport *ginkgo.SpecReport
 
 	ctx context.Context
 }
@@ -96,16 +98,16 @@ func (sg *StateGatherer) GatherAll() error {
 }
 
 func (sg *StateGatherer) getSubPath(subPath string) string {
-	if sg.testInfo != nil {
-		return filepath.Join(sg.testInfo.FullTestText, subPath)
+	if sg.specReport != nil {
+		return filepath.Join(sg.specReport.FullText(), subPath)
 	}
 	return subPath
 }
 
-// WithTestDescription sets ginkgo test description for the StateGatherer instance.
+// WithSpecReport sets ginkgo spec report for the StateGatherer instance.
 // This test description uses to extract the test name and store relevant data in a respective sub-folder.
-func (sg StateGatherer) WithTestDescription(description ginkgo.GinkgoTestDescription) *StateGatherer {
-	sg.testInfo = &description
+func (sg StateGatherer) WithSpecReport(specReport ginkgo.SpecReport) *StateGatherer {
+	sg.specReport = &specReport
 	return &sg
 }
 

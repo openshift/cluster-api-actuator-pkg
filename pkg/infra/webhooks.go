@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -22,7 +22,7 @@ import (
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 )
 
-var _ = Describe("[Feature:Machines] Webhooks", func() {
+var _ = Describe("Webhooks", framework.LabelMachines, func() {
 	var client runtimeclient.Client
 	var platform configv1.PlatformType
 	var machineSetParams framework.MachineSetParams
@@ -73,9 +73,9 @@ var _ = Describe("[Feature:Machines] Webhooks", func() {
 	})
 
 	AfterEach(func() {
-		testDescription := CurrentGinkgoTestDescription()
-		if testDescription.Failed == true {
-			Expect(gatherer.WithTestDescription(testDescription).GatherAll()).To(Succeed())
+		specReport := CurrentSpecReport()
+		if specReport.Failed() == true {
+			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
 		}
 
 		machineSets, err := framework.GetMachineSets(client, testSelector)

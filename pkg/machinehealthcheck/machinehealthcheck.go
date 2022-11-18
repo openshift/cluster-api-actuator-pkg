@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	machinev1 "github.com/openshift/api/machine/v1beta1"
@@ -16,7 +16,7 @@ import (
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 )
 
-var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck", func() {
+var _ = Describe("MachineHealthCheck", framework.LabelMachineHealthChecks, func() {
 	var client client.Client
 
 	var gatherer *gatherer.StateGatherer
@@ -56,9 +56,9 @@ var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck", func() {
 	})
 
 	AfterEach(func() {
-		testDescription := CurrentGinkgoTestDescription()
-		if testDescription.Failed == true {
-			Expect(gatherer.WithTestDescription(testDescription).GatherAll()).To(Succeed())
+		specReport := CurrentSpecReport()
+		if specReport.Failed() == true {
+			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
 		}
 
 		By("Deleting the MachineHealthCheck resource")

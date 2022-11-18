@@ -7,7 +7,7 @@ import (
 
 	"k8s.io/client-go/kubernetes"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -23,7 +23,7 @@ const (
 	amiIdMetadataEndpoint = "http://169.254.169.254/latest/meta-data/ami-id"
 )
 
-var _ = Describe("[Feature:Machines] [AWS] MetadataServiceOptions", func() {
+var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific, framework.LabelProviderAWS, func() {
 	var client runtimeclient.Client
 	var clientset *kubernetes.Clientset
 
@@ -50,9 +50,9 @@ var _ = Describe("[Feature:Machines] [AWS] MetadataServiceOptions", func() {
 	})
 
 	AfterEach(func() {
-		testDescription := CurrentGinkgoTestDescription()
-		if testDescription.Failed == true {
-			Expect(gatherer.WithTestDescription(testDescription).GatherAll()).To(Succeed())
+		specReport := CurrentSpecReport()
+		if specReport.Failed() == true {
+			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
 		}
 
 		Expect(framework.DeleteMachineSets(client, toDelete...)).To(Succeed())
@@ -113,7 +113,7 @@ var _ = Describe("[Feature:Machines] [AWS] MetadataServiceOptions", func() {
 				default:
 					return false, nil
 				}
-			}, framework.WaitShort, framework.RetryShort).Should(BeTrue())
+			}, framework.WaitMedium, framework.RetryShort).Should(BeTrue())
 
 			logs, err := lastLog("curl-metadata", 100, false)
 			Expect(err).ToNot(HaveOccurred())

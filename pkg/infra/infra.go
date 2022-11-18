@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	machinev1 "github.com/openshift/api/machine/v1beta1"
@@ -140,9 +140,7 @@ func deleteObjects(client runtimeclient.Client, delObjects map[string]runtimecli
 	return nil
 }
 
-var _ = Describe("[Feature:Machines] Managed cluster should", func() {
-	defer GinkgoRecover()
-
+var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 	var client runtimeclient.Client
 	var machineSet *machinev1.MachineSet
 	var machineSetParams framework.MachineSetParams
@@ -168,9 +166,9 @@ var _ = Describe("[Feature:Machines] Managed cluster should", func() {
 	})
 
 	AfterEach(func() {
-		testDescription := CurrentGinkgoTestDescription()
-		if testDescription.Failed == true {
-			Expect(gatherer.WithTestDescription(testDescription).GatherAll()).To(Succeed())
+		specReport := CurrentSpecReport()
+		if specReport.Failed() == true {
+			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
 		}
 
 		By("Deleting the new MachineSet")

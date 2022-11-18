@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,11 +18,9 @@ import (
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 )
 
-var _ = Describe("[Feature:Operators] Cluster autoscaler operator should", func() {
+var _ = Describe("Cluster autoscaler operator should", framework.LabelOperators, framework.LabelAutoscaler, func() {
 	var client runtimeclient.Client
 	var gatherer *gatherer.StateGatherer
-
-	defer GinkgoRecover()
 
 	BeforeEach(func() {
 		var err error
@@ -38,9 +36,9 @@ var _ = Describe("[Feature:Operators] Cluster autoscaler operator should", func(
 	})
 
 	AfterEach(func() {
-		testDescription := CurrentGinkgoTestDescription()
-		if testDescription.Failed == true {
-			Expect(gatherer.WithTestDescription(testDescription).GatherAll()).To(Succeed())
+		specReport := CurrentSpecReport()
+		if specReport.Failed() == true {
+			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
 		}
 	})
 
@@ -87,8 +85,7 @@ var _ = Describe("[Feature:Operators] Cluster autoscaler operator should", func(
 	})
 })
 
-var _ = Describe("[Feature:Operators] Cluster autoscaler operator deployment should", func() {
-	defer GinkgoRecover()
+var _ = Describe("Cluster autoscaler operator deployment should", framework.LabelOperators, framework.LabelAutoscaler, func() {
 
 	It("be available", func() {
 		var err error
@@ -98,9 +95,7 @@ var _ = Describe("[Feature:Operators] Cluster autoscaler operator deployment sho
 	})
 })
 
-var _ = Describe("[Feature:Operators] Cluster autoscaler cluster operator status should", func() {
-	defer GinkgoRecover()
-
+var _ = Describe("Cluster autoscaler cluster operator status should", framework.LabelOperators, framework.LabelAutoscaler, func() {
 	It("be available", func() {
 		var err error
 		client, err := framework.LoadClient()

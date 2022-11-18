@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -29,7 +29,7 @@ const (
 	pollingInterval                   = 3 * time.Second
 )
 
-var _ = Describe("[Feature:Machine] Lifecycle Hooks should", func() {
+var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 	var client runtimeclient.Client
 	var machineSet *machinev1.MachineSet
 	var workload *batchv1.Job
@@ -78,9 +78,9 @@ var _ = Describe("[Feature:Machine] Lifecycle Hooks should", func() {
 	})
 
 	AfterEach(func() {
-		testDescription := CurrentGinkgoTestDescription()
-		if testDescription.Failed == true {
-			Expect(gatherer.WithTestDescription(testDescription).GatherAll()).To(Succeed())
+		specReport := CurrentSpecReport()
+		if specReport.Failed() == true {
+			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
 		}
 
 		By("Deleting the machineset")
