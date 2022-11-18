@@ -238,13 +238,6 @@ var _ = Describe(
 		})
 
 		It("create machines when configured behind a proxy", func() {
-			// This test case takes upwards of 20 minutes to complete.
-			// This test cannot be run in parallel with other tests and as such,
-			// this test has a very high cost associated with it.
-			// The pass rate of this test is normally very good, so we can skip
-			// for now until we are able to move this into a periodic job.
-			Skip("This test is disruptive, slow and expensive. It should only be run periodically and not on presubmits. Skipping until we set up periodics")
-
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred())
 
