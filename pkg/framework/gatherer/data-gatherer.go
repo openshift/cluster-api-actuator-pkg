@@ -27,7 +27,7 @@ var namespacedResourceToGather = []string{
 var clusterResourceToGather = []string{"nodes", "clusterautoscaler", "machineautoscaler"}
 
 // StateGatherer MAPI specific wrapper for the CLI helper
-// Intended to provide helper functions for gathering MAPI specific resources as well as related pod logs
+// Intended to provide helper functions for gathering MAPI specific resources as well as related pod logs.
 type StateGatherer struct {
 	CLI       *CLI
 	sinceTime time.Time
@@ -37,7 +37,7 @@ type StateGatherer struct {
 	ctx context.Context
 }
 
-// NewStateGatherer initializes StateGatherer
+// NewStateGatherer initializes StateGatherer.
 func NewStateGatherer(ctx context.Context, ocCLI *CLI, gatherSinceTime time.Time) *StateGatherer {
 	return &StateGatherer{
 		CLI:       ocCLI,
@@ -49,15 +49,18 @@ func NewStateGatherer(ctx context.Context, ocCLI *CLI, gatherSinceTime time.Time
 
 // GatherResources helper method to collect MAPI-specific resources such as
 // Machines, MachineSets, Nodes, Autoscalers, and so on.
-// Store files into '%CLI.outputBasePath%/%test_name%/resources'
+// Store files into '%CLI.outputBasePath%/%test_name%/resources'.
 func (sg *StateGatherer) GatherResources() error {
 	resourcesSubPath := sg.getSubPath("resources")
+
 	for _, resource := range namespacedResourceToGather {
 		klog.Infof("gathering %s", resource)
-		if _, err := sg.CLI.Run("get").Args(resource, "-o", "wide").WithSubPath(resourcesSubPath).OutputToFile(fmt.Sprintf("%s", resource)); err != nil {
+
+		if _, err := sg.CLI.Run("get").Args(resource, "-o", "wide").WithSubPath(resourcesSubPath).OutputToFile(resource); err != nil {
 			klog.Errorf("%s", err.Error())
 			return err
 		}
+
 		if _, err := sg.CLI.Run("get").Args(resource, "-o", "yaml").WithSubPath(resourcesSubPath).OutputToFile(fmt.Sprintf("%s_full.yaml", resource)); err != nil {
 			klog.Errorf("%s", err.Error())
 			return err
@@ -66,21 +69,24 @@ func (sg *StateGatherer) GatherResources() error {
 
 	for _, resource := range clusterResourceToGather {
 		klog.Infof("gathering %s", resource)
-		if _, err := sg.CLI.Run("get").WithoutNamespace().Args(resource, "-o", "wide").WithSubPath(resourcesSubPath).OutputToFile(fmt.Sprintf("%s", resource)); err != nil {
+
+		if _, err := sg.CLI.Run("get").WithoutNamespace().Args(resource, "-o", "wide").WithSubPath(resourcesSubPath).OutputToFile(resource); err != nil {
 			klog.Errorf("%s", err.Error())
 			return err
 		}
+
 		if _, err := sg.CLI.Run("get").WithoutNamespace().Args(resource, "-o", "yaml").WithSubPath(resourcesSubPath).OutputToFile(fmt.Sprintf("%s_full.yaml", resource)); err != nil {
 			klog.Errorf("%s", err.Error())
 			return err
 		}
 	}
+
 	return nil
 }
 
 // GatherPodLogs collects logs from pods in MAPI-related namespaces since a particular time.
 // Skips file creation if no new logs since time were found there.
-// Store files into '%CLI.outputBasePath%/%test_name%/logs'
+// Store files into '%CLI.outputBasePath%/%test_name%/logs'.
 func (sg *StateGatherer) GatherPodLogs() {
 	// TODO dmoiseev: Need to figure out how to collect errors from multiply pods/containers properly and do not
 	// TODO dmoiseev: stop gathering from another pods/containers.
@@ -90,10 +96,11 @@ func (sg *StateGatherer) GatherPodLogs() {
 	sg.CLI.WithSubPath(logsSubPath).WithNamespace(machineApproverNamespace).DumpPodLogsSinceTime(sg.ctx, sg.sinceTime)
 }
 
-// GatherAll invokes GatherResources and GatherPodLogs subsequently
+// GatherAll invokes GatherResources and GatherPodLogs subsequently.
 func (sg *StateGatherer) GatherAll() error {
 	err := sg.GatherResources()
 	sg.GatherPodLogs()
+
 	return err
 }
 
@@ -101,6 +108,7 @@ func (sg *StateGatherer) getSubPath(subPath string) string {
 	if sg.specReport != nil {
 		return filepath.Join(sg.specReport.FullText(), subPath)
 	}
+
 	return subPath
 }
 

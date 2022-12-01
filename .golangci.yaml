@@ -16,28 +16,28 @@ linters:
     - bidichk
     - bodyclose
     - contextcheck
-    - cyclop
+    # - cyclop
     - dogsled
-    - dupl
+    # - dupl
     - durationcheck
     - errname
     - errorlint
-    - exhaustive
+    # - exhaustive
     - exportloopref
     - forcetypeassert
-    - funlen
-    - gochecknoglobals
-    - gocognit
+    # - funlen
+    # - gochecknoglobals
+    # - gocognit
     - goconst
-    - gocritic
+    # - gocritic
     - gocyclo
     - godot
-    - goerr113
+    # - goerr113
     - gofmt
     - goheader
     - goimports
     - goprintffuncname
-    - gosec
+    # - gosec
     - importas
     - makezero
     - misspell
@@ -48,16 +48,16 @@ linters:
     - nlreturn
     - noctx
     - nolintlint
-    - prealloc
+    # - prealloc
     - predeclared
     - revive
     - stylecheck
-    - tagliatelle
+    # - tagliatelle
     - tenv
     - unconvert
     - unparam
     - whitespace
-    - wrapcheck
+    # - wrapcheck
     - wsl
 linters-settings:
   nlreturn:

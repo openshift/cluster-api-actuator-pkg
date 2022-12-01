@@ -37,7 +37,7 @@ const (
 	toBeDeletedTaintKey           = "ToBeDeletedByClusterAutoscaler"
 )
 
-// Build default CA resource to allow fast scaling up and down
+// Build default CA resource to allow fast scaling up and down.
 func clusterAutoscalerResource(maxNodesTotal int) *caov1.ClusterAutoscaler {
 	tenSecondString := "10s"
 
@@ -46,6 +46,7 @@ func clusterAutoscalerResource(maxNodesTotal int) *caov1.ClusterAutoscaler {
 	// when a node is considered to be empty even if there are
 	// pods already scheduled and running on the node.
 	unneededTimeString := "60s"
+
 	return &caov1.ClusterAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "default",
@@ -73,7 +74,7 @@ func clusterAutoscalerResource(maxNodesTotal int) *caov1.ClusterAutoscaler {
 	}
 }
 
-// Build MA resource from targeted machineset
+// Build MA resource from targeted machineset.
 func machineAutoscalerResource(targetMachineSet *machinev1.MachineSet, minReplicas, maxReplicas int32) *caov1beta1.MachineAutoscaler {
 	return &caov1beta1.MachineAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
@@ -190,7 +191,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 
 		AfterEach(func() {
 			specReport := CurrentSpecReport()
-			if specReport.Failed() == true {
+			if specReport.Failed() {
 				Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
 			}
 
@@ -316,6 +317,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 				if err != nil {
 					return 0, err
 				}
+
 				return *current.Spec.Replicas, nil
 			}, framework.WaitMedium, pollingInterval).Should(BeEquivalentTo(expectedReplicas))
 
@@ -334,6 +336,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 				if err != nil {
 					return 0, err
 				}
+
 				return len(machines), nil
 			}, framework.WaitLong, pollingInterval).Should(BeEquivalentTo(expectedLength))
 
@@ -350,6 +353,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 					if _, exists := m.ObjectMeta.Annotations[machineDeleteAnnotationKey]; exists {
 						return false, nil
 					}
+
 					return true, nil
 				}, framework.WaitMedium, pollingInterval).Should(BeTrue())
 			}
@@ -369,6 +373,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 							return false, nil
 						}
 					}
+
 					return true, nil
 				}, framework.WaitMedium, pollingInterval).Should(BeTrue())
 			}
@@ -420,12 +425,12 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			By("Creating 2 MachineSets each with 1 replica")
 			var transientMachineSets [2]*machinev1.MachineSet
 			targetedNodeLabel := fmt.Sprintf("%v-balance-nodes", autoscalerWorkerNodeRoleLabel)
-			for i, machineSet := range transientMachineSets {
+			for i := range transientMachineSets {
 				machineSetParams := framework.BuildMachineSetParams(client, 1)
 				machineSetParams.Labels[targetedNodeLabel] = ""
 				// remove this label to make the MachineSets similar, see below for more details
 				delete(machineSetParams.Labels, "e2e.openshift.io")
-				machineSet, err = framework.CreateMachineSet(client, machineSetParams)
+				machineSet, err := framework.CreateMachineSet(client, machineSetParams)
 				Expect(err).ToNot(HaveOccurred())
 				cleanupObjects[machineSet.GetName()] = machineSet
 				transientMachineSets[i] = machineSet
@@ -470,6 +475,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 					if err != nil {
 						return 0, err
 					}
+
 					return int(pointer.Int32Deref(current.Spec.Replicas, 0)), nil
 				}, framework.WaitOverMedium, pollingInterval).Should(BeEquivalentTo(expectedReplicas))
 			}
@@ -518,13 +524,14 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 		// but it only scales up to 2 replicas because the cluster is at maximum size of 8 machines. (3 masters and 3 other worker machines; 2 workers from this test)
 		// Does not start with replicas=0 machineset to avoid scaling from 0.
 		It("scales up and down while respecting MaxNodesTotal [Slow][Serial]", func() {
-			// This test requires to have exactly 6 machines in the cluster at the begining and to run serially.
+			// This test requires to have exactly 6 machines in the cluster at the beginning and to run serially.
 			By("Ensuring there are 6 machines in the cluster")
 			Eventually(func() (int, error) {
 				machines, err := framework.GetMachines(client)
 				if err != nil {
 					return 0, err
 				}
+
 				return len(machines), nil
 			}, framework.WaitLong, pollingInterval).Should(BeEquivalentTo(6), "Expected to have 6 machines in the cluster")
 
@@ -604,6 +611,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 				if err != nil {
 					return false, err
 				}
+
 				return pointer.Int32Deref(machineSet.Spec.Replicas, -1) == 1, nil
 			}, framework.WaitMedium, pollingInterval).Should(BeTrue())
 			By(fmt.Sprintf("Waiting for Deleted MachineSet %s nodes to go away", transientMachineSet.GetName()))

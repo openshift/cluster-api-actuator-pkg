@@ -3,9 +3,10 @@ package infra
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
+	"os"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -30,10 +31,10 @@ import (
 )
 
 const (
-	// Spot machineSet replicas
+	// Spot machineSet replicas.
 	machinesCount = 1
 
-	// Maximum retries when provisioning a spot machineSet
+	// Maximum retries when provisioning a spot machineSet.
 	spotMachineSetMaxProvisioningRetryCount = 3
 )
 
@@ -63,7 +64,7 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 		Expect(err).NotTo(HaveOccurred())
 		switch platform {
 		case configv1.AWSPlatformType, configv1.AzurePlatformType:
-			// Supported platforms, ok to continue
+			// Supported platforms, ok to continue.
 		case configv1.GCPPlatformType:
 			// TODO: GCP relies on the metadata IP for DNS.
 			// This test prevents it from accessing the DNS, therefore
@@ -92,14 +93,16 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 				delObjects[machineSet.Name] = machineSet
 
 				err = framework.WaitForSpotMachineSet(client, machineSet.GetName())
-				if err == framework.ErrMachineNotProvisionedInsufficientCloudCapacity {
+				if errors.Is(err, framework.ErrMachineNotProvisionedInsufficientCloudCapacity) {
 					By("Trying alternative machineSet because current one could not provision due to insufficient spot capacity")
 					// If machineSet cannot scale up due to insufficient capacity, try again with different machineSetParams
-					framework.WaitForMachineSetDelete(client, machineSet)
+					framework.WaitForMachineSetsDeleted(client, machineSet)
+
 					continue
 				}
 				Expect(err).ToNot(HaveOccurred())
 				machineSetReady = true
+
 				break // MachineSet created successfully
 			}
 			Expect(machineSetReady).To(BeTrue(), "Failed to create a spot backed MachineSet")
@@ -108,7 +111,7 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 
 	AfterEach(func() {
 		specReport := CurrentSpecReport()
-		if specReport.Failed() == true {
+		if specReport.Failed() {
 			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
 		}
 
@@ -161,15 +164,17 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 				pods := []corev1.Pod{}
 				Eventually(func() ([]corev1.Pod, error) {
 					podList := &corev1.PodList{}
-					err := client.List(context.Background(), podList, runtimeclient.MatchingLabels(terminationLabels))
-					if err != nil {
+
+					if err := client.List(context.Background(), podList, runtimeclient.MatchingLabels(terminationLabels)); err != nil {
 						return podList.Items, err
 					}
+
 					for _, pod := range podList.Items {
 						if pod.Spec.NodeName == node.Name {
 							pods = append(pods, pod)
 						}
 					}
+
 					return pods, nil
 				}, framework.WaitLong, framework.RetryMedium).ShouldNot(BeEmpty())
 				// Termination Pods run in a DaemonSet, should only be 1 per node
@@ -179,10 +184,11 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 				By("Ensuring the termination Pod is running and the containers are ready")
 				Eventually(func() (bool, error) {
 					pod := &corev1.Pod{}
-					err := client.Get(context.Background(), podKey, pod)
-					if err != nil {
+
+					if err := client.Get(context.Background(), podKey, pod); err != nil {
 						return false, err
 					}
+
 					if pod.Status.Phase != corev1.PodRunning {
 						return false, nil
 					}
@@ -270,9 +276,8 @@ func setSpotOnProviderSpec(platform configv1.PlatformType, params framework.Mach
 func setSpotOnAWSProviderSpec(params framework.MachineSetParams, maxPrice string) error {
 	spec := machinev1.AWSMachineProviderConfig{}
 
-	err := json.Unmarshal(params.ProviderSpec.Value.Raw, &spec)
-	if err != nil {
-		return fmt.Errorf("error unmarshalling providerspec: %v", err)
+	if err := json.Unmarshal(params.ProviderSpec.Value.Raw, &spec); err != nil {
+		return fmt.Errorf("error unmarshalling providerspec: %w", err)
 	}
 
 	spec.SpotMarketOptions = &machinev1.SpotMarketOptions{}
@@ -280,9 +285,11 @@ func setSpotOnAWSProviderSpec(params framework.MachineSetParams, maxPrice string
 		spec.SpotMarketOptions.MaxPrice = &maxPrice
 	}
 
+	var err error
+
 	params.ProviderSpec.Value.Raw, err = json.Marshal(spec)
 	if err != nil {
-		return fmt.Errorf("error marshalling providerspec: %v", err)
+		return fmt.Errorf("error marshalling providerspec: %w", err)
 	}
 
 	return nil
@@ -290,20 +297,23 @@ func setSpotOnAWSProviderSpec(params framework.MachineSetParams, maxPrice string
 
 func setSpotOnAzureProviderSpec(params framework.MachineSetParams, maxPrice string) error {
 	spec := machinev1.AzureMachineProviderSpec{}
-	err := json.Unmarshal(params.ProviderSpec.Value.Raw, &spec)
-	if err != nil {
-		return fmt.Errorf("error unmarshalling providerspec: %v", err)
+
+	if err := json.Unmarshal(params.ProviderSpec.Value.Raw, &spec); err != nil {
+		return fmt.Errorf("error unmarshalling providerspec: %w", err)
 	}
 
 	spec.SpotVMOptions = &machinev1.SpotVMOptions{}
+
 	if maxPrice != "" {
 		maxPriceQuantity := resource.MustParse(maxPrice)
 		spec.SpotVMOptions.MaxPrice = &maxPriceQuantity
 	}
 
+	var err error
+
 	params.ProviderSpec.Value.Raw, err = json.Marshal(spec)
 	if err != nil {
-		return fmt.Errorf("error marshalling providerspec: %v", err)
+		return fmt.Errorf("error marshalling providerspec: %w", err)
 	}
 
 	return nil
@@ -312,16 +322,17 @@ func setSpotOnAzureProviderSpec(params framework.MachineSetParams, maxPrice stri
 func setSpotOnGCPProviderSpec(params framework.MachineSetParams) error {
 	spec := machinev1.GCPMachineProviderSpec{}
 
-	err := json.Unmarshal(params.ProviderSpec.Value.Raw, &spec)
-	if err != nil {
-		return fmt.Errorf("error unmarshalling providerspec: %v", err)
+	if err := json.Unmarshal(params.ProviderSpec.Value.Raw, &spec); err != nil {
+		return fmt.Errorf("error unmarshalling providerspec: %w", err)
 	}
 
 	spec.Preemptible = true
 
+	var err error
+
 	params.ProviderSpec.Value.Raw, err = json.Marshal(spec)
 	if err != nil {
-		return fmt.Errorf("error marshalling providerspec: %v", err)
+		return fmt.Errorf("error marshalling providerspec: %w", err)
 	}
 
 	return nil
@@ -427,7 +438,7 @@ func getMetadataMockService() *corev1.Service {
 
 func getMetadataMockConfigMap() (*corev1.ConfigMap, error) {
 	// Load relative to the test execution directory
-	data, err := ioutil.ReadFile("./infra/mock/metadata_mock.go")
+	data, err := os.ReadFile("./infra/mock/metadata_mock.go")
 	if err != nil {
 		return nil, err
 	}
@@ -461,6 +472,7 @@ ifconfig lo:0 169.254.169.254 up;
 echo "Redirected metadata service to ${SERVICE_IP}:${MOCK_SERVICE_PORT}";`
 
 	fileOrCreate := corev1.HostPathFileOrCreate
+
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      terminationSimulatorName,

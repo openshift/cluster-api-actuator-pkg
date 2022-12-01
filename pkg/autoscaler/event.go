@@ -41,7 +41,11 @@ func newEventWatcher(clientset kubernetes.Interface) *eventWatcher {
 	w.eventInformer = w.informerFactory.Core().V1().Events().Informer()
 	w.eventInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			event := obj.(*corev1.Event)
+			event, ok := obj.(*corev1.Event)
+			if !ok {
+				panic("expected to get an of object of type corev1.Event")
+			}
+
 			if event.CreationTimestamp.Before(&w.startTime) {
 				return
 			}

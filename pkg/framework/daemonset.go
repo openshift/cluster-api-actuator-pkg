@@ -24,25 +24,28 @@ func GetDaemonset(c client.Client, name, namespace string) (*kappsapi.DaemonSet,
 			klog.Errorf("Error querying api for DaemonSet object %q: %v, retrying...", name, err)
 			return false, nil
 		}
+
 		return true, nil
 	}); err != nil {
-		return nil, fmt.Errorf("error getting DaemonSet %q: %v", name, err)
+		return nil, fmt.Errorf("error getting DaemonSet %q: %w", name, err)
 	}
+
 	return d, nil
 }
 
-// DeleteDaemonset deletes the specified deployment
+// DeleteDaemonset deletes the specified deployment.
 func DeleteDaemonset(c client.Client, deployment *kappsapi.DaemonSet) error {
 	return wait.PollImmediate(RetryMedium, WaitShort, func() (bool, error) {
 		if err := c.Delete(context.TODO(), deployment); err != nil {
 			klog.Errorf("error querying api for DaemonSet object %q: %v, retrying...", deployment.Name, err)
 			return false, nil
 		}
+
 		return true, nil
 	})
 }
 
-// UpdateDaemonset updates the specified deployment
+// UpdateDaemonset updates the specified deployment.
 func UpdateDaemonset(c client.Client, name, namespace string, updated *kappsapi.DaemonSet) error {
 	return wait.PollImmediate(RetryMedium, WaitMedium, func() (bool, error) {
 		d, err := GetDeployment(c, name, namespace)
@@ -54,11 +57,12 @@ func UpdateDaemonset(c client.Client, name, namespace string, updated *kappsapi.
 			klog.Errorf("error patching DaemonSet object %q: %v, retrying...", name, err)
 			return false, nil
 		}
+
 		return true, nil
 	})
 }
 
-// IsDaemonsetAvailable returns true if the deployment has one or more availabe replicas
+// IsDaemonsetAvailable returns true if the deployment has one or more available replicas.
 func IsDaemonsetAvailable(c client.Client, name, namespace string) bool {
 	if err := wait.PollImmediate(RetryMedium, WaitLong, func() (bool, error) {
 		d, err := GetDaemonset(c, name, namespace)
@@ -69,15 +73,18 @@ func IsDaemonsetAvailable(c client.Client, name, namespace string) bool {
 		if d.Status.NumberAvailable == 0 {
 			klog.Errorf("DaemonSet %q is not available. Status: %s",
 				d.Name, daemonsetInfo(d))
+
 			return false, nil
 		}
 		klog.Infof("DaemonSet %q is available. Status: %s",
 			d.Name, daemonsetInfo(d))
+
 		return true, nil
 	}); err != nil {
 		klog.Errorf("Error checking IsDaemonsetAvailable: %v", err)
 		return false
 	}
+
 	return true
 }
 
