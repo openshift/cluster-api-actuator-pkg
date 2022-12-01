@@ -23,8 +23,8 @@ var _ = Describe("MachineHealthCheck", framework.LabelMachineHealthChecks, func(
 
 	var machineSet *machinev1.MachineSet
 	var machinehealthcheck *machinev1.MachineHealthCheck
-	var maxUnhealthy = 2
-	const expectedReplicas = 4
+	var maxUnhealthy = 1
+	const expectedReplicas = 2
 
 	const E2EConditionType = "MachineHealthCheckE2E"
 
@@ -70,6 +70,8 @@ var _ = Describe("MachineHealthCheck", framework.LabelMachineHealthChecks, func(
 		framework.WaitForMachineSetDelete(client, machineSet)
 	})
 
+	// Machines required for test: 3
+	// Reason: 1 unhealthy, 1 healthy, 1 replacement for the unhealthy
 	It("should remediate unhealthy nodes", func() {
 		selector := machineSet.Spec.Selector
 		machines, err := framework.GetMachines(client, &selector)
@@ -77,7 +79,7 @@ var _ = Describe("MachineHealthCheck", framework.LabelMachineHealthChecks, func(
 		Expect(machines).ToNot(BeEmpty())
 
 		By("Setting unhealthy conditions on machine nodes, but not exceding maxUnhealthy threshold")
-		unhealthyMachines, healthyMachines := machines[:maxUnhealthy-1], machines[maxUnhealthy-1:]
+		unhealthyMachines, healthyMachines := machines[:maxUnhealthy], machines[maxUnhealthy:]
 		for _, machine := range unhealthyMachines {
 			node, err := framework.GetNodeForMachine(client, machine)
 			Expect(err).ToNot(HaveOccurred())
@@ -120,6 +122,8 @@ var _ = Describe("MachineHealthCheck", framework.LabelMachineHealthChecks, func(
 		framework.WaitForMachineSet(client, machineSet.GetName())
 	})
 
+	// Machines required for test: 2
+	// Reason: We have two unhealthy machines, but the maxUnhealthy threshold is 1, so the MHC should not remediate.
 	It("should not remediate larger number of unhealthy machines then maxUnhealthy", func() {
 		selector := machineSet.Spec.Selector
 		machines, err := framework.GetMachines(client, &selector)

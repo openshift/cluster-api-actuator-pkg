@@ -237,6 +237,8 @@ var _ = Describe(
 			Expect(err).ToNot(HaveOccurred())
 		})
 
+		// Machines required for test: 1
+		// Reason: Tests that machine creation is possible behind a proxy.
 		It("create machines when configured behind a proxy", func() {
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred())
