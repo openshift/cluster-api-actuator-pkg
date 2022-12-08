@@ -102,7 +102,9 @@ This test checks operator behaviour to manage and maintain MAPI components deplo
   - Extract this test, make it parallel
   - break dependency to the vendored MAPO if it's possible
   - this two tests might be generalized in a way and merged into one
+  - rename helper function which checks machine webhook configuration, not it's hard to say what webhooks does it check
   - this tests might be executed as pre-step for [should recover after mutating webhook configuration deletion](#machine-api-operator-deployment-should-recover-after-mutating-webhook-configuration-deletion) [should maintains spec after validating webhook configuration change and preserve caBundle](#machine-api-operator-deployment-should-maintains-spec-after-validating-webhook-configuration-change-and-preserve-cabundle)
+  - these tests might be removed due to the same checks happening in [Webhooks](#webhooks) suite in `BeforeEach` step
 
 Two pretty much the same tests. Checks that webhooks are configured in a cluster. Tests using webhook definition (golang structure) imported from the MAPO
 repository, which is not good and might cause issues if webhook settings will need to be changed (these tests will fail, till MAPO revendoring in cluster-actuator-pkg-repo).
