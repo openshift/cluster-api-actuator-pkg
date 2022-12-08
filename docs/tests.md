@@ -53,7 +53,7 @@
 # Overview
 
 This document describes tests presented in this repository as of the start of December 2022.
-Some tests are grouped if it's similar enough. Each heading represents a single test and reflects its full
+Some tests are grouped if they are similar. Each heading represents a single test and reflects its full
 name as it's programmed and shown in the JUnit report.
 
 # Tests
@@ -65,7 +65,9 @@ name as it's programmed and shown in the JUnit report.
 #### Machine API operator deployment should be available
 * Parallel: No (sits in disruptive suite)
 * ExecTime: ~5s on AWS
-* Recommendation: Might be extracted and run in parallel with the other part of the suite.
+* Recommendation: 
+  * Might be extracted and run in parallel with the other part of the suite.
+  * Or, moved into `BeforeEach` block and executed before another MachineAPI Operator tests, instead of having this separately
 
 This test checks status of the `openshift-machine-api/machine-api-operator` deployment.
 Passes if deployment reports `AvailableReplicas` > 0. If no deployment available, will fail in 15m due to timeout in
@@ -73,7 +75,9 @@ the [framework check function](https://github.com/openshift/cluster-api-actuator
 
 #### Machine API operator deployment should reconcile controllers deployment
 * Parallel: No
-* ExecTime: ~10s on AWS
+* ExecTime: ~10s on AWS (but might affect another tests due to controller might not be started due to leaderelection waiting)
+* Recommendation:
+  * Extend this test for wait and check that deleted controller was fully running, since seems not all controller has `releaseOnCancel` parameter set up. 
 
 This test query `openshift-machine-api/machine-api-controllers` deployment, saves manifest and deletes deployment.
 After, tests wait for the deployment to be restored and be equal to the initial manifest.
@@ -81,7 +85,10 @@ This test checks operator behaviour to manage and maintain MAPI components deplo
 
 #### Machine API operator deployment should maintains deployment spec
 * Parallel: No
-* ExecTime: ~5s on AWS
+* ExecTime: ~5s on AWS (but might affect another tests due to controller might not be started due to leaderelection waiting)
+* Recommendation:
+  * Extend this test for wait and check that deleted controller was fully running
+  * OR: Extract this into separate serial suite with the previous test, run one after another and check that controllers runs successfully after tests was passed.
 
 This test query `openshift-machine-api/machine-api-controllers` deployment, saves manifest and scales deployment to zero replicas.
 After, tests wait for the deployment to be restored and available (available replicas > 0).
@@ -95,6 +102,7 @@ This test checks operator behaviour to manage and maintain MAPI components deplo
   - Extract this test, make it parallel
   - break dependency to the vendored MAPO if it's possible
   - this two tests might be generalized in a way and merged into one
+  - this tests might be executed as pre-step for [should recover after mutating webhook configuration deletion](#machine-api-operator-deployment-should-recover-after-mutating-webhook-configuration-deletion) [should maintains spec after validating webhook configuration change and preserve caBundle](#machine-api-operator-deployment-should-maintains-spec-after-validating-webhook-configuration-change-and-preserve-cabundle)
 
 Two pretty much the same tests. Checks that webhooks are configured in a cluster. Tests using webhook definition (golang structure) imported from the MAPO
 repository, which is not good and might cause issues if webhook settings will need to be changed (these tests will fail, till MAPO revendoring in cluster-actuator-pkg-repo).
@@ -130,7 +138,8 @@ This test checks operator behaviour to manage and maintain MAPI webhooks state.
 #### Machine API cluster operator status should be available
 * Parallel: Yes
 * ExecTime: ~2s on AWS
-
+* Recommendation:
+  * Might be executed in `BeforeEach` block for other Machine API related tests. This separate case might be removed
 Checks cluster operator status to be available, not progressing and not degraded.
 
 #### When cluster-wide proxy is configured, Machine API cluster operator should  create machines when configured behind a proxy
@@ -168,6 +177,8 @@ the [framework check function](https://github.com/openshift/cluster-api-actuator
 #### Cluster Machine Approver Cluster Operator Status should be available
 * Parallel: Yes
 * ExecTime: ~2s on AWS
+* Recommendation:
+  * Might be executed in `BeforeEach` block for other CMAO related tests. This separate case might be removed
 
 Checks cluster operator status to be available, not progressing and not degraded.
 
@@ -204,6 +215,8 @@ the [framework check function](https://github.com/openshift/cluster-api-actuator
 #### Cluster autoscaler cluster operator status should be available
 * Parallel: Yes
 * ExecTime: ~2s on AWS
+* Recommendation:
+  * Might be executed in `BeforeEach` block for other CAO related tests. This separate case might be removed
 
 Checks cluster operator status to be available, not progressing and not degraded.
 
@@ -243,13 +256,15 @@ In `AfterEach` created machineset is being deleted.
 * ExecTime: >12m on AWS
 * Recommendations:
   * Update resource creation helper functions, and add parameters to specify workload names, replicas count, selectors, etc. Now it's almost impossible to say what is going on without looking into these functions.
-  * Specify selectors more strictly for the created workloads, now it's theoretically possible that created workload will be scheduled somewhere else and we could get false positive results.
   * Add more meaningful comments inside the test code, now it's not easy to figure out what is going on there.
   * Fix logging here, it is quite noisy, and do flood reports.
+  * Reduce amount of pods created
+  * Check where pods was actually scheduled
 
 This test checks nodes are properly draining during machine deletion and this process also respects PDBs (pod disruption budgets).
-During this test - a replication controller creating with 20 desired replicas, then PDB creating for this workload.
-After the replication controller is ready, machineset marking for deletion. Along with the deletion process test checking that pods amount on the node 
+During this test - machineset with two desired replicas and a replication controller with 20 desired replicas are creating, then PDB creating for this workload.
+Machines from the machinesets marking with labels to be sure that pods created by the replication controller will be scheduled there.
+After the replication controller is ready, one of the machines from the machineset marking for deletion. Along with the deletion process test checking that pods amount on the node
 is going down to 1 and RC has at most one non-ready replica.
 
 Test considered failed in case if more than 1 replica within RC detected as not ready during machineset deletion. That would mean that PDB constraints were violated.
@@ -304,8 +319,10 @@ Tests listed below share common `BeforeEach` and `AfterEach` blocks.
 In `BeforeEach` platform-dependant 'minimal provider spec' for a machine is creating.
 In `AfterEach` created resources (machines, machinesets) resources cleanup happens.
 
-Recommendation: It might be wise to collect all webhook-related tests within this suite, i.e. other webhook-related tests might be
+Recommendation: 
+* It might be wise to collect all webhook-related tests within this suite, i.e. other webhook-related tests might be
 extracted and put into this suite. For example, [Managed cluster should reject invalid machinesets](#managed-cluster-should-reject-invalid-machinesets) might fit here.
+* Add test which checks that all webhooks infrastructure is configured properly for MAPI, CAO and CAPI perhaps (?). 
 
 #### Webhooks should be able to create a machine from a minimal providerSpec
 * Parallel: Yes
