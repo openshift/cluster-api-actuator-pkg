@@ -171,6 +171,8 @@ Another variant is to remove this test at all since a cluster will not finish in
 #### Cluster Machine Approver deployment should be available
 * Parallel: Yes
 * ExecTime: ~2s on AWS
+* Recommendation:
+  * Such tests along with operator status tests might be generalized and executd as pre-check in `BeforeEach` block for operators related tests.
 
 This test checks status of the `openshift-cluster-machine-approver/machine-approver` deployment.
 Passes if deployment reports `AvailableReplicas` > 0. If no deployment available, will fail in 15m due to timeout in
@@ -209,6 +211,8 @@ This test just checks that creation of MachineAutoscaler resource with MinReplic
 #### Cluster autoscaler operator deployment should be available
 * Parallel: Yes
 * ExecTime: ~5s on AWS
+* Recommendation:
+  * Such tests along with operator status tests might be generalized and executd as pre-check in `BeforeEach` block for operators related tests.
 
 This test checks status of the `openshift-machine-api/cluster-autoscaler-operator` deployment.
 Passes if deployment reports `AvailableReplicas` > 0. If no deployment available, will fail in 15m due to timeout in
@@ -266,7 +270,7 @@ In `AfterEach` created machineset is being deleted.
 This test checks nodes are properly draining during machine deletion and this process also respects PDBs (pod disruption budgets).
 During this test - machineset with two desired replicas and a replication controller with 20 desired replicas are creating, then PDB creating for this workload.
 Machines from the machinesets marking with labels to be sure that pods created by the replication controller will be scheduled there.
-After the replication controller is ready, one of the machines from the machineset marking for deletion. Along with the deletion process test checking that pods amount on the node
+After the replication controller is ready, one of the machines from the machineset marking for deletion. Along with the deletion process test checking that number of pods on the node
 is going down to 1 and RC has at most one non-ready replica.
 
 Test considered failed in case if more than 1 replica within RC detected as not ready during machineset deletion. That would mean that PDB constraints were violated.
@@ -287,6 +291,7 @@ then waits for machines to be deleted and recreated by the machineset. Takes qui
 * Recommendations:
   * Reduce created machines number to 1 for this test, currently there are 2
   * Remove this test, similiar one included into origin suite. Aside of that we running this and other tests which creates and scales MSes in parallel, so we are excercising this functionality
+  * Or: run this test as periodic
 
 This test creates another machineset with 0 desired replicas, then it scales it up to 3 desired replicas.
 At the same time machineset which was created in `BeforeEach` block scales down to 0.
@@ -417,6 +422,7 @@ Test considered failed if scale up or down did not happen within 15 min timeout.
 * Recommendation:
   * This test is a bit cryptic at first glance and requires at least some in-code explanation about the meaning of checks for taints and annotations presence. Having some documentation references will be beneficial here.
   * amount of desired machines might be reduced from 3 to 2 for each machineset
+  * This test might be combined with the [MaxNodesTotal](#autoscaler-should-use-a-clusterautoscaler-that-has-12-maximum-total-nodes-count-and-balance-similar-nodes-enabled-scales-up-and-down-while-respecting-maxnodestotal-slowserial) test
 
 Within this test machineset with 1 desired replica and with a specific set of labels is created.
 After, a Job with 6 desired replicas is attempting to be scheduled on nodes with labels configured for previously created machinesets.
