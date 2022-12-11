@@ -89,6 +89,8 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 		framework.WaitForMachinesDeleted(client, machines...)
 	})
 
+	// Machines required for test: 1
+	// Reason: It needs to verify that machine with minimal provider spec is able to go into running phase.
 	It("should be able to create a machine from a minimal providerSpec", func() {
 		machine := &machinev1beta1.Machine{
 			ObjectMeta: metav1.ObjectMeta{
@@ -115,6 +117,8 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 		}, framework.WaitLong, framework.RetryMedium).Should(Succeed())
 	})
 
+	// Machines required for test: 1
+	// Reason: It needs to verify that machine created from the machineSet with minimal provider spec is able to go into running phase.
 	It("should be able to create machines from a machineset with a minimal providerSpec", func() {
 		machineSet, err := framework.CreateMachineSet(client, machineSetParams)
 		Expect(err).ToNot(HaveOccurred())
@@ -122,6 +126,8 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 		framework.WaitForMachineSet(client, machineSet.Name)
 	})
 
+	// Machines required for test: 1
+	// Reason: We need a machine to test updating its providerSpec. We don't wait for this machine to be running.
 	It("should return an error when removing required fields from the Machine providerSpec", func() {
 		machine := &machinev1beta1.Machine{
 			ObjectMeta: metav1.ObjectMeta{
@@ -156,7 +162,10 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 		}
 	})
 
+	// Machines required for test: 0
+	// Reason: We don't need to start creating the machine, because we are only testing the machineSet webhook.
 	It("should return an error when removing required fields from the MachineSet providerSpec", func() {
+		machineSetParams.Replicas = 0
 		machineSet, err := framework.CreateMachineSet(client, machineSetParams)
 		Expect(err).ToNot(HaveOccurred())
 

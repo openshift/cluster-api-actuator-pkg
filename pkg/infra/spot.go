@@ -31,7 +31,7 @@ import (
 
 const (
 	// Spot machineSet replicas
-	machinesCount = 3
+	machinesCount = 1
 
 	// Maximum retries when provisioning a spot machineSet
 	spotMachineSetMaxProvisioningRetryCount = 3
@@ -132,6 +132,8 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 		}
 	})
 
+	// Machines required for test: 1
+	// Reason: We only deploy the termination simulator pod on one node. Machine draining is tested in other tests.
 	It("should handle the spot instances", func() {
 		By("should label the Machine specs as interruptible", func() {
 			selector := machineSet.Spec.Selector

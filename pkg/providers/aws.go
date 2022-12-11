@@ -121,18 +121,24 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 		})
 	}
 
+	// Machines required for test: 0
+	// No machines are created, because the machineSet is rejected.
 	It("should not allow to create machineset with incorrect metadataServiceOptions.authentication", func() {
 		_, err := createMachineSet("fooobaar")
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).Should(ContainSubstring("Invalid value: \"fooobaar\": Allowed values are either 'Optional' or 'Required'"))
 	})
 
+	// Machines required for test: 1
+	// Reason: Deploys a pod on the node, so it requires a machine to be running.
 	It("should enforce auth on metadata service if metadataServiceOptions.authentication set to Required", func() {
 		machineSet, err := createMachineSet(machinev1.MetadataServiceAuthenticationRequired)
 		Expect(err).ToNot(HaveOccurred())
 		assertIMDSavailability(machineSet, "HTTP/1.1 401 Unauthorized")
 	})
 
+	// Machines required for test: 1
+	// Reason: Deploys a pod on the node, so it requires a machine to be running.
 	It("should allow unauthorized requests to metadata service if metadataServiceOptions.authentication is Optional", func() {
 		machineSet, err := createMachineSet(machinev1.MetadataServiceAuthenticationOptional)
 		Expect(err).ToNot(HaveOccurred())

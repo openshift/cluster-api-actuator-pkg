@@ -98,6 +98,8 @@ var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 		})).To(Succeed())
 	})
 
+	// Machines required for test: 1
+	// Reason: Tracks the lifecycle of a single machine as we update its lifecycle hooks
 	It("pause lifecycle actions when present", func() {
 		machines, err := framework.GetMachinesFromMachineSet(client, machineSet)
 		Expect(err).ToNot(HaveOccurred())
