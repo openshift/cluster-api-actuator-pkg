@@ -415,7 +415,7 @@ This test exercises MHC behaviour that prevents remediation if a number of machi
 Within this test machineset with the initial desired 0 replicas and with a specific set of labels is created.
 After, a Job with 3 desired replicas is attempting to be scheduled on nodes with labels configured for previously created machineset.
 
-The test is expecting machineset to be scaled up to 3 machines and accept the payload. Then, created Job is removing and the machineset is expected to be scaled down back to 0 replicas. 
+The test is expecting machineset to be scaled up to 3 machines and accept the payload. Then, created Job is removed and the machineset is expected to be scaled down back to 0 replicas. 
 
 Test considered failed if scale up or down did not happen within 15 min timeout.
 
@@ -430,7 +430,7 @@ Test considered failed if scale up or down did not happen within 15 min timeout.
 Within this test machineset with 1 desired replica and with a specific set of labels is created.
 After, a Job with 6 desired replicas is attempting to be scheduled on nodes with labels configured for previously created machinesets.
 
-The test is expecting both machinesets to be scaled up to 3 machines and accept the payload. Then, created Job is removing and the machineset is expected to be scaled down back to 1 replica.
+The test is expecting both machinesets to be scaled up to 3 machines and accept the payload. Then, created Job is removed and the machineset is expected to be scaled down back to 1 replica.
 
 After machinesets will be scaled back to 1 replica test checks if no cluster-autoscaler specific annotations are presented on machines and no autoscaler specific taints are presented on respective nodes from these machinesets.
 
