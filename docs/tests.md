@@ -102,7 +102,7 @@ This test checks operator behaviour to manage and maintain MAPI components deplo
   - Extract this test, make it parallel
   - break dependency to the vendored MAPO if it's possible
   - this two tests might be generalized in a way and merged into one
-  - rename helper function which checks machine webhook configuration, not it's hard to say what webhooks does it check
+  - rename helper function which checks machine webhook configuration, now it's hard to say what webhooks does it check
   - this tests might be executed as pre-step for [should recover after mutating webhook configuration deletion](#machine-api-operator-deployment-should-recover-after-mutating-webhook-configuration-deletion) [should maintains spec after validating webhook configuration change and preserve caBundle](#machine-api-operator-deployment-should-maintains-spec-after-validating-webhook-configuration-change-and-preserve-cabundle)
   - these tests might be removed due to the same checks happening in [Webhooks](#webhooks) suite in `BeforeEach` step
 
@@ -172,7 +172,7 @@ Another variant is to remove this test at all since a cluster will not finish in
 * Parallel: Yes
 * ExecTime: ~2s on AWS
 * Recommendation:
-  * Such tests along with operator status tests might be generalized and executd as pre-check in `BeforeEach` block for operators related tests.
+  * Such tests along with operator status tests might be generalized and executed as pre-check in `BeforeEach` block for operators related tests.
 
 This test checks status of the `openshift-cluster-machine-approver/machine-approver` deployment.
 Passes if deployment reports `AvailableReplicas` > 0. If no deployment available, will fail in 15m due to timeout in
@@ -212,7 +212,7 @@ This test just checks that creation of MachineAutoscaler resource with MinReplic
 * Parallel: Yes
 * ExecTime: ~5s on AWS
 * Recommendation:
-  * Such tests along with operator status tests might be generalized and executd as pre-check in `BeforeEach` block for operators related tests.
+  * Such tests along with operator status tests might be generalized and executed as pre-check in `BeforeEach` block for operators related tests.
 
 This test checks status of the `openshift-machine-api/cluster-autoscaler-operator` deployment.
 Passes if deployment reports `AvailableReplicas` > 0. If no deployment available, will fail in 15m due to timeout in
@@ -263,17 +263,18 @@ In `AfterEach` created machineset is being deleted.
 * Recommendations:
   * Update resource creation helper functions, and add parameters to specify workload names, replicas count, selectors, etc. Now it's almost impossible to say what is going on without looking into these functions.
   * Add more meaningful comments inside the test code, now it's not easy to figure out what is going on there.
-  * Fix logging here, it is quite noisy, and do flood reports.
+  * Fix logging here, it is quite noisy and pollutes JUnit reports with a lot of barely readable messages.
   * Reduce amount of pods created
   * Check where pods was actually scheduled
 
 This test checks nodes are properly draining during machine deletion and this process also respects PDBs (pod disruption budgets).
-During this test - machineset with two desired replicas and a replication controller with 20 desired replicas are creating, then PDB creating for this workload.
+During this test - machineset with two desired replicas and a replication controller with 20 desired replicas are created, then PDB is created for this workload.
 Machines from the machinesets marking with labels to be sure that pods created by the replication controller will be scheduled there.
-After the replication controller is ready, one of the machines from the machineset marking for deletion. Along with the deletion process test checking that number of pods on the node
-is going down to 1 and RC has at most one non-ready replica.
+After the replication controller is ready, one of the machines from the created machineset marks for deletion.
+Along with the deletion process test checking that number of pods on the node is going down to 1 and RC has at most one non-ready replica.
 
-Test considered failed in case if more than 1 replica within RC detected as not ready during machineset deletion. That would mean that PDB constraints were violated.
+Test is considered failed in case if more than 1 replica within RC detected as not ready during machineset deletion.
+That would mean that PDB constraints were violated.
 
 #### Managed cluster should recover from deleted worker machines
 * Parallel: Yes
@@ -295,7 +296,7 @@ then waits for machines to be deleted and recreated by the machineset. Takes qui
 
 This test creates another machineset with 0 desired replicas, then it scales it up to 3 desired replicas.
 At the same time machineset which was created in `BeforeEach` block scales down to 0.
-This test considering passed when both machinesets reach desired replicas (0 for initial machineset, 3 for newly created machineset) before the timeout (30m currently).
+This test is considered passed when both machinesets reach desired replicas (0 for initial machineset, 3 for newly created machineset) before the timeout (30m currently).
 
 #### Managed cluster should reject invalid machinesets
 * Parallel: Yes
@@ -379,13 +380,13 @@ These tests check MachineHealthCheck functionality. Tests listed below share com
 Within `BeforeEach` machineset with 4 desired replicas creating. In `AfterEach` resources created during a test are attempted to be cleaned up.
 
 Recommendation: Refactor these tests to run them in order for and use the same machinesets. Given that we are setting up conditions on machines, we could perform 
-`maxUnhelthy` test first which does not suppose machine remediation. Test for actual remediation might be done on the same machineset. 
+`maxUnhealthy` test first which does not suppose machine remediation. Test for actual remediation might be done on the same machineset. 
 
 #### MachineHealthCheck should remediate unhealthy nodes
 * Parallel: Yes
 * ExecTime: >6m on AWS
 
-Within this test, several machines (for now `maxUnhelthy` - 1, which is currently 1) marking as unhealthy with a specific condition.
+Within this test, several machines (for now `maxUnhealthy` - 1, which is currently 1) marking as unhealthy with a specific condition.
 Then MHC creating, such MHC is configured to observe this condition.
 After this test waits for unhealthy machines to be deleted and checks that healthy machines stay intact.
 
@@ -395,11 +396,11 @@ This test exercises MHC remediation functionality.
 * Parallel: Yes
 * ExecTime: >9m on AWS
 
-Within this test, a number of machines exceeding `maxUnhelthy` marking as unhealthy with a specific condition.
-Then MHC creating, such MHC is configured to observe this condition.
+Within this test, a number of machines exceeding `maxUnhealthy` are marked as unhealthy with a specific condition.
+Then MHC is created, such MHC is configured to observe this condition.
 Test waits for a `RemediationRestricted` event on the machineset and checks that no machines were deleted.
 
-This test exercises MHC behaviour that prevents remediation if a number of machines marked as unhealthy more than a number in `maxUnhelthy` parameter.
+This test exercises MHC behaviour that prevents remediation if a number of machines marked as unhealthy more than a number in `maxUnhealthy` parameter.
 
 ### Autoscaler
 
