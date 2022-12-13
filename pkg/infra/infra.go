@@ -283,7 +283,7 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 
 		// Machines required for test: 4
 		// Reason: MachineSet scales 2->0 and MachineSet2 scales 0->2. Changing to scaling 1->0 and 0->1 might not test this thoroughly.
-		It("grow and decrease when scaling different machineSets simultaneously", func() {
+		It("grow and decrease when scaling different machineSets simultaneously", framework.LabelPeriodic, func() {
 			By("Creating a second MachineSet") // Machineset 1 can start with 1 replica
 			machineSetParams := framework.BuildMachineSetParams(client, 0)
 			machineSet2, err := framework.CreateMachineSet(client, machineSetParams)
