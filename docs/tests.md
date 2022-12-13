@@ -194,19 +194,21 @@ Recommendation: This suite need to be extended with some sort of disruptive suit
 * Parallel: Yes
 * ExecTime: ~5s on AWS
 * Recommendation:
-  - Remove from this suite, move this test to the cluster autoscaler repo
-  - Or review and extend, but better remove
+  - (Optional) Move this test closer to another webhooks test.
+    - If possible - generalize with MAPI webhooks tests, since we need to check only that webhook infrastructure is configured correctly
 
-This test just checks that creation of ClusterAutoscaler resource with name other than 'default' is rejected
+This test just checks that creation of ClusterAutoscaler resource with a name other than 'default' is rejected.
+This test checks that webhooks infrastructure was configured correctly and `ClusterAutoscaler` webhook is functional and handles requests.
 
 #### Cluster autoscaler operator should reject invalid MachineAutoscaler resources early via webhook
 * Parallel: Yes
 * ExecTime: ~5s on AWS
 * Recommendation:
-  - Remove, and implement this test to the cluster autoscaler repo
-  - Alternative - move this test closer to another webhooks test.
+  - (Optional) Move this test closer to another webhooks test.
+    - If possible - generalize with MAPI webhooks tests, since we need to check only that webhook infrastructure is configured correctly
 
-This test just checks that creation of MachineAutoscaler resource with MinReplicas > MaxReplicas is rejected
+This test just checks that creation of MachineAutoscaler resource with MinReplicas > MaxReplicas is rejected.
+This test checks that webhooks infrastructure was configured correctly and `MachineAutoscaler` webhook is functional and handles requests.
 
 #### Cluster autoscaler operator deployment should be available
 * Parallel: Yes
