@@ -162,7 +162,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 		}
 	})
 
-	Context("use a ClusterAutoscaler that has 100 maximum total nodes count", func() {
+	Context("use a ClusterAutoscaler that has 100 maximum total nodes count", framework.LabelPeriodic, func() {
 		var clusterAutoscaler *caov1.ClusterAutoscaler
 		var caEventWatcher *eventWatcher
 
@@ -476,7 +476,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 		})
 	})
 
-	Context("use a ClusterAutoscaler that has 8 maximum total nodes", func() {
+	Context("use a ClusterAutoscaler that has 8 maximum total nodes", framework.LabelPeriodic, func() {
 		var clusterAutoscaler *caov1.ClusterAutoscaler
 		caMaxNodesTotal := 8
 
