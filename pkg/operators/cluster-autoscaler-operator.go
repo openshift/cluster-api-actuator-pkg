@@ -37,7 +37,7 @@ var _ = Describe("Cluster autoscaler operator should", framework.LabelOperators,
 
 	AfterEach(func() {
 		specReport := CurrentSpecReport()
-		if specReport.Failed() == true {
+		if specReport.Failed() {
 			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
 		}
 	})
@@ -54,8 +54,7 @@ var _ = Describe("Cluster autoscaler operator should", framework.LabelOperators,
 			},
 		}
 
-		err := client.Create(context.TODO(), invalidCA)
-		Expect(err).To(HaveOccurred())
+		Expect(client.Create(context.TODO(), invalidCA)).ToNot(Succeed())
 	})
 
 	It("reject invalid MachineAutoscaler resources early via webhook", func() {
@@ -80,8 +79,7 @@ var _ = Describe("Cluster autoscaler operator should", framework.LabelOperators,
 			},
 		}
 
-		err := client.Create(context.TODO(), invalidMA)
-		Expect(err).To(HaveOccurred())
+		Expect(client.Create(context.TODO(), invalidMA)).ToNot(Succeed())
 	})
 })
 

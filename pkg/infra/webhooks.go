@@ -74,18 +74,18 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 
 	AfterEach(func() {
 		specReport := CurrentSpecReport()
-		if specReport.Failed() == true {
+		if specReport.Failed() {
 			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
 		}
 
 		machineSets, err := framework.GetMachineSets(client, testSelector)
 		Expect(err).ToNot(HaveOccurred())
-		framework.DeleteMachineSets(client, machineSets...)
+		Expect(framework.DeleteMachineSets(client, machineSets...)).To(Succeed())
 		framework.WaitForMachineSetsDeleted(client, machineSets...)
 
 		machines, err := framework.GetMachines(client, testSelector)
 		Expect(err).ToNot(HaveOccurred())
-		framework.DeleteMachines(client, machines...)
+		Expect(framework.DeleteMachines(client, machines...)).To(Succeed())
 		framework.WaitForMachinesDeleted(client, machines...)
 	})
 
@@ -113,6 +113,7 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 			if len(running) == 0 {
 				return fmt.Errorf("machine not yet running")
 			}
+
 			return nil
 		}, framework.WaitLong, framework.RetryMedium).Should(Succeed())
 	})
@@ -155,6 +156,7 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 				// Try again if there was a conflict
 				continue
 			}
+
 			// No conflict, so the update "worked"
 			updated = true
 			Expect(err).To(HaveOccurred())
@@ -209,16 +211,17 @@ func createMinimalProviderSpec(platform configv1.PlatformType, ps *machinev1beta
 		return minimalNutanixProviderSpec(ps)
 	default:
 		// Should have skipped before this point
-		return nil, fmt.Errorf("Unexpected platform: %s", platform)
+		return nil, fmt.Errorf("unexpected platform: %s", platform)
 	}
 }
 
 func minimalAWSProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta1.ProviderSpec, error) {
 	fullProviderSpec := &machinev1beta1.AWSMachineProviderConfig{}
-	err := json.Unmarshal(ps.Value.Raw, fullProviderSpec)
-	if err != nil {
+
+	if err := json.Unmarshal(ps.Value.Raw, fullProviderSpec); err != nil {
 		return nil, err
 	}
+
 	return &machinev1beta1.ProviderSpec{
 		Value: &runtime.RawExtension{
 			Object: &machinev1beta1.AWSMachineProviderConfig{
@@ -234,10 +237,11 @@ func minimalAWSProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta1.Pr
 
 func minimalAzureProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta1.ProviderSpec, error) {
 	fullProviderSpec := &machinev1beta1.AzureMachineProviderSpec{}
-	err := json.Unmarshal(ps.Value.Raw, fullProviderSpec)
-	if err != nil {
+
+	if err := json.Unmarshal(ps.Value.Raw, fullProviderSpec); err != nil {
 		return nil, err
 	}
+
 	return &machinev1beta1.ProviderSpec{
 		Value: &runtime.RawExtension{
 			Object: &machinev1beta1.AzureMachineProviderSpec{
@@ -252,10 +256,11 @@ func minimalAzureProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta1.
 
 func minimalGCPProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta1.ProviderSpec, error) {
 	fullProviderSpec := &machinev1beta1.GCPMachineProviderSpec{}
-	err := json.Unmarshal(ps.Value.Raw, fullProviderSpec)
-	if err != nil {
+
+	if err := json.Unmarshal(ps.Value.Raw, fullProviderSpec); err != nil {
 		return nil, err
 	}
+
 	return &machinev1beta1.ProviderSpec{
 		Value: &runtime.RawExtension{
 			Object: &machinev1beta1.GCPMachineProviderSpec{
@@ -269,13 +274,15 @@ func minimalGCPProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta1.Pr
 
 func minimalVSphereProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta1.ProviderSpec, error) {
 	providerSpec := &machinev1beta1.VSphereMachineProviderSpec{}
-	err := json.Unmarshal(ps.Value.Raw, providerSpec)
-	if err != nil {
+
+	if err := json.Unmarshal(ps.Value.Raw, providerSpec); err != nil {
 		return nil, err
 	}
+
 	// For vSphere only these 2 fields are defaultable
 	providerSpec.UserDataSecret = nil
 	providerSpec.CredentialsSecret = nil
+
 	return &machinev1beta1.ProviderSpec{
 		Value: &runtime.RawExtension{
 			Object: providerSpec,
@@ -285,14 +292,15 @@ func minimalVSphereProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta
 
 func minimalNutanixProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta1.ProviderSpec, error) {
 	providerSpec := &machinev1.NutanixMachineProviderConfig{}
-	err := json.Unmarshal(ps.Value.Raw, providerSpec)
-	if err != nil {
+
+	if err := json.Unmarshal(ps.Value.Raw, providerSpec); err != nil {
 		return nil, err
 	}
 
 	// For nutanix only these 2 fields are defaultable
 	providerSpec.UserDataSecret = nil
 	providerSpec.CredentialsSecret = nil
+
 	return &machinev1beta1.ProviderSpec{
 		Value: &runtime.RawExtension{
 			Object: providerSpec,
@@ -302,16 +310,18 @@ func minimalNutanixProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta
 
 func minimalPowerVSProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta1.ProviderSpec, error) {
 	providerSpec := &machinev1.PowerVSMachineProviderConfig{}
-	err := json.Unmarshal(ps.Value.Raw, providerSpec)
-	if err != nil {
+
+	if err := json.Unmarshal(ps.Value.Raw, providerSpec); err != nil {
 		return nil, err
 	}
+
 	providerSpec.UserDataSecret = nil
 	providerSpec.CredentialsSecret = nil
 	providerSpec.SystemType = ""
 	providerSpec.ProcessorType = ""
 	providerSpec.MemoryGiB = 0
 	providerSpec.Processors = intstr.FromString("")
+
 	return &machinev1beta1.ProviderSpec{
 		Value: &runtime.RawExtension{
 			Object: providerSpec,

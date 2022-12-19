@@ -11,14 +11,15 @@ import (
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// GetServices returns a list of services matching the provided selector
+// GetServices returns a list of services matching the provided selector.
 func GetServices(client runtimeclient.Client, selector map[string]string) (*corev1.ServiceList, error) {
 	services := &corev1.ServiceList{}
-	err := client.List(context.TODO(), services, runtimeclient.MatchingLabels(selector))
-	if err != nil {
-		return nil, fmt.Errorf("error getting Services %v", err)
+
+	if err := client.List(context.TODO(), services, runtimeclient.MatchingLabels(selector)); err != nil {
+		return nil, fmt.Errorf("error getting Services %w", err)
 	}
-	return services, err
+
+	return services, nil
 }
 
 // GetService gets service object by name and namespace.
@@ -34,14 +35,16 @@ func GetService(c runtimeclient.Client, name, namespace string) (*corev1.Service
 			klog.Errorf("Error querying api for Service object %q: %v, retrying...", name, err)
 			return false, nil
 		}
+
 		return true, nil
 	}); err != nil {
-		return nil, fmt.Errorf("error getting Service %q: %v", name, err)
+		return nil, fmt.Errorf("error getting Service %q: %w", name, err)
 	}
+
 	return s, nil
 }
 
-// IsServiceAvailable returns true if the service exists
+// IsServiceAvailable returns true if the service exists.
 func IsServiceAvailable(c runtimeclient.Client, name, namespace string) bool {
 	if err := wait.PollImmediate(RetryMedium, WaitLong, func() (bool, error) {
 		s, err := GetService(c, name, namespace)
@@ -55,11 +58,13 @@ func IsServiceAvailable(c runtimeclient.Client, name, namespace string) bool {
 		}
 		klog.Infof("Service %q is available. Status: %s",
 			s.Name, serviceInfo(s))
+
 		return true, nil
 	}); err != nil {
 		klog.Errorf("Error checking IsServiceAvailable: %v", err)
 		return false
 	}
+
 	return true
 }
 

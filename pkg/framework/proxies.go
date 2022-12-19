@@ -58,7 +58,7 @@ KXnMavS2Lb7uobyhk/ltAkEA48NjOS7IL1JMR2X/r5uBrEQhd/XjnaYePdav32Ii
 -----END RSA PRIVATE KEY-----
 `
 
-// DeployClusterProxy Deploys an HTTP proxy to the proxy node
+// DeployClusterProxy Deploys an HTTP proxy to the proxy node.
 func DeployClusterProxy(c runtimeclient.Client) error {
 	mitmDeploymentLabels := map[string]string{
 		"app": "mitm-proxy",
@@ -82,9 +82,12 @@ func DeployClusterProxy(c runtimeclient.Client) error {
 		},
 	}
 
-	err := c.Create(context.Background(), &mitmSigner)
+	if err := c.Create(context.Background(), &mitmSigner); err != nil {
+		return fmt.Errorf("cannot create secret: %w", err)
+	}
 
 	var mitmBootstrapPerms int32 = 511
+
 	mitmBootstrapConfigMap := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "mitm-bootstrap",
@@ -95,9 +98,8 @@ func DeployClusterProxy(c runtimeclient.Client) error {
 		},
 	}
 
-	err = c.Create(context.Background(), &mitmBootstrapConfigMap)
-	if err != nil {
-		return err
+	if err := c.Create(context.Background(), &mitmBootstrapConfigMap); err != nil {
+		return fmt.Errorf("cannot create configmap: %w", err)
 	}
 
 	mitmCustomPkiConfigMap := corev1.ConfigMap{
@@ -110,8 +112,7 @@ func DeployClusterProxy(c runtimeclient.Client) error {
 		},
 	}
 
-	err = c.Create(context.Background(), &mitmCustomPkiConfigMap)
-	if err != nil {
+	if err := c.Create(context.Background(), &mitmCustomPkiConfigMap); err != nil {
 		return err
 	}
 
@@ -185,9 +186,9 @@ func DeployClusterProxy(c runtimeclient.Client) error {
 			},
 		},
 	}
-	err = c.Create(context.Background(), daemonset)
-	if err != nil {
-		return err
+
+	if err := c.Create(context.Background(), daemonset); err != nil {
+		return fmt.Errorf("cannot create daemonset: %w", err)
 	}
 
 	if !IsDaemonsetAvailable(c, objectMeta.Name, objectMeta.Namespace) {
@@ -209,18 +210,18 @@ func DeployClusterProxy(c runtimeclient.Client) error {
 			Selector: mitmDeploymentLabels,
 		},
 	}
-	err = c.Create(context.Background(), service)
-	if err != nil {
-		return err
+	if err := c.Create(context.Background(), service); err != nil {
+		return fmt.Errorf("cannot create service: %w", err)
 	}
+
 	if !IsServiceAvailable(c, objectMeta.Name, objectMeta.Namespace) {
 		return errors.New("service did not become available")
 	}
 
-	return err
+	return nil
 }
 
-// DestroyClusterProxy destroys the HTTP proxy and associated resources
+// DestroyClusterProxy destroys the HTTP proxy and associated resources.
 func DestroyClusterProxy(c runtimeclient.Client) error {
 	mitmDeploymentLabels := map[string]string{
 		"app": "mitm-proxy",
@@ -279,16 +280,18 @@ func DestroyClusterProxy(c runtimeclient.Client) error {
 	return nil
 }
 
-// WaitForProxyInjectionSync waits for the deployment to sync with the state of the cluster-proxy
+// WaitForProxyInjectionSync waits for the deployment to sync with the state of the cluster-proxy.
 func WaitForProxyInjectionSync(c runtimeclient.Client, name, namespace string, shouldBePresent bool) (bool, error) {
 	if err := wait.PollImmediate(RetryMedium, WaitLong, func() (bool, error) {
 		deployment, err := GetDeployment(c, name, namespace)
 		if err != nil {
-			return false, nil
+			return false, fmt.Errorf("error getting deployment: %w", err)
 		}
+
 		hasHTTPProxy := false
 		hasHTTPSProxy := false
 		hasNoProxy := false
+
 		for _, container := range deployment.Spec.Template.Spec.Containers {
 			for _, envVar := range container.Env {
 				switch envVar.Name {
@@ -301,12 +304,14 @@ func WaitForProxyInjectionSync(c runtimeclient.Client, name, namespace string, s
 				}
 			}
 		}
+
 		return (hasHTTPProxy &&
 			hasHTTPSProxy &&
 			hasNoProxy) == shouldBePresent, nil
 	}); err != nil {
-		return false, fmt.Errorf("error checking isDeploymentAvailable: %v", err)
+		return false, fmt.Errorf("error checking isDeploymentAvailable: %w", err)
 	}
+
 	return true, nil
 }
 

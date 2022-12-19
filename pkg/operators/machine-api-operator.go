@@ -39,7 +39,7 @@ var _ = Describe(
 
 		AfterEach(func() {
 			specReport := CurrentSpecReport()
-			if specReport.Failed() == true {
+			if specReport.Failed() {
 				Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
 			}
 		})
@@ -127,6 +127,7 @@ var _ = Describe(
 				if err := client.Get(context.Background(), key, current); err != nil && !apierrors.IsNotFound(err) {
 					return "", err
 				}
+
 				return current.GetUID(), nil
 			}).ShouldNot(Equal(initialUID))
 
@@ -153,6 +154,7 @@ var _ = Describe(
 				if err := client.Get(context.Background(), key, current); err != nil && !apierrors.IsNotFound(err) {
 					return "", err
 				}
+
 				return current.GetUID(), nil
 			}).ShouldNot(Equal(initialUID))
 
@@ -244,11 +246,11 @@ var _ = Describe(
 			Expect(err).NotTo(HaveOccurred())
 
 			By("deploying an HTTP proxy")
-			err = framework.DeployClusterProxy(client)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(framework.DeployClusterProxy(client)).NotTo(HaveOccurred())
 
 			By("configuring cluster-wide proxy")
 			services, err := framework.GetServices(client, map[string]string{"app": "mitm-proxy"})
+			Expect(err).NotTo(HaveOccurred())
 			proxy, err := framework.GetClusterProxy(client)
 			Expect(err).NotTo(HaveOccurred())
 			proxy.Spec.HTTPProxy = "http://" + services.Items[0].Spec.ClusterIP + ":8080"
@@ -257,8 +259,7 @@ var _ = Describe(
 			proxy.Spec.TrustedCA = v1.ConfigMapNameReference{
 				Name: "mitm-custom-pki",
 			}
-			err = client.Update(context.Background(), proxy)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(client.Update(context.Background(), proxy)).NotTo(HaveOccurred())
 
 			By("waiting for machine-api-controller deployment to reflect configured cluster-wide proxy")
 			result, err := framework.WaitForProxyInjectionSync(client, maoManagedDeployment, framework.MachineAPINamespace, true)
@@ -273,16 +274,15 @@ var _ = Describe(
 
 			By("destroying a machineset")
 			Expect(client.Delete(context.Background(), machineSet)).To(Succeed())
-			framework.WaitForMachineSetDelete(client, machineSet)
+			framework.WaitForMachineSetsDeleted(client, machineSet)
 
 			By("unconfiguring cluster-wide proxy")
-			err = client.Patch(context.Background(), proxy, runtimeclient.RawPatch(apitypes.JSONPatchType, []byte(`[
-			{"op": "remove", "path": "/spec/httpProxy"},
-			{"op": "remove", "path": "/spec/httpsProxy"},
-			{"op": "remove", "path": "/spec/noProxy"},
-			{"op": "remove", "path": "/spec/trustedCA"}
-		]`)))
-			Expect(err).NotTo(HaveOccurred())
+			Expect(client.Patch(context.Background(), proxy, runtimeclient.RawPatch(apitypes.JSONPatchType, []byte(`[
+				{"op": "remove", "path": "/spec/httpProxy"},
+				{"op": "remove", "path": "/spec/httpsProxy"},
+				{"op": "remove", "path": "/spec/noProxy"},
+				{"op": "remove", "path": "/spec/trustedCA"}
+			]`)))).NotTo(HaveOccurred())
 
 			By("waiting for machine-api-controller deployment to reflect unconfigured cluster-wide proxy")
 			Expect(framework.WaitForProxyInjectionSync(client, maoManagedDeployment, framework.MachineAPINamespace, false)).To(BeTrue())
@@ -290,7 +290,7 @@ var _ = Describe(
 
 		AfterEach(func() {
 			specReport := CurrentSpecReport()
-			if specReport.Failed() == true {
+			if specReport.Failed() {
 				Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
 			}
 
@@ -307,6 +307,6 @@ var _ = Describe(
 			Expect(framework.WaitForStatusAvailableMedium(client, "machine-api")).To(BeTrue())
 
 			By("Removing the mitm-proxy")
-			Expect(framework.DestroyClusterProxy(client)).ToNot(HaveOccurred())
+			Expect(framework.DestroyClusterProxy(client)).To(Succeed())
 		})
 	})

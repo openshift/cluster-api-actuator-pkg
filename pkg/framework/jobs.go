@@ -53,15 +53,18 @@ func NewWorkLoad(njobs int32, memoryRequest resource.Quantity, workloadJobName s
 			Parallelism:  pointer.Int32Ptr(njobs),
 		},
 	}
+
 	if nodeSelector != "" {
 		job.Spec.Template.Spec.NodeSelector = map[string]string{
 			nodeSelector: "",
 		}
 	}
+
 	if podLabel != "" {
 		job.Spec.Template.ObjectMeta.Labels = map[string]string{
 			podLabel: "",
 		}
 	}
+
 	return job
 }

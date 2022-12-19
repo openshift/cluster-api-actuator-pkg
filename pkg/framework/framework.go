@@ -3,6 +3,7 @@ package framework
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -32,7 +33,7 @@ const (
 	RetryShort              = 1 * time.Second
 	RetryMedium             = 5 * time.Second
 	// DefaultMachineSetReplicas is the default number of replicas of a machineset
-	// if MachineSet.Spec.Replicas field is set to nil
+	// if MachineSet.Spec.Replicas field is set to nil.
 	DefaultMachineSetReplicas  = 0
 	MachinePhaseRunning        = "Running"
 	MachinePhaseFailed         = "Failed"
@@ -41,10 +42,10 @@ const (
 	MachineAnnotationKey       = "machine.openshift.io/machine"
 	ClusterAPIActuatorPkgTaint = "cluster-api-actuator-pkg"
 
-	// Openshift CI specific env variables
-	IS_CI        = "OPENSHIFT_CI"
-	ARTIFACT_DIR = "ARTIFACT_DIR"
-	CLI_DIR      = "CLI_DIR"
+	// Openshift CI specific env variables.
+	isCI        = "OPENSHIFT_CI"
+	artifactDir = "ARTIFACT_DIR"
+	cliDir      = "CLI_DIR"
 )
 
 var (
@@ -78,14 +79,18 @@ func GetPlatform(c runtimeclient.Client) (configv1.PlatformType, error) {
 	if platform != "" {
 		return platform, nil
 	}
+
 	infra, err := GetInfrastructure(c)
 	if err != nil {
 		return "", err
 	}
+
 	if infra.Status.PlatformStatus == nil {
 		return "", errors.New("platform status is not populated in infrastructure object")
 	}
+
 	platform = infra.Status.PlatformStatus.Type
+
 	return platform, nil
 }
 
@@ -144,11 +149,13 @@ func expectStatusAvailableIn(client runtimeclient.Client, name string, timeout t
 			klog.Errorf("Condition: %q is true", configv1.OperatorDegraded)
 			return false, nil
 		}
+
 		return true, nil
 	}); err != nil {
 		klog.Errorf("Error checking isStatusAvailable: %v", err)
 		return false
 	}
+
 	return true
 }
 
@@ -171,7 +178,7 @@ func WaitForValidatingWebhook(client runtimeclient.Client, name string) bool {
 	return true
 }
 
-// WaitForEvent expects to find the given event
+// WaitForEvent expects to find the given event.
 func WaitForEvent(c runtimeclient.Client, kind, name, reason string) error {
 	return wait.PollImmediate(RetryMedium, WaitMedium, func() (bool, error) {
 		eventList := corev1.EventList{}
@@ -202,6 +209,7 @@ func NewCLI() (*gatherer.CLI, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	baseOutputPath, err := getCliOutputFilesPath()
 	if err != nil {
 		return nil, err
@@ -211,14 +219,17 @@ func NewCLI() (*gatherer.CLI, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	cli = cli.WithExec(getOcExecPath())
+
 	return cli, nil
 }
 
-// isOpenshiftCI tries to detect Openshift CI environment
+// isOpenshiftCI tries to detect Openshift CI environment.
 func isOpenshiftCI() bool {
-	envCI := os.Getenv(IS_CI)
-	envArtifactsDir := os.Getenv(ARTIFACT_DIR)
+	envCI := os.Getenv(isCI)
+	envArtifactsDir := os.Getenv(artifactDir)
+
 	return envCI == "true" && len(envArtifactsDir) > 0
 }
 
@@ -227,20 +238,22 @@ func isOpenshiftCI() bool {
 // If not, returns '%current_directory%/_out'.
 func getCliOutputFilesPath() (string, error) {
 	if isOpenshiftCI() {
-		return filepath.Join(os.Getenv(ARTIFACT_DIR), "machine-api-e2e-suite"), nil
+		return filepath.Join(os.Getenv(artifactDir), "machine-api-e2e-suite"), nil
 	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		return "", nil
+		return "", fmt.Errorf("failed to get current working directory: %w", err)
 	}
+
 	return filepath.Join(cwd, "_out"), nil
 }
 
 func getOcExecPath() string {
 	if isOpenshiftCI() {
-		return filepath.Join(os.Getenv(CLI_DIR), "oc")
+		return filepath.Join(os.Getenv(cliDir), "oc")
 	}
+
 	return "oc"
 }
 

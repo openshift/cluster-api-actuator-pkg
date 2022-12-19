@@ -22,6 +22,7 @@ func main() {
 	flag.Parse()
 
 	var handler http.Handler
+
 	switch {
 	case strings.EqualFold(*provider, "aws"):
 		handler = awsMetadataMockHandler()
@@ -34,14 +35,16 @@ func main() {
 	}
 
 	log.Printf("Starting mock metadata service for provider: %s", *provider)
+
 	if err := http.ListenAndServe(*listenAddr, logRequests(handler)); err != nil {
 		log.Fatal(err)
 	}
 }
 
-// AWS instances expect an OK response to indicate that the instance has been scheduled for termination
+// AWS instances expect an OK response to indicate that the instance has been scheduled for termination.
 func awsMetadataMockHandler() http.Handler {
 	mux := http.NewServeMux()
+
 	const (
 		authTokenValue = "FOO"
 		tokenHeader    = "X-aws-ec2-metadata-token"
@@ -64,7 +67,9 @@ func awsMetadataMockHandler() http.Handler {
 
 		rw.Header().Add(tokenTTLHeader, "21600")
 		rw.WriteHeader(http.StatusOK)
-		rw.Write([]byte(authTokenValue))
+		if _, err := rw.Write([]byte(authTokenValue)); err != nil {
+			log.Fatal(err)
+		}
 	})
 
 	return mux
@@ -81,14 +86,22 @@ func azureMetadataMockHandler() http.Handler {
 		if req.Header.Get("Metadata") != "true" {
 			// Require the "Metadata" header to be correct
 			rw.WriteHeader(http.StatusBadRequest)
-			rw.Write([]byte("400 Bad Request"))
+
+			if _, err := rw.Write([]byte("400 Bad Request")); err != nil {
+				log.Fatal(err)
+			}
+
 			return
 		}
 
 		if req.URL.Query().Get("api-version") != azureTerminationAPIVersion {
 			// Require the "api-version" query string to be correct
 			rw.WriteHeader(http.StatusBadRequest)
-			rw.Write([]byte("400 Bad Request"))
+
+			if _, err := rw.Write([]byte("400 Bad Request")); err != nil {
+				log.Fatal(err)
+			}
+
 			return
 		}
 
@@ -102,11 +115,17 @@ func azureMetadataMockHandler() http.Handler {
 		data, err := json.Marshal(events)
 		if err != nil {
 			rw.WriteHeader(500)
-			rw.Write([]byte("500 Internal Server Error"))
+
+			if _, err := rw.Write([]byte("500 Internal Server Error")); err != nil {
+				log.Fatal(err)
+			}
+
 			return
 		}
 
-		rw.Write(data)
+		if _, err := rw.Write(data); err != nil {
+			log.Fatal(err)
+		}
 	})
 
 	return mux
@@ -131,13 +150,19 @@ func gcpMetadataMockHandler() http.Handler {
 
 	mux.HandleFunc(gcpTerminationPattern, func(rw http.ResponseWriter, req *http.Request) {
 		if req.Header.Get("Metadata-Flavor") != "Google" {
-			// Require the "Metadata-Flavor" header to be correct
+			// Require the "Metadata-Flavor" header to be correct.
 			rw.WriteHeader(http.StatusBadRequest)
-			rw.Write([]byte("400 Bad Request"))
+
+			if _, err := rw.Write([]byte("400 Bad Request")); err != nil {
+				log.Fatal(err)
+			}
+
 			return
 		}
 
-		rw.Write([]byte("TRUE"))
+		if _, err := rw.Write([]byte("TRUE")); err != nil {
+			log.Fatal(err)
+		}
 	})
 
 	return mux
@@ -176,8 +201,6 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.status = code
 	rw.ResponseWriter.WriteHeader(code)
 	rw.wroteHeader = true
-
-	return
 }
 
 func (rw *responseWriter) Write(data []byte) (int, error) {
@@ -185,5 +208,6 @@ func (rw *responseWriter) Write(data []byte) (int, error) {
 		rw.status = http.StatusOK
 		rw.wroteHeader = true
 	}
+
 	return rw.ResponseWriter.Write(data)
 }

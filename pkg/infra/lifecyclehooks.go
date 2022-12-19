@@ -45,6 +45,8 @@ var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 
 		By("Creating the machineset")
 		client, err = framework.LoadClient()
+		Expect(err).ToNot(HaveOccurred())
+
 		// Build machine set parameters
 		expectedReplicas := 1
 		machineSetParams := framework.BuildMachineSetParams(client, expectedReplicas)
@@ -73,13 +75,14 @@ var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 				pod = jobPodList.Items[0]
 				return pod.Status.Phase == corev1.PodRunning, nil
 			}
+
 			return false, nil
 		}, framework.WaitLong, pollingInterval).Should(BeTrue(), "Pod did not start running on machine")
 	})
 
 	AfterEach(func() {
 		specReport := CurrentSpecReport()
-		if specReport.Failed() == true {
+		if specReport.Failed() {
 			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
 		}
 
@@ -90,7 +93,7 @@ var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 		})).To(Succeed())
 
 		By("Waiting for the MachineSet to be deleted...")
-		framework.WaitForMachineSetDelete(client, machineSet)
+		framework.WaitForMachineSetsDeleted(client, machineSet)
 
 		By("Deleting workload job")
 		Expect(client.Delete(context.Background(), workload, &runtimeclient.DeleteOptions{
@@ -126,13 +129,14 @@ var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 			if err := client.Update(context.Background(), machine); err != nil {
 				return false, err
 			}
+
 			return true, nil
 		}, framework.WaitShort, pollingInterval).Should(BeTrue(),
 			"Could not add lifecycle hooks to machine")
 
 		By("Deleting the machine")
 		// Delete the machine by scaling down the machineset to zero
-		framework.ScaleMachineSet(machineSet.Name, 0)
+		Expect(framework.ScaleMachineSet(machineSet.Name, 0)).To(Succeed())
 
 		By("Checking that workload pod is running on machine")
 		// pre-drain hook should prevent pod from being evicted
@@ -149,6 +153,7 @@ var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 					return pod.Status.Phase == corev1.PodRunning, nil
 				}
 			}
+
 			return false, nil
 		}, framework.WaitMedium, pollingInterval).Should(BeTrue(),
 			"Workload pod was evicted from the machine or drainable condition is not set")
@@ -162,14 +167,14 @@ var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 			if err := client.Update(context.Background(), machine); err != nil {
 				return false, err
 			}
+
 			return true, nil
 		}, framework.WaitShort, pollingInterval).Should(BeTrue(), "Could not delete pre-drain hook")
 
 		By("Checking that workload pod is evicted from the machine")
 		// Check that pod is evicted, but machine is still present
 		Eventually(func() bool {
-			err = client.Get(context.Background(), podKey, &pod)
-			return apierrors.IsNotFound(err)
+			return apierrors.IsNotFound(client.Get(context.Background(), podKey, &pod))
 		}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "Pod was not evicted from machine")
 		Eventually(func() (bool, error) {
 			if err := client.Get(context.Background(), machineKey, machine); err != nil {
@@ -182,6 +187,7 @@ var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 					return *machine.Status.Phase == "Deleting", nil
 				}
 			}
+
 			return false, nil
 		}, framework.WaitMedium, pollingInterval).Should(BeTrue(),
 			"Machine was deleted or terminable condition is not set")
@@ -195,14 +201,14 @@ var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 			if err = client.Update(context.Background(), machine); err != nil {
 				return false, err
 			}
+
 			return true, nil
 		}, framework.WaitShort, pollingInterval).Should(BeTrue(),
 			"Could not delete pre-termiante hook")
 
 		By("Checking that machine is deleted")
 		Eventually(func() bool {
-			err = client.Get(context.Background(), machineKey, machine)
-			return apierrors.IsNotFound(err)
+			return apierrors.IsNotFound(client.Get(context.Background(), machineKey, machine))
 		}, framework.WaitLong, pollingInterval).Should(BeTrue(), "Machine was not deleted")
 	})
 })

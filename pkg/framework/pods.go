@@ -11,10 +11,11 @@ import (
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// GetPods returns a list of pods matching the provided selector
+// GetPods returns a list of pods matching the provided selector.
 func GetPods(client runtimeclient.Client, selector map[string]string) (*corev1.PodList, error) {
 	pods := &corev1.PodList{}
 	err := client.List(context.TODO(), pods, runtimeclient.MatchingLabels(selector))
+
 	return pods, err
 }
 
@@ -23,10 +24,12 @@ type PodCleanupFunc func() error
 type PodLastLogFunc func(container string, lines int, previous bool) (string, error)
 
 // RunPodOnNode runs a pod according passed spec on particular node.
-// returns created pod object, function for retrieve last logs, cleanup function and error if occurred
+// returns created pod object, function for retrieve last logs, cleanup function and error if occurred.
 func RunPodOnNode(clientset *kubernetes.Clientset, node *corev1.Node, namespace string, podSpec corev1.PodSpec) (*corev1.Pod, PodLastLogFunc, PodCleanupFunc, error) {
 	var err error
+
 	podSpec.NodeName = node.Name
+
 	pod := &corev1.Pod{
 		Spec: podSpec,
 		ObjectMeta: metav1.ObjectMeta{
@@ -51,16 +54,21 @@ func RunPodOnNode(clientset *kubernetes.Clientset, node *corev1.Node, namespace 
 			Previous:  previous,
 			TailLines: &tailLines,
 		})
+
 		podLogs, err := req.Stream(context.TODO())
 		if err != nil {
 			return "", err
 		}
+
 		defer podLogs.Close()
+
 		buf := new(bytes.Buffer)
+
 		_, err = io.Copy(buf, podLogs)
 		if err != nil {
 			return "", err
 		}
+
 		logs := buf.String()
 
 		return logs, nil

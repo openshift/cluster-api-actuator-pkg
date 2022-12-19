@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	amiIdMetadataEndpoint = "http://169.254.169.254/latest/meta-data/ami-id"
+	amiIDMetadataEndpoint = "http://169.254.169.254/latest/meta-data/ami-id"
 )
 
 var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific, framework.LabelProviderAWS, func() {
@@ -51,7 +51,7 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 
 	AfterEach(func() {
 		specReport := CurrentSpecReport()
-		if specReport.Failed() == true {
+		if specReport.Failed() {
 			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
 		}
 
@@ -62,11 +62,12 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 	})
 
 	createMachineSet := func(metadataAuth string) (*machinev1.MachineSet, error) {
+		var err error
+
 		By(fmt.Sprintf("Create machine with metadataServiceOptions.authentication %s", metadataAuth))
 		machineSetParams := framework.BuildMachineSetParams(client, 1)
 		spec := machinev1.AWSMachineProviderConfig{}
-		err := json.Unmarshal(machineSetParams.ProviderSpec.Value.Raw, &spec)
-		Expect(err).ToNot(HaveOccurred())
+		Expect(json.Unmarshal(machineSetParams.ProviderSpec.Value.Raw, &spec)).To(Succeed())
 
 		spec.MetadataServiceOptions.Authentication = machinev1.MetadataServiceAuthentication(metadataAuth)
 
@@ -79,6 +80,7 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 		}
 		toDelete = append(toDelete, mc)
 		framework.WaitForMachineSet(client, mc.GetName())
+
 		return mc, nil
 	}
 
@@ -93,20 +95,22 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 						Name:    "curl-metadata",
 						Image:   "registry.access.redhat.com/ubi8/ubi-minimal:latest",
 						Command: []string{"curl"},
-						Args:    []string{"-v", amiIdMetadataEndpoint},
+						Args:    []string{"-v", amiIDMetadataEndpoint},
 					},
 				},
 			}
 			pod, lastLog, cleanupPod, err := framework.RunPodOnNode(clientset, nodes[0], framework.MachineAPINamespace, podSpec)
 			Expect(err).ToNot(HaveOccurred())
-			defer cleanupPod()
+			defer func() {
+				Expect(cleanupPod()).To(Succeed())
+			}()
 
 			By("Ensure curl pod is ready")
 			Eventually(func() (bool, error) {
-				err := client.Get(context.Background(), runtimeclient.ObjectKeyFromObject(pod), pod)
-				if err != nil {
+				if err := client.Get(context.Background(), runtimeclient.ObjectKeyFromObject(pod), pod); err != nil {
 					return false, err
 				}
+
 				switch pod.Status.Phase {
 				case corev1.PodRunning, corev1.PodSucceeded, corev1.PodFailed:
 					return true, nil

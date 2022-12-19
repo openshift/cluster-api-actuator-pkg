@@ -31,6 +31,7 @@ var nodeDrainLabels = map[string]string{
 
 func replicationControllerWorkload(namespace string) *corev1.ReplicationController {
 	var replicas int32 = 20
+
 	return &corev1.ReplicationController{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "pdb-workload",
@@ -77,6 +78,7 @@ func replicationControllerWorkload(namespace string) *corev1.ReplicationControll
 
 func podDisruptionBudget(namespace string) *policyv1.PodDisruptionBudget {
 	maxUnavailable := intstr.FromInt(1)
+
 	return &policyv1.PodDisruptionBudget{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "nginx-pdb",
@@ -95,6 +97,7 @@ func podDisruptionBudget(namespace string) *policyv1.PodDisruptionBudget {
 
 func invalidMachinesetWithEmptyProviderConfig() *machinev1.MachineSet {
 	var oneReplicas int32 = 1
+
 	return &machinev1.MachineSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "invalid-machineset",
@@ -125,6 +128,7 @@ func invalidMachinesetWithEmptyProviderConfig() *machinev1.MachineSet {
 
 func deleteObject(client runtimeclient.Client, obj runtimeclient.Object) error {
 	cascadeDelete := metav1.DeletePropagationForeground
+
 	return client.Delete(context.TODO(), obj, &runtimeclient.DeleteOptions{
 		PropagationPolicy: &cascadeDelete,
 	})
@@ -138,6 +142,7 @@ func deleteObjects(client runtimeclient.Client, delObjects map[string]runtimecli
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -161,15 +166,14 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 
 	AfterEach(func() {
 		specReport := CurrentSpecReport()
-		if specReport.Failed() == true {
+		if specReport.Failed() {
 			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
 		}
 
 		if machineSet != nil {
 			By("Deleting the new MachineSet")
-			err := client.Delete(context.Background(), machineSet)
-			Expect(err).ToNot(HaveOccurred())
-			framework.WaitForMachineSetDelete(client, machineSet)
+			Expect(client.Delete(context.Background(), machineSet)).To(Succeed())
+			framework.WaitForMachineSetsDeleted(client, machineSet)
 		}
 
 	})
@@ -242,11 +246,12 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 				for _, taint := range node.Spec.Taints {
 					observedTaints.Insert(taint.Key)
 				}
-				if expectedTaints.Difference(observedTaints).HasAny("not-from-machine", machineTaint.Key) == false {
+				if !expectedTaints.Difference(observedTaints).HasAny("not-from-machine", machineTaint.Key) {
 					klog.Infof("Expected : %v, observed %v , difference %v, ", expectedTaints, observedTaints, expectedTaints.Difference(observedTaints))
 					return true
 				}
 				klog.Infof("Did not find all expected taints on the node. Missing: %v", expectedTaints.Difference(observedTaints))
+
 				return false
 			}, framework.WaitMedium, 5*time.Second).Should(BeTrue())
 		})
@@ -273,9 +278,8 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(machines).ToNot(BeEmpty())
 
-			By(fmt.Sprint("deleting all machines"))
-			err = framework.DeleteMachines(client, machines...)
-			Expect(err).NotTo(HaveOccurred())
+			By("deleting all machines")
+			Expect(framework.DeleteMachines(client, machines...)).To(Succeed())
 			framework.WaitForMachinesDeleted(client, machines...)
 
 			framework.WaitForMachineSet(client, machineSet.GetName())
@@ -292,9 +296,8 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 			// Make sure second machineset gets deleted anyway
 			defer func() {
 				By("Deleting the second MachineSet")
-				err := deleteObject(client, machineSet2)
-				Expect(err).ToNot(HaveOccurred())
-				framework.WaitForMachineSetDelete(client, machineSet2)
+				Expect(deleteObject(client, machineSet2)).To(Succeed())
+				framework.WaitForMachineSetsDeleted(client, machineSet2)
 			}()
 
 			framework.WaitForMachineSet(client, machineSet2.GetName())
@@ -324,18 +327,15 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 			machines[0].Spec.ObjectMeta.Labels = machineSetParams.Labels
 			machines[1].Spec.ObjectMeta.Labels = machineSetParams.Labels
 
-			err = client.Update(context.TODO(), machines[0])
-			Expect(err).ToNot(HaveOccurred())
+			Expect(client.Update(context.TODO(), machines[0])).To(Succeed())
 
-			err = client.Update(context.TODO(), machines[1])
-			Expect(err).ToNot(HaveOccurred())
+			Expect(client.Update(context.TODO(), machines[1])).To(Succeed())
 
 			// Make sure RC and PDB get deleted anyway
 			delObjects := make(map[string]runtimeclient.Object)
 
 			defer func() {
-				err := deleteObjects(client, delObjects)
-				Expect(err).ToNot(HaveOccurred())
+				Expect(deleteObjects(client, delObjects)).To(Succeed())
 			}()
 
 			By("Creating RC with workload")
@@ -345,27 +345,23 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 			namespace := framework.MachineAPINamespace
 
 			rc := replicationControllerWorkload(namespace)
-			err = client.Create(context.TODO(), rc)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(client.Create(context.TODO(), rc)).To(Succeed())
 			delObjects["rc"] = rc
 
 			By("Creating PDB for RC")
 			pdb := podDisruptionBudget(namespace)
-			err = client.Create(context.TODO(), pdb)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(client.Create(context.TODO(), pdb)).To(Succeed())
 			delObjects["pdb"] = pdb
 
 			By("Wait until all replicas are ready")
-			err = framework.WaitUntilAllRCPodsAreReady(client, rc)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(framework.WaitUntilAllRCPodsAreReady(client, rc)).To(Succeed())
 
 			// TODO(jchaloup): delete machine that has at least half of the RC pods
 
 			// All pods are distributed evenly among all nodes so it's fine to drain
 			// random node and observe reconciliation of pods on the other one.
 			By("Delete machine to trigger node draining")
-			err = client.Delete(context.TODO(), machines[0])
-			Expect(err).NotTo(HaveOccurred())
+			Expect(client.Delete(context.TODO(), machines[0])).To(Succeed())
 
 			// We still should be able to list the machine as until rc.replicas-1 are running on the other node
 			By("Observing and verifying node draining")
@@ -376,8 +372,7 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 			framework.WaitForMachinesDeleted(client, machines[0])
 
 			By("Validate underlying node corresponding to machine1 is removed as well")
-			err = framework.WaitUntilNodeDoesNotExists(client, drainedNodeName)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(framework.WaitUntilNodeDoesNotExists(client, drainedNodeName)).To(Succeed())
 		})
 	})
 
@@ -388,7 +383,6 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 		invalidMachineSet := invalidMachinesetWithEmptyProviderConfig()
 		expectedAdmissionWebhookErr := "admission webhook \"default.machineset.machine.openshift.io\" denied the request: providerSpec.value: Required value: a value must be provided"
 
-		err := client.Create(context.TODO(), invalidMachineSet)
-		Expect(err).To(MatchError(expectedAdmissionWebhookErr))
+		Expect(client.Create(context.TODO(), invalidMachineSet)).To(MatchError(expectedAdmissionWebhookErr))
 	})
 })

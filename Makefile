@@ -7,6 +7,8 @@ export GOFLAGS
 GOPROXY ?=
 export GOPROXY
 
+PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
+GOLANGCI_LINT = go run ${PROJECT_DIR}/vendor/github.com/golangci/golangci-lint/cmd/golangci-lint
 
 NO_DOCKER ?= 0
 
@@ -49,9 +51,7 @@ check: fmt vet #lint ## Check your code
 
 .PHONY: lint
 lint: ## Go lint your code
-	# TODO(spangenberg): This thing was never working beacuse it was using $ instead of $$
-	# Fixing it causes CI to fail, this will be handles in a seperate PR.
-	# hack/go-lint.sh -min_confidence 0.3 $$(go list ./...)
+	( GOLANGCI_LINT_CACHE=$(PROJECT_DIR)/.cache $(GOLANGCI_LINT) run --timeout 10m )
 
 .PHONY: fmt
 fmt: ## Go fmt your code

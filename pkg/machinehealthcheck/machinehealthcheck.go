@@ -57,17 +57,17 @@ var _ = Describe("MachineHealthCheck", framework.LabelMachineHealthChecks, func(
 
 	AfterEach(func() {
 		specReport := CurrentSpecReport()
-		if specReport.Failed() == true {
+		if specReport.Failed() {
 			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
 		}
 
 		By("Deleting the MachineHealthCheck resource")
-		Expect(client.Delete(context.Background(), machinehealthcheck)).ToNot(HaveOccurred())
+		Expect(client.Delete(context.Background(), machinehealthcheck)).To(Succeed())
 
 		By("Deleting the new MachineSet")
-		Expect(client.Delete(context.Background(), machineSet)).ToNot(HaveOccurred())
+		Expect(client.Delete(context.Background(), machineSet)).To(Succeed())
 
-		framework.WaitForMachineSetDelete(client, machineSet)
+		framework.WaitForMachineSetsDeleted(client, machineSet)
 	})
 
 	// Machines required for test: 3
@@ -83,7 +83,7 @@ var _ = Describe("MachineHealthCheck", framework.LabelMachineHealthChecks, func(
 		for _, machine := range unhealthyMachines {
 			node, err := framework.GetNodeForMachine(client, machine)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(framework.AddNodeCondition(client, node, nodeCondition)).ToNot(HaveOccurred())
+			Expect(framework.AddNodeCondition(client, node, nodeCondition)).To(Succeed())
 		}
 
 		By("Creating a MachineHealthCheck resource")
@@ -109,7 +109,7 @@ var _ = Describe("MachineHealthCheck", framework.LabelMachineHealthChecks, func(
 
 		By("Waiting for MachineDeleted event from MachineHealthCheck for each unhealthy machine")
 		for _, machine := range unhealthyMachines {
-			Expect(framework.WaitForEvent(client, "Machine", machine.Name, "MachineDeleted")).ToNot(HaveOccurred())
+			Expect(framework.WaitForEvent(client, "Machine", machine.Name, "MachineDeleted")).To(Succeed())
 		}
 
 		By("Ensure none of the healthy machines were deleted")
@@ -135,7 +135,7 @@ var _ = Describe("MachineHealthCheck", framework.LabelMachineHealthChecks, func(
 		for _, machine := range unhealthyMachines {
 			node, err := framework.GetNodeForMachine(client, machine)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(framework.AddNodeCondition(client, node, nodeCondition)).ToNot(HaveOccurred())
+			Expect(framework.AddNodeCondition(client, node, nodeCondition)).To(Succeed())
 		}
 
 		By("Creating a MachineHealthCheck resource")
@@ -157,7 +157,7 @@ var _ = Describe("MachineHealthCheck", framework.LabelMachineHealthChecks, func(
 		Expect(machinehealthcheck).ToNot(BeNil())
 
 		By("Waiting for RemediationRestricted event from MachineHealthCheck")
-		Expect(framework.WaitForEvent(client, "MachineHealthCheck", machineSet.Name, "RemediationRestricted")).ToNot(HaveOccurred())
+		Expect(framework.WaitForEvent(client, "MachineHealthCheck", machineSet.Name, "RemediationRestricted")).To(Succeed())
 
 		By("Ensuring none of the machines were deleted")
 		allMachines, err := framework.GetMachines(client, &selector)
