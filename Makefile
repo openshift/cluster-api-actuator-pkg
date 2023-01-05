@@ -7,7 +7,11 @@ export GOFLAGS
 GOPROXY ?=
 export GOPROXY
 
+# ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
+ENVTEST_K8S_VERSION = 1.25
+
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
+ENVTEST = go run ${PROJECT_DIR}/vendor/sigs.k8s.io/controller-runtime/tools/setup-envtest
 GOLANGCI_LINT = go run ${PROJECT_DIR}/vendor/github.com/golangci/golangci-lint/cmd/golangci-lint
 
 NO_DOCKER ?= 0
@@ -65,9 +69,14 @@ goimports: ## Go fmt your code
 vet: ## Apply go vet to all go files
 	$(DOCKER_CMD) hack/go-vet.sh ./...
 
+.PHONY: unit
+unit: ## Run unit tests
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(PROJECT_DIR)/bin)" ./hack/test.sh
+
 .PHONY: build-e2e
 build-e2e:
 	$(DOCKER_CMD) go test -c -o "$(BUILD_DEST)" github.com/openshift/cluster-api-actuator-pkg/pkg/
+
 
 .PHONY: test-e2e
 test-e2e: ## Run openshift specific e2e test
