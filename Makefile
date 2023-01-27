@@ -8,11 +8,13 @@ GOPROXY ?=
 export GOPROXY
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.25
+ENVTEST_K8S_VERSION = 1.26
 
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 ENVTEST = go run ${PROJECT_DIR}/vendor/sigs.k8s.io/controller-runtime/tools/setup-envtest
 GOLANGCI_LINT = go run ${PROJECT_DIR}/vendor/github.com/golangci/golangci-lint/cmd/golangci-lint
+# We need separate golangci-lint for testutils because it detect module to run on based on the its binary path.
+TESTUTILS_GOLANGCI_LINT = go run ${PROJECT_DIR}/testutils/vendor/github.com/golangci/golangci-lint/cmd/golangci-lint
 
 NO_DOCKER ?= 0
 
@@ -39,7 +41,7 @@ else
 	  -e "GO111MODULE=$(GO111MODULE)" \
 	  -e "GOFLAGS=$(GOFLAGS)" \
 	  -e "GOPROXY=$(GOPROXY)" \
-	  registry.ci.openshift.org/openshift/release:golang-1.18
+	  registry.ci.openshift.org/openshift/release:golang-1.19
   IMAGE_BUILD_CMD = $(ENGINE) build
 endif
 
@@ -48,14 +50,16 @@ all: check
 
 .PHONY: vendor
 vendor:
-	$(DOCKER_CMD) ./hack/go-mod.sh
+	$(DOCKER_CMD) ./hack/go-mod.sh .
+	$(DOCKER_CMD) ./hack/go-mod.sh ./testutils
 
 .PHONY: check
 check: fmt vet #lint ## Check your code
 
 .PHONY: lint
 lint: ## Go lint your code
-	( GOLANGCI_LINT_CACHE=$(PROJECT_DIR)/.cache $(GOLANGCI_LINT) run --timeout 10m )
+	( GOLANGCI_LINT_CACHE=$(PROJECT_DIR)/.cache $(GOLANGCI_LINT) run --timeout 10m ); \
+	( cd ./testutils && GOLANGCI_LINT_CACHE=$(PROJECT_DIR)/.cache $(TESTUTILS_GOLANGCI_LINT) run --config ../.golangci.yaml --timeout 10m )
 
 .PHONY: fmt
 fmt: ## Go fmt your code
@@ -67,11 +71,12 @@ goimports: ## Go fmt your code
 
 .PHONY: vet
 vet: ## Apply go vet to all go files
-	$(DOCKER_CMD) hack/go-vet.sh ./...
+	$(DOCKER_CMD) hack/go-vet.sh . ;\
+	$(DOCKER_CMD) hack/go-vet.sh ./testutils/
 
 .PHONY: unit
 unit: ## Run unit tests
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(PROJECT_DIR)/bin)" ./hack/test.sh
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(PROJECT_DIR)/bin)" ./hack/test.sh ./testutils
 
 .PHONY: build-e2e
 build-e2e:
