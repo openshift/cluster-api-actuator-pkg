@@ -17,7 +17,6 @@ require (
 	k8s.io/klog v1.0.0
 	k8s.io/utils v0.0.0-20220823124924-e9cbc92d1a73
 	sigs.k8s.io/controller-runtime v0.13.0
-	sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20221222054525-3c4deba74e5c
 )
 
 require (
@@ -67,7 +66,6 @@ require (
 	github.com/go-critic/go-critic v0.6.5 // indirect
 	github.com/go-errors/errors v1.0.1 // indirect
 	github.com/go-logr/logr v1.2.3 // indirect
-	github.com/go-logr/zapr v1.2.3 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.19.5 // indirect
 	github.com/go-openapi/swag v0.19.14 // indirect
