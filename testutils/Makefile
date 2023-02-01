@@ -1,5 +1,3 @@
-BUILD_DEST ?= bin/cluster-api-e2e
-
 GO111MODULE = on
 export GO111MODULE
 GOFLAGS ?= -mod=vendor
@@ -34,8 +32,8 @@ ifeq ($(NO_DOCKER), 1)
 else
   DOCKER_CMD := $(ENGINE) run \
 	  --rm \
-	  -v "$(PWD)":/go/src/github.com/openshift/cluster-api-actuator-pkg:Z \
-	  -w /go/src/github.com/openshift/cluster-api-actuator-pkg \
+	  -v "$(PWD)/..":/go/src/github.com/openshift/cluster-api-actuator-pkg:Z \
+	  -w /go/src/github.com/openshift/cluster-api-actuator-pkg/testutils \
 	  -e "GO111MODULE=$(GO111MODULE)" \
 	  -e "GOFLAGS=$(GOFLAGS)" \
 	  -e "GOPROXY=$(GOPROXY)" \
@@ -44,7 +42,7 @@ else
 endif
 
 .PHONY: all
-all: check unit
+all: check
 
 .PHONY: check
 check: lint fmt goimports
@@ -54,39 +52,22 @@ vendor:
 	go mod tidy
 	go mod vendor
 	go mod verify
-	make -C testutils vendor
 
 .PHONY: lint
 lint: ## Go lint your code
-	( GOLANGCI_LINT_CACHE=$(PROJECT_DIR)/.cache $(GOLANGCI_LINT) run --timeout 10m )
-	make -C testutils lint
+	( GOLANGCI_LINT_CACHE=$(PROJECT_DIR)/.cache $(GOLANGCI_LINT) run --config ../.golangci.yaml --timeout 10m )
 
 .PHONY: fmt
 fmt: ## Go fmt your code
 	$(DOCKER_CMD) hack/go-fmt.sh .
-	make -C testutils fmt
 
 .PHONY: goimports
-goimports: ## Go fmt your code
+goimports: ## run goimports
 	$(DOCKER_CMD) hack/goimports.sh .
-	make -C testutils goimports
 
 .PHONY: unit
 unit: ## Run unit tests
-	make -C testutils unit
-
-.PHONY: build-e2e
-build-e2e:
-	$(DOCKER_CMD) go test -c -o "$(BUILD_DEST)" github.com/openshift/cluster-api-actuator-pkg/pkg/
-
-
-.PHONY: test-e2e
-test-e2e: ## Run openshift specific e2e test
-	hack/ci-integration.sh $(GINKGO_ARGS) --label-filter='!periodic' -p
-
-.PHONY: test-e2e-periodic
-test-e2e-periodic: ## Run openshift specific periodic e2e test
-	hack/ci-integration.sh $(GINKGO_ARGS) --label-filter=periodic -p
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(PROJECT_DIR)/bin)" ./hack/test.sh
 
 .PHONY: help
 help:

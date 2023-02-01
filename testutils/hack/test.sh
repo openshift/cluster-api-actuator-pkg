@@ -22,9 +22,7 @@ if [ "$OPENSHIFT_CI" == "true" ] && [ -n "$ARTIFACT_DIR" ] && [ -d "$ARTIFACT_DI
   GINKGO_ARGS="${GINKGO_ARGS} --junit-report=junit_cluster-api-actuator-testutils.xml --cover --coverprofile=test-unit-coverage.out --output-dir=${ARTIFACT_DIR}"
 fi
 
-pushd $1 > /dev/null
 TEST_PACKAGES=$(go list -f "{{ .Dir }}" ./...)
-popd > /dev/null
 
 # Print the command we are going to run as Make would.
 echo ${GINKGO} ${GINKGO_ARGS} ${GINKGO_EXTRA_ARGS} "<omitted>"
