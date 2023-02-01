@@ -12,35 +12,6 @@ PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 ENVTEST = go run ${PROJECT_DIR}/vendor/sigs.k8s.io/controller-runtime/tools/setup-envtest
 GOLANGCI_LINT = go run ${PROJECT_DIR}/vendor/github.com/golangci/golangci-lint/cmd/golangci-lint
 
-NO_DOCKER ?= 0
-
-ifeq ($(shell command -v podman > /dev/null 2>&1 ; echo $$? ), 0)
-	ENGINE=podman
-else ifeq ($(shell command -v docker > /dev/null 2>&1 ; echo $$? ), 0)
-	ENGINE=docker
-else
-	NO_DOCKER=1
-endif
-
-USE_DOCKER ?= 0
-ifeq ($(USE_DOCKER), 1)
-	ENGINE=docker
-endif
-
-ifeq ($(NO_DOCKER), 1)
-  DOCKER_CMD =
-else
-  DOCKER_CMD := $(ENGINE) run \
-	  --rm \
-	  -v "$(PWD)/..":/go/src/github.com/openshift/cluster-api-actuator-pkg:Z \
-	  -w /go/src/github.com/openshift/cluster-api-actuator-pkg/testutils \
-	  -e "GO111MODULE=$(GO111MODULE)" \
-	  -e "GOFLAGS=$(GOFLAGS)" \
-	  -e "GOPROXY=$(GOPROXY)" \
-	  registry.ci.openshift.org/openshift/release:golang-1.19
-  IMAGE_BUILD_CMD = $(ENGINE) build
-endif
-
 .PHONY: all
 all: lint unit
 
