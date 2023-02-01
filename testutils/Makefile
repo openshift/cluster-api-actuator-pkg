@@ -42,13 +42,10 @@ else
 endif
 
 .PHONY: all
-all: check
-
-.PHONY: check
-check: lint fmt goimports
+all: lint unit
 
 .PHONY: vendor
-vendor:
+vendor: ## Update vendor directory
 	go mod tidy
 	go mod vendor
 	go mod verify
@@ -56,14 +53,6 @@ vendor:
 .PHONY: lint
 lint: ## Go lint your code
 	( GOLANGCI_LINT_CACHE=$(PROJECT_DIR)/.cache $(GOLANGCI_LINT) run --config ../.golangci.yaml --timeout 10m )
-
-.PHONY: fmt
-fmt: ## Go fmt your code
-	$(DOCKER_CMD) hack/go-fmt.sh .
-
-.PHONY: goimports
-goimports: ## run goimports
-	$(DOCKER_CMD) hack/goimports.sh .
 
 .PHONY: unit
 unit: ## Run unit tests

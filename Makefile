@@ -43,7 +43,7 @@ endif
 all: check unit
 
 .PHONY: check
-check: lint fmt goimports
+check: lint
 
 .PHONY: vendor
 vendor:
@@ -60,12 +60,10 @@ lint: ## Go lint your code
 .PHONY: fmt
 fmt: ## Go fmt your code
 	$(DOCKER_CMD) hack/go-fmt.sh .
-	make -C testutils fmt
 
 .PHONY: goimports
 goimports: ## Go fmt your code
 	$(DOCKER_CMD) hack/goimports.sh .
-	make -C testutils goimports
 
 .PHONY: unit
 unit: ## Run unit tests
