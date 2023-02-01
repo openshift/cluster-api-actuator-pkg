@@ -20,21 +20,21 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// StatusCondition creates a new status condition builder.
-func StatusCondition() StatusConditionBuilder {
-	return StatusConditionBuilder{}
+// Condition creates a new condition builder.
+func Condition() ConditionBuilder {
+	return ConditionBuilder{}
 }
 
-// StatusConditionBuilder is used to build out a status condition object.
-type StatusConditionBuilder struct {
+// ConditionBuilder is used to build out a condition object.
+type ConditionBuilder struct {
 	conditionType   string
 	conditionStatus metav1.ConditionStatus
 	reason          string
 	message         string
 }
 
-// Build builds a new status condition based on the configuration provided.
-func (c StatusConditionBuilder) Build() metav1.Condition {
+// Build builds a new condition based on the configuration provided.
+func (c ConditionBuilder) Build() metav1.Condition {
 	return metav1.Condition{
 		Type:               c.conditionType,
 		Status:             c.conditionStatus,
@@ -45,26 +45,26 @@ func (c StatusConditionBuilder) Build() metav1.Condition {
 	}
 }
 
-// WithType sets the type for the status condition builder.
-func (c StatusConditionBuilder) WithType(conditionType string) StatusConditionBuilder {
+// WithType sets the type for the condition builder.
+func (c ConditionBuilder) WithType(conditionType string) ConditionBuilder {
 	c.conditionType = conditionType
 	return c
 }
 
-// WithStatus sets the status for the status condition builder.
-func (c StatusConditionBuilder) WithStatus(conditionStatus metav1.ConditionStatus) StatusConditionBuilder {
+// WithStatus sets the status for the condition builder.
+func (c ConditionBuilder) WithStatus(conditionStatus metav1.ConditionStatus) ConditionBuilder {
 	c.conditionStatus = conditionStatus
 	return c
 }
 
-// WithReason sets the reason for the status condition builder.
-func (c StatusConditionBuilder) WithReason(reason string) StatusConditionBuilder {
+// WithReason sets the reason for the condition builder.
+func (c ConditionBuilder) WithReason(reason string) ConditionBuilder {
 	c.reason = reason
 	return c
 }
 
-// WithMessage sets the message for the status condition builder.
-func (c StatusConditionBuilder) WithMessage(message string) StatusConditionBuilder {
+// WithMessage sets the message for the condition builder.
+func (c ConditionBuilder) WithMessage(message string) ConditionBuilder {
 	c.message = message
 	return c
 }
