@@ -35,23 +35,27 @@ else
 	  -e "GO111MODULE=$(GO111MODULE)" \
 	  -e "GOFLAGS=$(GOFLAGS)" \
 	  -e "GOPROXY=$(GOPROXY)" \
-	  registry.ci.openshift.org/openshift/release:golang-1.18
+	  registry.ci.openshift.org/openshift/release:golang-1.19
   IMAGE_BUILD_CMD = $(ENGINE) build
 endif
 
 .PHONY: all
-all: check
+all: check unit
+
+.PHONY: check
+check: lint
 
 .PHONY: vendor
 vendor:
-	$(DOCKER_CMD) ./hack/go-mod.sh
-
-.PHONY: check
-check: fmt vet #lint ## Check your code
+	go mod tidy
+	go mod vendor
+	go mod verify
+	make -C testutils vendor
 
 .PHONY: lint
 lint: ## Go lint your code
 	( GOLANGCI_LINT_CACHE=$(PROJECT_DIR)/.cache $(GOLANGCI_LINT) run --timeout 10m )
+	make -C testutils lint
 
 .PHONY: fmt
 fmt: ## Go fmt your code
@@ -61,13 +65,14 @@ fmt: ## Go fmt your code
 goimports: ## Go fmt your code
 	$(DOCKER_CMD) hack/goimports.sh .
 
-.PHONY: vet
-vet: ## Apply go vet to all go files
-	$(DOCKER_CMD) hack/go-vet.sh ./...
+.PHONY: unit
+unit: ## Run unit tests
+	make -C testutils unit
 
 .PHONY: build-e2e
 build-e2e:
 	$(DOCKER_CMD) go test -c -o "$(BUILD_DEST)" github.com/openshift/cluster-api-actuator-pkg/pkg/
+
 
 .PHONY: test-e2e
 test-e2e: ## Run openshift specific e2e test
