@@ -48,9 +48,9 @@ func NewWorkLoad(njobs int32, memoryRequest resource.Quantity, workloadJobName s
 					},
 				},
 			},
-			BackoffLimit: pointer.Int32Ptr(4),
-			Completions:  pointer.Int32Ptr(njobs),
-			Parallelism:  pointer.Int32Ptr(njobs),
+			BackoffLimit: pointer.Int32(4),
+			Completions:  pointer.Int32(njobs),
+			Parallelism:  pointer.Int32(njobs),
 		},
 	}
 

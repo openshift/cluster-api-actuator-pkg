@@ -14,10 +14,10 @@ import (
 )
 
 // DefaultValidatingWebhookConfiguration is a default validating webhook configuration resource provided by MAO.
-var DefaultValidatingWebhookConfiguration = webhooks.NewValidatingWebhookConfiguration()
+var DefaultValidatingWebhookConfiguration = webhooks.NewMachineValidatingWebhookConfiguration()
 
 // DefaultMutatingWebhookConfiguration is a default mutating webhook configuration resource provided by MAO.
-var DefaultMutatingWebhookConfiguration = webhooks.NewMutatingWebhookConfiguration()
+var DefaultMutatingWebhookConfiguration = webhooks.NewMachineMutatingWebhookConfiguration()
 
 // GetMutatingWebhookConfiguration gets MutatingWebhookConfiguration object by name.
 func GetMutatingWebhookConfiguration(c client.Client, name string) (*admissionregistrationv1.MutatingWebhookConfiguration, error) {

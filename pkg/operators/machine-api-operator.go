@@ -81,7 +81,7 @@ var _ = Describe(
 			Expect(framework.IsDeploymentAvailable(client, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
 
 			changedDeployment := initialDeployment.DeepCopy()
-			changedDeployment.Spec.Replicas = pointer.Int32Ptr(0)
+			changedDeployment.Spec.Replicas = pointer.Int32(0)
 
 			By(fmt.Sprintf("updating deployment %q", maoManagedDeployment))
 			Expect(framework.UpdateDeployment(client, maoManagedDeployment, framework.MachineAPINamespace, changedDeployment)).NotTo(HaveOccurred())
