@@ -1,6 +1,7 @@
 package autoscaler
 
 import (
+	"fmt"
 	"sync"
 
 	corev1 "k8s.io/api/core/v1"
@@ -31,7 +32,7 @@ type eventHandler struct {
 	enabled bool
 }
 
-func newEventWatcher(clientset kubernetes.Interface) *eventWatcher {
+func newEventWatcher(clientset kubernetes.Interface) (*eventWatcher, error) {
 	w := eventWatcher{
 		stopCh:          make(chan struct{}),
 		startTime:       metav1.Now(),
@@ -39,7 +40,7 @@ func newEventWatcher(clientset kubernetes.Interface) *eventWatcher {
 	}
 
 	w.eventInformer = w.informerFactory.Core().V1().Events().Informer()
-	w.eventInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := w.eventInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			event, ok := obj.(*corev1.Event)
 			if !ok {
@@ -63,7 +64,11 @@ func newEventWatcher(clientset kubernetes.Interface) *eventWatcher {
 		},
 	})
 
-	return &w
+	if err != nil {
+		return nil, fmt.Errorf("could not add event handler: %w", err)
+	}
+
+	return &w, nil
 }
 
 func (w *eventWatcher) run() bool {

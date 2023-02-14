@@ -359,7 +359,7 @@ func getMetadataMockDeployment(platform configv1.PlatformType) *appsv1.Deploymen
 			Labels:    getMetadataMockLabels(),
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: pointer.Int32Ptr(1),
+			Replicas: pointer.Int32(1),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: getMetadataMockLabels(),
 			},
@@ -502,7 +502,7 @@ echo "Redirected metadata service to ${SERVICE_IP}:${MOCK_SERVICE_PORT}";`
 								},
 							},
 							SecurityContext: &corev1.SecurityContext{
-								Privileged: pointer.BoolPtr(true),
+								Privileged: pointer.Bool(true),
 								Capabilities: &corev1.Capabilities{
 									Add: []corev1.Capability{"NET_ADMIN", "NET_RAW"},
 								},

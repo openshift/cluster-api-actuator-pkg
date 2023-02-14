@@ -10,27 +10,28 @@ import (
 	"strconv"
 	"strings"
 
-	osconfigv1 "github.com/openshift/api/config/v1"
-	machinev1 "github.com/openshift/api/machine/v1"
-	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
-	osclientset "github.com/openshift/client-go/config/clientset/versioned"
-	"github.com/openshift/machine-api-operator/pkg/util/lifecyclehooks"
-	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kruntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/strings/slices"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
-	yaml "sigs.k8s.io/yaml"
+	"sigs.k8s.io/yaml"
+
+	osconfigv1 "github.com/openshift/api/config/v1"
+	machinev1 "github.com/openshift/api/machine/v1"
+	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
+	osclientset "github.com/openshift/client-go/config/clientset/versioned"
+	"github.com/openshift/machine-api-operator/pkg/util/lifecyclehooks"
 )
 
 type systemSpecifications struct {
@@ -53,7 +54,10 @@ var (
 		return fmt.Sprintf("%s-rg", clusterID)
 	}
 	defaultAzureImageResourceID = func(clusterID string) string {
-		return fmt.Sprintf("/resourceGroups/%s/providers/Microsoft.Compute/images/%s", clusterID+"-rg", clusterID)
+		// image gallery names cannot have dashes
+		galleryName := strings.Replace(clusterID, "-", "_", -1)
+
+		return fmt.Sprintf("/resourceGroups/%s/providers/Microsoft.Compute/galleries/gallery_%s/images/%s/versions/%s", clusterID+"-rg", galleryName, clusterID, azureRHCOSVersion)
 	}
 	defaultAzureManagedIdentiy = func(clusterID string) string {
 		return fmt.Sprintf("%s-identity", clusterID)
@@ -102,16 +106,6 @@ var (
 )
 
 const (
-	DefaultMachineMutatingHookPath      = "/mutate-machine-openshift-io-v1beta1-machine"
-	DefaultMachineValidatingHookPath    = "/validate-machine-openshift-io-v1beta1-machine"
-	DefaultMachineSetMutatingHookPath   = "/mutate-machine-openshift-io-v1beta1-machineset"
-	DefaultMachineSetValidatingHookPath = "/validate-machine-openshift-io-v1beta1-machineset"
-
-	defaultWebhookConfigurationName = "machine-api"
-	defaultWebhookServiceName       = "machine-api-operator-webhook"
-	defaultWebhookServiceNamespace  = "openshift-machine-api"
-	defaultWebhookServicePort       = 443
-
 	defaultUserDataSecret  = "worker-user-data"
 	defaultSecretNamespace = "openshift-machine-api"
 
@@ -132,6 +126,7 @@ const (
 	azureCachingTypeNone               = "None"
 	azureCachingTypeReadOnly           = "ReadOnly"
 	azureCachingTypeReadWrite          = "ReadWrite"
+	azureRHCOSVersion                  = "latest" // The installer only sets up one version but its name may vary, using latest will pull it no matter the name.
 
 	// GCP Defaults
 	defaultGCPMachineType       = "n1-standard-4"
@@ -172,12 +167,9 @@ const (
 	powerVSSystemTypeE980           = "e980"
 )
 
-var (
-	// webhookFailurePolicy is ignore so we don't want to block machine lifecycle on the webhook operational aspects.
-	// This would be particularly problematic for chicken egg issues when bootstrapping a cluster.
-	webhookFailurePolicy = admissionregistrationv1.Ignore
-	webhookSideEffects   = admissionregistrationv1.SideEffectClassNone
-)
+// GCP Confidential VM supports Compute Engine machine types in the following series:
+// reference: https://cloud.google.com/compute/confidential-vm/docs/os-and-machine-type#machine-type
+var gcpConfidentialComputeSupportedMachineSeries = []string{"n2d", "c2d"}
 
 func secretExists(c client.Client, name, namespace string) (bool, error) {
 	key := client.ObjectKey{
@@ -386,174 +378,6 @@ func getMachineDefaulterOperation(platformStatus *osconfigv1.PlatformStatus) mac
 	}
 }
 
-// NewValidatingWebhookConfiguration creates a validation webhook configuration with configured Machine and MachineSet webhooks
-func NewValidatingWebhookConfiguration() *admissionregistrationv1.ValidatingWebhookConfiguration {
-	validatingWebhookConfiguration := &admissionregistrationv1.ValidatingWebhookConfiguration{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: defaultWebhookConfigurationName,
-			Annotations: map[string]string{
-				"service.beta.openshift.io/inject-cabundle": "true",
-			},
-		},
-		Webhooks: []admissionregistrationv1.ValidatingWebhook{
-			MachineValidatingWebhook(),
-			MachineSetValidatingWebhook(),
-		},
-	}
-
-	// Setting group version is required for testEnv to create unstructured objects, as the new structure sets it on empty strings
-	// Usual way to populate those values, is to create the resource in the cluster first, which we can't yet do.
-	validatingWebhookConfiguration.SetGroupVersionKind(admissionregistrationv1.SchemeGroupVersion.WithKind("ValidatingWebhookConfiguration"))
-	return validatingWebhookConfiguration
-}
-
-// MachineValidatingWebhook returns validating webhooks for machine to populate the configuration
-func MachineValidatingWebhook() admissionregistrationv1.ValidatingWebhook {
-	serviceReference := admissionregistrationv1.ServiceReference{
-		Namespace: defaultWebhookServiceNamespace,
-		Name:      defaultWebhookServiceName,
-		Path:      pointer.StringPtr(DefaultMachineValidatingHookPath),
-		Port:      pointer.Int32Ptr(defaultWebhookServicePort),
-	}
-	return admissionregistrationv1.ValidatingWebhook{
-		AdmissionReviewVersions: []string{"v1"},
-		Name:                    "validation.machine.machine.openshift.io",
-		FailurePolicy:           &webhookFailurePolicy,
-		SideEffects:             &webhookSideEffects,
-		ClientConfig: admissionregistrationv1.WebhookClientConfig{
-			Service: &serviceReference,
-		},
-		Rules: []admissionregistrationv1.RuleWithOperations{
-			{
-				Rule: admissionregistrationv1.Rule{
-					APIGroups:   []string{machinev1beta1.GroupName},
-					APIVersions: []string{machinev1beta1.SchemeGroupVersion.Version},
-					Resources:   []string{"machines"},
-				},
-				Operations: []admissionregistrationv1.OperationType{
-					admissionregistrationv1.Create,
-					admissionregistrationv1.Update,
-				},
-			},
-		},
-	}
-}
-
-// MachineSetValidatingWebhook returns validating webhooks for machineSet to populate the configuration
-func MachineSetValidatingWebhook() admissionregistrationv1.ValidatingWebhook {
-	machinesetServiceReference := admissionregistrationv1.ServiceReference{
-		Namespace: defaultWebhookServiceNamespace,
-		Name:      defaultWebhookServiceName,
-		Path:      pointer.StringPtr(DefaultMachineSetValidatingHookPath),
-		Port:      pointer.Int32Ptr(defaultWebhookServicePort),
-	}
-	return admissionregistrationv1.ValidatingWebhook{
-		AdmissionReviewVersions: []string{"v1"},
-		Name:                    "validation.machineset.machine.openshift.io",
-		FailurePolicy:           &webhookFailurePolicy,
-		SideEffects:             &webhookSideEffects,
-		ClientConfig: admissionregistrationv1.WebhookClientConfig{
-			Service: &machinesetServiceReference,
-		},
-		Rules: []admissionregistrationv1.RuleWithOperations{
-			{
-				Rule: admissionregistrationv1.Rule{
-					APIGroups:   []string{machinev1beta1.GroupName},
-					APIVersions: []string{machinev1beta1.SchemeGroupVersion.Version},
-					Resources:   []string{"machinesets"},
-				},
-				Operations: []admissionregistrationv1.OperationType{
-					admissionregistrationv1.Create,
-					admissionregistrationv1.Update,
-				},
-			},
-		},
-	}
-}
-
-// NewMutatingWebhookConfiguration creates a mutating webhook configuration with configured Machine and MachineSet webhooks
-func NewMutatingWebhookConfiguration() *admissionregistrationv1.MutatingWebhookConfiguration {
-	mutatingWebhookConfiguration := &admissionregistrationv1.MutatingWebhookConfiguration{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: defaultWebhookConfigurationName,
-			Annotations: map[string]string{
-				"service.beta.openshift.io/inject-cabundle": "true",
-			},
-		},
-		Webhooks: []admissionregistrationv1.MutatingWebhook{
-			MachineMutatingWebhook(),
-			MachineSetMutatingWebhook(),
-		},
-	}
-
-	// Setting group version is required for testEnv to create unstructured objects, as the new structure sets it on empty strings
-	// Usual way to populate those values, is to create the resource in the cluster first, which we can't yet do.
-	mutatingWebhookConfiguration.SetGroupVersionKind(admissionregistrationv1.SchemeGroupVersion.WithKind("MutatingWebhookConfiguration"))
-	return mutatingWebhookConfiguration
-}
-
-// MachineMutatingWebhook returns mutating webhooks for machine to apply in configuration
-func MachineMutatingWebhook() admissionregistrationv1.MutatingWebhook {
-	machineServiceReference := admissionregistrationv1.ServiceReference{
-		Namespace: defaultWebhookServiceNamespace,
-		Name:      defaultWebhookServiceName,
-		Path:      pointer.StringPtr(DefaultMachineMutatingHookPath),
-		Port:      pointer.Int32Ptr(defaultWebhookServicePort),
-	}
-	return admissionregistrationv1.MutatingWebhook{
-		AdmissionReviewVersions: []string{"v1"},
-		Name:                    "default.machine.machine.openshift.io",
-		FailurePolicy:           &webhookFailurePolicy,
-		SideEffects:             &webhookSideEffects,
-		ClientConfig: admissionregistrationv1.WebhookClientConfig{
-			Service: &machineServiceReference,
-		},
-		Rules: []admissionregistrationv1.RuleWithOperations{
-			{
-				Rule: admissionregistrationv1.Rule{
-					APIGroups:   []string{machinev1beta1.GroupName},
-					APIVersions: []string{machinev1beta1.SchemeGroupVersion.Version},
-					Resources:   []string{"machines"},
-				},
-				Operations: []admissionregistrationv1.OperationType{
-					admissionregistrationv1.Create,
-				},
-			},
-		},
-	}
-}
-
-// MachineSetMutatingWebhook returns mutating webhook for machineSet to apply in configuration
-func MachineSetMutatingWebhook() admissionregistrationv1.MutatingWebhook {
-	machineSetServiceReference := admissionregistrationv1.ServiceReference{
-		Namespace: defaultWebhookServiceNamespace,
-		Name:      defaultWebhookServiceName,
-		Path:      pointer.StringPtr(DefaultMachineSetMutatingHookPath),
-		Port:      pointer.Int32Ptr(defaultWebhookServicePort),
-	}
-	return admissionregistrationv1.MutatingWebhook{
-		AdmissionReviewVersions: []string{"v1"},
-		Name:                    "default.machineset.machine.openshift.io",
-		FailurePolicy:           &webhookFailurePolicy,
-		SideEffects:             &webhookSideEffects,
-		ClientConfig: admissionregistrationv1.WebhookClientConfig{
-			Service: &machineSetServiceReference,
-		},
-		Rules: []admissionregistrationv1.RuleWithOperations{
-			{
-				Rule: admissionregistrationv1.Rule{
-					APIGroups:   []string{machinev1beta1.GroupName},
-					APIVersions: []string{machinev1beta1.SchemeGroupVersion.Version},
-					Resources:   []string{"machinesets"},
-				},
-				Operations: []admissionregistrationv1.OperationType{
-					admissionregistrationv1.Create,
-				},
-			},
-		},
-	}
-}
-
 func (h *machineValidatorHandler) validateMachine(m, oldM *machinev1beta1.Machine) (bool, []string, utilerrors.Aggregate) {
 	// Skip validation if we just remove the finalizer.
 	// For more information: https://issues.redhat.com/browse/OCPCLOUD-1426
@@ -702,6 +526,21 @@ func unmarshalInto(m *machinev1beta1.Machine, providerSpec interface{}) error {
 	return nil
 }
 
+func validateUnknownFields(m *machinev1beta1.Machine, providerSpec interface{}) error {
+	if err := yaml.Unmarshal(m.Spec.ProviderSpec.Value.Raw, &providerSpec, yaml.DisallowUnknownFields); err != nil {
+		if strings.Contains(err.Error(), "unknown field") {
+			unknownField := strings.Replace(strings.Split(err.Error(), "unknown field ")[1], "\"", "", -1)
+			return &field.Error{
+				Type:     field.ErrorTypeNotSupported,
+				Field:    field.NewPath("providerSpec", "value").String(),
+				BadValue: unknownField,
+				Detail:   fmt.Sprintf("Unknown field (%s) will be ignored", unknownField),
+			}
+		}
+	}
+	return nil
+}
+
 func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, utilerrors.Aggregate) {
 	klog.V(3).Infof("Validating AWS providerSpec")
 
@@ -711,6 +550,14 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 	if err := unmarshalInto(m, providerSpec); err != nil {
 		errs = append(errs, err)
 		return false, warnings, utilerrors.NewAggregate(errs)
+	}
+
+	if err := validateUnknownFields(m, providerSpec); err != nil {
+		warnings = append(warnings, err.Error())
+	}
+
+	if !validateGVK(providerSpec.GroupVersionKind(), osconfigv1.AWSPlatformType) {
+		warnings = append(warnings, fmt.Sprintf("incorrect GroupVersionKind for AWSMachineProviderConfig object: %s", providerSpec.GroupVersionKind()))
 	}
 
 	if providerSpec.AMI.ID == nil {
@@ -930,12 +777,20 @@ func validateAzure(m *machinev1beta1.Machine, config *admissionConfig) (bool, []
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
 
+	if err := validateUnknownFields(m, providerSpec); err != nil {
+		warnings = append(warnings, err.Error())
+	}
+
+	if !validateGVK(providerSpec.GroupVersionKind(), osconfigv1.AzurePlatformType) {
+		warnings = append(warnings, fmt.Sprintf("incorrect GroupVersionKind for AzureMachineProviderSpec object: %s", providerSpec.GroupVersionKind()))
+	}
+
 	if providerSpec.VMSize == "" {
 		errs = append(errs, field.Required(field.NewPath("providerSpec", "vmSize"), "vmSize should be set to one of the supported Azure VM sizes"))
 	}
 
 	if providerSpec.PublicIP && config.dnsDisconnected {
-		errs = append(errs, field.Forbidden(field.NewPath("providerSpec", "publicIP"), "publicIP is not allowed in Azure disconnected installation"))
+		errs = append(errs, field.Forbidden(field.NewPath("providerSpec", "publicIP"), "publicIP is not allowed in Azure disconnected installation with publish strategy as internal"))
 	}
 	// Vnet requires Subnet
 	if providerSpec.Vnet != "" && providerSpec.Subnet == "" {
@@ -1162,6 +1017,14 @@ func validateGCP(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
 
+	if err := validateUnknownFields(m, providerSpec); err != nil {
+		warnings = append(warnings, err.Error())
+	}
+
+	if !validateGVK(providerSpec.GroupVersionKind(), osconfigv1.GCPPlatformType) {
+		warnings = append(warnings, fmt.Sprintf("incorrect GroupVersionKind for GCPMachineProviderSpec object: %s", providerSpec.GroupVersionKind()))
+	}
+
 	if providerSpec.Region == "" {
 		errs = append(errs, field.Required(field.NewPath("providerSpec", "region"), "region is required"))
 	}
@@ -1177,6 +1040,10 @@ func validateGCP(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 	if providerSpec.OnHostMaintenance != "" && providerSpec.OnHostMaintenance != machinev1beta1.MigrateHostMaintenanceType && providerSpec.OnHostMaintenance != machinev1beta1.TerminateHostMaintenanceType {
 		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "onHostMaintenance"), providerSpec.OnHostMaintenance, fmt.Sprintf("onHostMaintenance must be either %s or %s.", machinev1beta1.MigrateHostMaintenanceType, machinev1beta1.TerminateHostMaintenanceType)))
 	}
+
+	errs = append(errs, validateShieldedInstanceConfig(providerSpec)...)
+
+	errs = append(errs, validateGCPConfidentialComputing(providerSpec)...)
 
 	if providerSpec.RestartPolicy != "" && providerSpec.RestartPolicy != machinev1beta1.RestartPolicyAlways && providerSpec.RestartPolicy != machinev1beta1.RestartPolicyNever {
 		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "restartPolicy"), providerSpec.RestartPolicy, fmt.Sprintf("restartPolicy must be either %s or %s.", machinev1beta1.RestartPolicyNever, machinev1beta1.RestartPolicyAlways)))
@@ -1220,6 +1087,62 @@ func validateGCP(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
 	return true, warnings, nil
+}
+
+func validateShieldedInstanceConfig(providerSpec *machinev1beta1.GCPMachineProviderSpec) (errs []error) {
+	if providerSpec.ShieldedInstanceConfig != (machinev1beta1.GCPShieldedInstanceConfig{}) {
+
+		if providerSpec.ShieldedInstanceConfig.SecureBoot != "" && providerSpec.ShieldedInstanceConfig.SecureBoot != machinev1beta1.SecureBootPolicyEnabled && providerSpec.ShieldedInstanceConfig.SecureBoot != machinev1beta1.SecureBootPolicyDisabled {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "shieldedInstanceConfig", "secureBoot"),
+				providerSpec.ShieldedInstanceConfig.SecureBoot,
+				fmt.Sprintf("secureBoot must be either %s or %s.", machinev1beta1.SecureBootPolicyEnabled, machinev1beta1.SecureBootPolicyDisabled)))
+		}
+
+		if providerSpec.ShieldedInstanceConfig.IntegrityMonitoring != "" && providerSpec.ShieldedInstanceConfig.IntegrityMonitoring != machinev1beta1.IntegrityMonitoringPolicyEnabled && providerSpec.ShieldedInstanceConfig.IntegrityMonitoring != machinev1beta1.IntegrityMonitoringPolicyDisabled {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "shieldedInstanceConfig", "integrityMonitoring"),
+				providerSpec.ShieldedInstanceConfig.IntegrityMonitoring,
+				fmt.Sprintf("integrityMonitoring must be either %s or %s.", machinev1beta1.IntegrityMonitoringPolicyEnabled, machinev1beta1.IntegrityMonitoringPolicyDisabled)))
+		}
+
+		if providerSpec.ShieldedInstanceConfig.VirtualizedTrustedPlatformModule != "" && providerSpec.ShieldedInstanceConfig.VirtualizedTrustedPlatformModule != machinev1beta1.VirtualizedTrustedPlatformModulePolicyEnabled && providerSpec.ShieldedInstanceConfig.VirtualizedTrustedPlatformModule != machinev1beta1.VirtualizedTrustedPlatformModulePolicyDisabled {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "shieldedInstanceConfig", "virtualizedTrustedPlatformModule"),
+				providerSpec.ShieldedInstanceConfig.VirtualizedTrustedPlatformModule,
+				fmt.Sprintf("virtualizedTrustedPlatformModule must be either %s or %s.", machinev1beta1.VirtualizedTrustedPlatformModulePolicyEnabled, machinev1beta1.VirtualizedTrustedPlatformModulePolicyDisabled)))
+		}
+		if providerSpec.ShieldedInstanceConfig.VirtualizedTrustedPlatformModule == machinev1beta1.VirtualizedTrustedPlatformModulePolicyDisabled && providerSpec.ShieldedInstanceConfig.IntegrityMonitoring != machinev1beta1.IntegrityMonitoringPolicyDisabled {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "shieldedInstanceConfig", "virtualizedTrustedPlatformModule"),
+				providerSpec.ShieldedInstanceConfig.VirtualizedTrustedPlatformModule,
+				fmt.Sprintf("integrityMonitoring requires virtualizedTrustedPlatformModule %s.", machinev1beta1.VirtualizedTrustedPlatformModulePolicyEnabled)))
+		}
+	}
+	return errs
+}
+
+func validateGCPConfidentialComputing(providerSpec *machinev1beta1.GCPMachineProviderSpec) (errs []error) {
+	switch providerSpec.ConfidentialCompute {
+	case machinev1beta1.ConfidentialComputePolicyEnabled:
+		// Check on host maintenance
+		if providerSpec.OnHostMaintenance != machinev1beta1.TerminateHostMaintenanceType {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "onHostMaintenance"),
+				providerSpec.OnHostMaintenance,
+				fmt.Sprintf("ConfidentialCompute require OnHostMaintenance to be set to %s, the current value is: %s", machinev1beta1.TerminateHostMaintenanceType, providerSpec.OnHostMaintenance)))
+		}
+		// Check machine series supports confidential computing
+		machineSeries := strings.Split(providerSpec.MachineType, "-")[0]
+		if !slices.Contains(gcpConfidentialComputeSupportedMachineSeries, machineSeries) {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "machineType"),
+				providerSpec.MachineType,
+				fmt.Sprintf("ConfidentialCompute require machine type in the following series: %s", strings.Join(gcpConfidentialComputeSupportedMachineSeries, `,`))),
+			)
+		}
+	case machinev1beta1.ConfidentialComputePolicyDisabled, "":
+	default:
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "confidentialCompute"),
+			providerSpec.ConfidentialCompute,
+			fmt.Sprintf("ConfidentialCompute must be either %s or %s.", machinev1beta1.ConfidentialComputePolicyEnabled, machinev1beta1.ConfidentialComputePolicyDisabled)))
+	}
+
+	return errs
 }
 
 func validateGCPNetworkInterfaces(networkInterfaces []*machinev1beta1.GCPNetworkInterface, parentPath *field.Path) []error {
@@ -1355,6 +1278,14 @@ func validateVSphere(m *machinev1beta1.Machine, config *admissionConfig) (bool, 
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
 
+	if err := validateUnknownFields(m, providerSpec); err != nil {
+		warnings = append(warnings, err.Error())
+	}
+
+	if !validateGVK(providerSpec.GroupVersionKind(), osconfigv1.VSpherePlatformType) {
+		warnings = append(warnings, fmt.Sprintf("incorrect GroupVersionKind for VSphereMachineProviderSpec object: %s", providerSpec.GroupVersionKind()))
+	}
+
 	if providerSpec.Template == "" {
 		errs = append(errs, field.Required(field.NewPath("providerSpec", "template"), "template must be provided"))
 	}
@@ -1483,6 +1414,10 @@ func validateNutanix(m *machinev1beta1.Machine, config *admissionConfig) (bool, 
 	if err := unmarshalInto(m, providerSpec); err != nil {
 		errs = append(errs, err)
 		return false, warnings, utilerrors.NewAggregate(errs)
+	}
+
+	if err := validateUnknownFields(m, providerSpec); err != nil {
+		warnings = append(warnings, err.Error())
 	}
 
 	if err := validateNutanixResourceIdentifier("cluster", providerSpec.Cluster); err != nil {
@@ -1719,6 +1654,10 @@ func validatePowerVS(m *machinev1beta1.Machine, config *admissionConfig) (bool, 
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
 
+	if err := validateUnknownFields(m, providerSpec); err != nil {
+		warnings = append(warnings, err.Error())
+	}
+
 	if providerSpec.KeyPairName == "" {
 		errs = append(errs, field.Required(field.NewPath("providerSpec", "keyPairName"), "providerSpec.keyPairName must be provided"))
 	}
@@ -1805,7 +1744,9 @@ func validateMachineConfigurations(providerSpec *machinev1.PowerVSMachineProvide
 			errs = append(errs, field.Invalid(parentPath.Child("memoryGiB"), providerSpec.MemoryGiB, fmt.Sprintf("for %s systemtype the maximum supported memory value is %d", providerSpec.SystemType, val.maxMemoryGiB)))
 		}
 
-		if providerSpec.MemoryGiB < val.minMemoryGiB {
+		if providerSpec.MemoryGiB < 0 {
+			errs = append(errs, field.Invalid(parentPath.Child("memoryGiB"), providerSpec.MemoryGiB, "memory value cannot be negative"))
+		} else if providerSpec.MemoryGiB < val.minMemoryGiB {
 			warnings = append(warnings, fmt.Sprintf("providerspec.MemoryGiB %d is less than the minimum value %d", providerSpec.MemoryGiB, val.minMemoryGiB))
 		}
 
@@ -1818,15 +1759,12 @@ func validateMachineConfigurations(providerSpec *machinev1.PowerVSMachineProvide
 				errs = append(errs, field.Invalid(parentPath.Child("processor"), processor, fmt.Sprintf("for %s systemtype the maximum supported processor value is %f", providerSpec.SystemType, val.maxProcessor)))
 			}
 		}
-		// validate minimum processor values depending on ProcessorType
-		if providerSpec.ProcessorType == machinev1.PowerVSProcessorTypeDedicated {
-			if processor < val.minProcessorDedicated {
-				warnings = append(warnings, fmt.Sprintf("providerspec.Processor %f is less than the minimum value %f for providerSpec.ProcessorType: %s", processor, val.minProcessorDedicated, providerSpec.ProcessorType))
-			}
-		} else {
-			if processor < val.minProcessorSharedCapped {
-				warnings = append(warnings, fmt.Sprintf("providerspec.Processor %f is less than the minimum value %f for providerSpec.ProcessorType: %s", processor, val.minProcessorSharedCapped, providerSpec.ProcessorType))
-			}
+		if processor < 0 {
+			errs = append(errs, field.Invalid(parentPath.Child("processor"), processor, "processor value cannot be negative"))
+		} else if providerSpec.ProcessorType == machinev1.PowerVSProcessorTypeDedicated && processor < val.minProcessorDedicated {
+			warnings = append(warnings, fmt.Sprintf("providerspec.Processor %f is less than the minimum value %f for providerSpec.ProcessorType: %s", processor, val.minProcessorDedicated, providerSpec.ProcessorType))
+		} else if processor < val.minProcessorSharedCapped {
+			warnings = append(warnings, fmt.Sprintf("providerspec.Processor %f is less than the minimum value %f for providerSpec.ProcessorType: %s", processor, val.minProcessorSharedCapped, providerSpec.ProcessorType))
 		}
 	}
 	return
@@ -1862,4 +1800,19 @@ func isFinalizerOnlyRemoval(m, oldM *machinev1beta1.Machine) (bool, error) {
 	}
 
 	return string(data) == `{"metadata":{"finalizers":null}}`, nil
+}
+
+func validateGVK(gvk schema.GroupVersionKind, platform osconfigv1.PlatformType) bool {
+	switch platform {
+	case osconfigv1.AWSPlatformType:
+		return gvk.Kind == "AWSMachineProviderConfig" && (gvk.Group == "awsproviderconfig.openshift.io" || gvk.Group == "machine.openshift.io") && (gvk.Version == "v1beta1" || gvk.Version == "v1")
+	case osconfigv1.AzurePlatformType:
+		return gvk.Kind == "AzureMachineProviderSpec" && (gvk.Group == "azureproviderconfig.openshift.io" || gvk.Group == "machine.openshift.io") && (gvk.Version == "v1beta1" || gvk.Version == "v1")
+	case osconfigv1.GCPPlatformType:
+		return gvk.Kind == "GCPMachineProviderSpec" && (gvk.Group == "gcpprovider.openshift.io" || gvk.Group == "machine.openshift.io") && (gvk.Version == "v1beta1" || gvk.Version == "v1")
+	case osconfigv1.VSpherePlatformType:
+		return gvk.Kind == "VSphereMachineProviderSpec" && (gvk.Group == "vsphereprovider.openshift.io" || gvk.Group == "machine.openshift.io") && (gvk.Version == "v1beta1" || gvk.Version == "v1")
+	default:
+		return true
+	}
 }

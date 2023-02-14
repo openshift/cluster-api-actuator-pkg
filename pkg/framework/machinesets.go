@@ -114,7 +114,7 @@ func CreateMachineSet(c runtimeclient.Client, params MachineSetParams) (*machine
 					Taints:       params.Taints,
 				},
 			},
-			Replicas: pointer.Int32Ptr(params.Replicas),
+			Replicas: pointer.Int32(params.Replicas),
 		},
 	}
 
@@ -340,7 +340,7 @@ func NewMachineSet(
 					ProviderSpec: *providerSpec.DeepCopy(),
 				},
 			},
-			Replicas: pointer.Int32Ptr(replicas),
+			Replicas: pointer.Int32(replicas),
 		},
 	}
 
@@ -421,7 +421,7 @@ func WaitForMachineSet(c runtimeclient.Client, name string) {
 			return err
 		}
 
-		replicas := pointer.Int32PtrDerefOr(machineSet.Spec.Replicas, 0)
+		replicas := pointer.Int32Deref(machineSet.Spec.Replicas, 0)
 
 		if len(machines) != int(replicas) {
 			return fmt.Errorf("%q: found %d Machines, but MachineSet has %d replicas",
@@ -484,7 +484,7 @@ func WaitForSpotMachineSet(c runtimeclient.Client, name string) error {
 			return false, fmt.Errorf("error getting machines from machineSet %s: %w", machineSet.Name, err)
 		}
 
-		replicas := pointer.Int32PtrDerefOr(machineSet.Spec.Replicas, 0)
+		replicas := pointer.Int32Deref(machineSet.Spec.Replicas, 0)
 		if len(machines) != int(replicas) {
 			klog.Infof("%q: found %d Machines, but MachineSet has %d replicas", name, len(machines), int(replicas))
 			return false, nil

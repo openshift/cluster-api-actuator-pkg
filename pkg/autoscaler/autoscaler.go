@@ -68,7 +68,7 @@ func clusterAutoscalerResource(maxNodesTotal int) *caov1.ClusterAutoscaler {
 				UnneededTime:      &unneededTimeString,
 			},
 			ResourceLimits: &caov1.ResourceLimits{
-				MaxNodesTotal: pointer.Int32Ptr(int32(maxNodesTotal)),
+				MaxNodesTotal: pointer.Int32(int32(maxNodesTotal)),
 			},
 		},
 	}
@@ -179,7 +179,8 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			By("Starting Cluster Autoscaler event watcher")
 			clientset, err := framework.LoadClientset()
 			Expect(err).NotTo(HaveOccurred())
-			caEventWatcher = newEventWatcher(clientset)
+			caEventWatcher, err = newEventWatcher(clientset)
+			Expect(err).NotTo(HaveOccurred(), "failed to create event watcher")
 			Expect(caEventWatcher.run()).Should(BeTrue())
 			// Log cluster-autoscaler events
 			caEventWatcher.onEvent(matchAnyEvent, func(e *corev1.Event) {
@@ -389,7 +390,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 
 			By("Creating ClusterAutoscaler")
 			clusterAutoscaler = clusterAutoscalerResource(100)
-			clusterAutoscaler.Spec.BalanceSimilarNodeGroups = pointer.BoolPtr(true)
+			clusterAutoscaler.Spec.BalanceSimilarNodeGroups = pointer.Bool(true)
 			Expect(client.Create(ctx, clusterAutoscaler)).Should(Succeed())
 			cleanupObjects[clusterAutoscaler.GetName()] = clusterAutoscaler
 		})
