@@ -157,22 +157,22 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 		var err error
 
 		gatherer, err = framework.NewGatherer()
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "StateGatherer should be able to be created")
 
 		client, err = framework.LoadClient()
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "Controller-runtime client should be able to be created")
 
 	})
 
 	AfterEach(func() {
 		specReport := CurrentSpecReport()
 		if specReport.Failed() {
-			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
+			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed(), "StateGatherer should be able to gather resources")
 		}
 
 		if machineSet != nil {
 			By("Deleting the new MachineSet")
-			Expect(client.Delete(context.Background(), machineSet)).To(Succeed())
+			Expect(client.Delete(context.Background(), machineSet)).To(Succeed(), "MachineSet should be able to be deleted")
 			framework.WaitForMachineSetsDeleted(client, machineSet)
 		}
 
@@ -185,7 +185,7 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 
 			By("Creating a new MachineSet")
 			machineSet, err = framework.CreateMachineSet(client, machineSetParams)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred(), "MachineSet should be able to be created")
 
 			framework.WaitForMachineSet(client, machineSet.GetName())
 		})
@@ -195,14 +195,14 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 		It("have ability to additively reconcile taints from machine to nodes", func() {
 			selector := machineSet.Spec.Selector
 			machines, err := framework.GetMachines(client, &selector)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(machines).ToNot(BeEmpty())
+			Expect(err).ToNot(HaveOccurred(), "Listing Machines should succeed")
+			Expect(machines).ToNot(BeEmpty(), "The list of Machines should not be empty")
 
 			machine := machines[0]
 			By(fmt.Sprintf("getting machine %q", machine.Name))
 
 			node, err := framework.GetNodeForMachine(client, machine)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "Should be able to retrieve Node from its Machine")
 			By(fmt.Sprintf("getting the backed node %q", node.Name))
 
 			nodeTaint := corev1.Taint{
@@ -218,7 +218,7 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 					break
 				}
 			}
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "Node update should succeed")
 
 			machineTaint := corev1.Taint{
 				Key:    fmt.Sprintf("from-machine-%v", string(uuid.NewUUID())),
@@ -233,7 +233,7 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 					break
 				}
 			}
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "Machine update should succeed")
 
 			var expectedTaints = sets.NewString("not-from-machine", machineTaint.Key)
 			Eventually(func() bool {
@@ -253,7 +253,7 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 				klog.Infof("Did not find all expected taints on the node. Missing: %v", expectedTaints.Difference(observedTaints))
 
 				return false
-			}, framework.WaitMedium, 5*time.Second).Should(BeTrue())
+			}, framework.WaitMedium, 5*time.Second).Should(BeTrue(), "Should find all the expected taints on the Node")
 		})
 
 	})
@@ -265,7 +265,7 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 
 			By("Creating a new MachineSet")
 			machineSet, err = framework.CreateMachineSet(client, machineSetParams)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred(), "MachineSet creation should succeed")
 
 			framework.WaitForMachineSet(client, machineSet.GetName())
 		})
@@ -275,11 +275,11 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 		It("recover from deleted worker machines", func() {
 			selector := machineSet.Spec.Selector
 			machines, err := framework.GetMachines(client, &selector)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(machines).ToNot(BeEmpty())
+			Expect(err).ToNot(HaveOccurred(), "Listing Machines should succeed")
+			Expect(machines).ToNot(BeEmpty(), "The list of Machines should not be empty")
 
 			By("deleting all machines")
-			Expect(framework.DeleteMachines(client, machines...)).To(Succeed())
+			Expect(framework.DeleteMachines(client, machines...)).To(Succeed(), "Should be able to delete all Machines")
 			framework.WaitForMachinesDeleted(client, machines...)
 
 			framework.WaitForMachineSet(client, machineSet.GetName())
@@ -291,19 +291,19 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 			By("Creating a second MachineSet") // Machineset 1 can start with 1 replica
 			machineSetParams := framework.BuildMachineSetParams(client, 0)
 			machineSet2, err := framework.CreateMachineSet(client, machineSetParams)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred(), "Should be able to create MachineSet")
 
 			// Make sure second machineset gets deleted anyway
 			defer func() {
 				By("Deleting the second MachineSet")
-				Expect(deleteObject(client, machineSet2)).To(Succeed())
+				Expect(deleteObject(client, machineSet2)).To(Succeed(), "Should be able to delete MachineSet")
 				framework.WaitForMachineSetsDeleted(client, machineSet2)
 			}()
 
 			framework.WaitForMachineSet(client, machineSet2.GetName())
 
-			Expect(framework.ScaleMachineSet(machineSet.GetName(), 0)).To(Succeed())
-			Expect(framework.ScaleMachineSet(machineSet2.GetName(), 1)).To(Succeed())
+			Expect(framework.ScaleMachineSet(machineSet.GetName(), 0)).To(Succeed(), "Should be able to scale down MachineSet")
+			Expect(framework.ScaleMachineSet(machineSet2.GetName(), 1)).To(Succeed(), "Should be able to scale MachineSet")
 
 			framework.WaitForMachineSet(client, machineSet.GetName())
 			framework.WaitForMachineSet(client, machineSet2.GetName())
@@ -316,8 +316,8 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 
 			selector := machineSet.Spec.Selector
 			machines, err := framework.GetMachines(client, &selector)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(len(machines)).To(BeNumerically(">=", 2))
+			Expect(err).ToNot(HaveOccurred(), "Should be able to List Machines")
+			Expect(len(machines)).To(BeNumerically(">=", 2), "Should have found at least 2 Machines")
 
 			// Add node draining labels to params
 			for k, v := range nodeDrainLabels {
@@ -327,15 +327,15 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 			machines[0].Spec.ObjectMeta.Labels = machineSetParams.Labels
 			machines[1].Spec.ObjectMeta.Labels = machineSetParams.Labels
 
-			Expect(client.Update(context.TODO(), machines[0])).To(Succeed())
+			Expect(client.Update(context.TODO(), machines[0])).To(Succeed(), "Should be able to update Machine")
 
-			Expect(client.Update(context.TODO(), machines[1])).To(Succeed())
+			Expect(client.Update(context.TODO(), machines[1])).To(Succeed(), "Should be able to update Machine")
 
 			// Make sure RC and PDB get deleted anyway
 			delObjects := make(map[string]runtimeclient.Object)
 
 			defer func() {
-				Expect(deleteObjects(client, delObjects)).To(Succeed())
+				Expect(deleteObjects(client, delObjects)).To(Succeed(), "Should be able to cleanup test objects")
 			}()
 
 			By("Creating RC with workload")
@@ -345,34 +345,34 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 			namespace := framework.MachineAPINamespace
 
 			rc := replicationControllerWorkload(namespace)
-			Expect(client.Create(context.TODO(), rc)).To(Succeed())
+			Expect(client.Create(context.TODO(), rc)).To(Succeed(), "Should be able to create ReplicationController")
 			delObjects["rc"] = rc
 
 			By("Creating PDB for RC")
 			pdb := podDisruptionBudget(namespace)
-			Expect(client.Create(context.TODO(), pdb)).To(Succeed())
+			Expect(client.Create(context.TODO(), pdb)).To(Succeed(), "Should be able to create PodDisruptionBudget")
 			delObjects["pdb"] = pdb
 
 			By("Wait until all replicas are ready")
-			Expect(framework.WaitUntilAllRCPodsAreReady(client, rc)).To(Succeed())
+			Expect(framework.WaitUntilAllRCPodsAreReady(client, rc)).To(Succeed(), "Should wait until all Pod replicas are ready")
 
 			// TODO(jchaloup): delete machine that has at least half of the RC pods
 
 			// All pods are distributed evenly among all nodes so it's fine to drain
 			// random node and observe reconciliation of pods on the other one.
 			By("Delete machine to trigger node draining")
-			Expect(client.Delete(context.TODO(), machines[0])).To(Succeed())
+			Expect(client.Delete(context.TODO(), machines[0])).To(Succeed(), "Should be able to Delete Machine")
 
 			// We still should be able to list the machine as until rc.replicas-1 are running on the other node
 			By("Observing and verifying node draining")
 			drainedNodeName, err := framework.VerifyNodeDraining(client, machines[0], rc)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "Should verify Node was drained")
 
 			By("Validating the machine is deleted")
 			framework.WaitForMachinesDeleted(client, machines[0])
 
 			By("Validate underlying node corresponding to machine1 is removed as well")
-			Expect(framework.WaitUntilNodeDoesNotExists(client, drainedNodeName)).To(Succeed())
+			Expect(framework.WaitUntilNodeDoesNotExists(client, drainedNodeName)).To(Succeed(), "Should wait until Node does not exit")
 		})
 	})
 
@@ -383,6 +383,6 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 		invalidMachineSet := invalidMachinesetWithEmptyProviderConfig()
 		expectedAdmissionWebhookErr := "admission webhook \"default.machineset.machine.openshift.io\" denied the request: providerSpec.value: Required value: a value must be provided"
 
-		Expect(client.Create(context.TODO(), invalidMachineSet)).To(MatchError(expectedAdmissionWebhookErr))
+		Expect(client.Create(context.TODO(), invalidMachineSet)).To(MatchError(expectedAdmissionWebhookErr), "Should fail to create invalid MachineSet")
 	})
 })

@@ -55,13 +55,13 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 		var err error
 
 		gatherer, err = framework.NewGatherer()
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "StateGatherer should be able to be created")
 
 		client, err = framework.LoadClient()
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "Controller-runtime client should be able to be created")
 
 		platform, err = framework.GetPlatform(client)
-		Expect(err).NotTo(HaveOccurred())
+		Expect(err).NotTo(HaveOccurred(), "Should be able to get Platform type")
 		switch platform {
 		case configv1.AWSPlatformType, configv1.AzurePlatformType:
 			// Supported platforms, ok to continue.
@@ -80,16 +80,16 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 			machineSetReady := false
 			machineSetParams := framework.BuildMachineSetParams(client, machinesCount)
 			machineSetParamsList, err := framework.BuildAlternativeMachineSetParams(machineSetParams, platform)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred(), "Should be able to build list of MachineSet parameters")
 			for i, machineSetParams := range machineSetParamsList {
 				if i >= spotMachineSetMaxProvisioningRetryCount {
 					// If there are many alternatives, only try the specified number of times
 					break
 				}
-				Expect(setSpotOnProviderSpec(platform, machineSetParams, "")).To(Succeed())
+				Expect(setSpotOnProviderSpec(platform, machineSetParams, "")).To(Succeed(), "Should be able to set spot options on ProviderSpec")
 
 				machineSet, err = framework.CreateMachineSet(client, machineSetParams)
-				Expect(err).ToNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred(), "MachineSet should be able to be created")
 				delObjects[machineSet.Name] = machineSet
 
 				err = framework.WaitForSpotMachineSet(client, machineSet.GetName())
@@ -100,7 +100,7 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 
 					continue
 				}
-				Expect(err).ToNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred(), "Error while waiting for all spot MachineSet Machines to be ready")
 				machineSetReady = true
 
 				break // MachineSet created successfully
@@ -112,7 +112,7 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 	AfterEach(func() {
 		specReport := CurrentSpecReport()
 		if specReport.Failed() {
-			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
+			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed(), "StateGatherer should be able to gather resources")
 		}
 
 		var machineSets []*machinev1.MachineSet
@@ -125,7 +125,7 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 				machineSets = append(machineSets, machineSet)
 			}
 
-			Expect(deleteObject(client, obj)).To(Succeed())
+			Expect(deleteObject(client, obj)).To(Succeed(), "Should be able to cleanup test objects")
 		}
 
 		if len(machineSets) > 0 {
@@ -141,18 +141,18 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 		By("should label the Machine specs as interruptible", func() {
 			selector := machineSet.Spec.Selector
 			machines, err := framework.GetMachines(client, &selector)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(machines).To(HaveLen(machinesCount))
+			Expect(err).ToNot(HaveOccurred(), "Listing Machines should succeed")
+			Expect(machines).To(HaveLen(machinesCount), "Should match the expected number of Machines")
 
 			for _, machine := range machines {
-				Expect(machine.Spec.ObjectMeta.Labels).To(HaveKeyWithValue(machinecontroller.MachineInterruptibleInstanceLabelName, ""))
+				Expect(machine.Spec.ObjectMeta.Labels).To(HaveKeyWithValue(machinecontroller.MachineInterruptibleInstanceLabelName, ""), "Should have the expected spot label on the Machine")
 			}
 		})
 
 		By("should deploy a termination handler pod to each instance", func() {
 			nodes, err := framework.GetNodesFromMachineSet(client, machineSet)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(nodes).To(HaveLen(machinesCount))
+			Expect(err).ToNot(HaveOccurred(), "Should be able to get Nodes linked to the MachineSet's Machines")
+			Expect(nodes).To(HaveLen(machinesCount), "Nodes and Machines count should match")
 
 			terminationLabels := map[string]string{
 				"api":     "clusterapi",
@@ -176,9 +176,9 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 					}
 
 					return pods, nil
-				}, framework.WaitLong, framework.RetryMedium).ShouldNot(BeEmpty())
+				}, framework.WaitLong, framework.RetryMedium).ShouldNot(BeEmpty(), "Should find termination pod on Node")
 				// Termination Pods run in a DaemonSet, should only be 1 per node
-				Expect(pods).To(HaveLen(1))
+				Expect(pods).To(HaveLen(1), "There should only be one termination handler pod for this Node")
 				podKey := runtimeclient.ObjectKey{Namespace: pods[0].Namespace, Name: pods[0].Name}
 
 				By("Ensuring the termination Pod is running and the containers are ready")
@@ -201,54 +201,54 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 					}
 
 					return false, nil
-				}, framework.WaitLong, framework.RetryMedium).Should(BeTrue())
+				}, framework.WaitLong, framework.RetryMedium).Should(BeTrue(), "Should find the termination pod Ready")
 			}
 		})
 
 		By("should terminate a Machine if a termination event is observed", func() {
 			By("Deploying a mock metadata application", func() {
 				configMap, err := getMetadataMockConfigMap()
-				Expect(err).ToNot(HaveOccurred())
-				Expect(client.Create(ctx, configMap)).To(Succeed())
+				Expect(err).ToNot(HaveOccurred(), "Should load the desired metadata ConfigMap")
+				Expect(client.Create(ctx, configMap)).To(Succeed(), "Should be able to create metadata ConfigMap")
 				delObjects[configMap.Name] = configMap
 
 				service := getMetadataMockService()
-				Expect(client.Create(ctx, service)).To(Succeed())
+				Expect(client.Create(ctx, service)).To(Succeed(), "Should be able to create metadata Service")
 				delObjects[service.Name] = service
 
 				deployment := getMetadataMockDeployment(platform)
-				Expect(client.Create(ctx, deployment)).To(Succeed())
+				Expect(client.Create(ctx, deployment)).To(Succeed(), "Should be able to create metadata Deployment")
 				delObjects[deployment.Name] = deployment
 
-				Expect(framework.IsDeploymentAvailable(client, deployment.Name, deployment.Namespace)).To(BeTrue())
+				Expect(framework.IsDeploymentAvailable(client, deployment.Name, deployment.Namespace)).To(BeTrue(), "Should find an available the metadata Deployment")
 			})
 
 			var machine *machinev1.Machine
 			By("Choosing a Machine to terminate", func() {
 				machines, err := framework.GetMachinesFromMachineSet(client, machineSet)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(len(machines)).To(BeNumerically(">", 0))
+				Expect(err).ToNot(HaveOccurred(), "Should be able to get Machines from MachineSet")
+				Expect(len(machines)).To(BeNumerically(">", 0), "There should be at least one Machine")
 
 				rand.Seed(time.Now().Unix())
 				machine = machines[rand.Intn(len(machines))]
-				Expect(machine.Status.NodeRef).ToNot(BeNil())
+				Expect(machine.Status.NodeRef).ToNot(BeNil(), "Machine should have a linked Node")
 			})
 
 			By("Deploying a job to reroute metadata traffic to the mock", func() {
 				serviceAccount := getTerminationSimulatorServiceAccount()
-				Expect(client.Create(ctx, serviceAccount)).To(Succeed())
+				Expect(client.Create(ctx, serviceAccount)).To(Succeed(), "Should be able to create termination simulator ServiceAccount")
 				delObjects[serviceAccount.Name] = serviceAccount
 
 				role := getTerminationSimulatorRole()
-				Expect(client.Create(ctx, role)).To(Succeed())
+				Expect(client.Create(ctx, role)).To(Succeed(), "Should be able to create termination simulator Role")
 				delObjects[role.Name] = role
 
 				roleBinding := getTerminationSimulatorRoleBinding()
-				Expect(client.Create(ctx, roleBinding)).To(Succeed())
+				Expect(client.Create(ctx, roleBinding)).To(Succeed(), "Should be able to create termination simulator RoleBinding")
 				delObjects[roleBinding.Name] = roleBinding
 
 				job := getTerminationSimulatorJob(machine.Status.NodeRef.Name)
-				Expect(client.Create(ctx, job)).To(Succeed())
+				Expect(client.Create(ctx, job)).To(Succeed(), "Should be able to create termination simulator Job")
 				delObjects[job.Name] = job
 			})
 

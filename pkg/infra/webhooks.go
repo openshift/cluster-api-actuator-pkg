@@ -35,14 +35,14 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 	BeforeEach(func() {
 		var err error
 		gatherer, err = framework.NewGatherer()
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "StateGatherer should be able to be created")
 
 		client, err = framework.LoadClient()
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "Controller-runtime client should be able to be created")
 
 		// Only run on platforms that have webhooks
 		clusterInfra, err := framework.GetInfrastructure(client)
-		Expect(err).NotTo(HaveOccurred())
+		Expect(err).NotTo(HaveOccurred(), "Should be able to get Infrastructure")
 		platform = clusterInfra.Status.PlatformStatus.Type
 		switch platform {
 		case configv1.AWSPlatformType, configv1.AzurePlatformType, configv1.GCPPlatformType, configv1.VSpherePlatformType, configv1.PowerVSPlatformType, configv1.NutanixPlatformType:
@@ -53,7 +53,7 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 
 		machineSetParams = framework.BuildMachineSetParams(client, 1)
 		ps, err := createMinimalProviderSpec(platform, machineSetParams.ProviderSpec)
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "Should be able to generate MachineSet ProviderSpec")
 		machineSetParams.ProviderSpec = ps
 
 		// All machines/machinesets created in this test should match these labels
@@ -75,17 +75,17 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 	AfterEach(func() {
 		specReport := CurrentSpecReport()
 		if specReport.Failed() {
-			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
+			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed(), "StateGatherer should be able to gather resources")
 		}
 
 		machineSets, err := framework.GetMachineSets(client, testSelector)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(framework.DeleteMachineSets(client, machineSets...)).To(Succeed())
+		Expect(err).ToNot(HaveOccurred(), "Should be able to list test MachineSets")
+		Expect(framework.DeleteMachineSets(client, machineSets...)).To(Succeed(), "Should be able to delete test MachineSets")
 		framework.WaitForMachineSetsDeleted(client, machineSets...)
 
 		machines, err := framework.GetMachines(client, testSelector)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(framework.DeleteMachines(client, machines...)).To(Succeed())
+		Expect(err).ToNot(HaveOccurred(), "Should be able to get test Machines")
+		Expect(framework.DeleteMachines(client, machines...)).To(Succeed(), "Should be able to delete test Machines")
 		framework.WaitForMachinesDeleted(client, machines...)
 	})
 
@@ -102,7 +102,7 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 				ProviderSpec: *machineSetParams.ProviderSpec,
 			},
 		}
-		Expect(client.Create(ctx, machine)).To(Succeed())
+		Expect(client.Create(ctx, machine)).To(Succeed(), "Should be able to create Machine")
 
 		Eventually(func() error {
 			m, err := framework.GetMachine(client, machine.Name)
@@ -115,14 +115,14 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 			}
 
 			return nil
-		}, framework.WaitLong, framework.RetryMedium).Should(Succeed())
+		}, framework.WaitLong, framework.RetryMedium).Should(Succeed(), "Machine should go into Running state")
 	})
 
 	// Machines required for test: 1
 	// Reason: It needs to verify that machine created from the machineSet with minimal provider spec is able to go into running phase.
 	It("should be able to create machines from a machineset with a minimal providerSpec", func() {
 		machineSet, err := framework.CreateMachineSet(client, machineSetParams)
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "Should be able to create MachineSet")
 
 		framework.WaitForMachineSet(client, machineSet.Name)
 	})
@@ -140,15 +140,15 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 				ProviderSpec: *machineSetParams.ProviderSpec,
 			},
 		}
-		Expect(client.Create(ctx, machine)).To(Succeed())
+		Expect(client.Create(ctx, machine)).To(Succeed(), "Should be able to create Machine")
 
 		updated := false
 		for !updated {
 			machine, err := framework.GetMachine(client, machine.Name)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred(), "Should be able to get Machine")
 
 			minimalSpec, err := createMinimalProviderSpec(platform, &machine.Spec.ProviderSpec)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred(), "Should be able to generate Machine's ProviderSpec")
 
 			machine.Spec.ProviderSpec = *minimalSpec
 			err = client.Update(ctx, machine)
@@ -159,8 +159,8 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 
 			// No conflict, so the update "worked"
 			updated = true
-			Expect(err).To(HaveOccurred())
-			Expect(err).To(MatchError(ContainSubstring("admission webhook \"validation.machine.machine.openshift.io\" denied the request")))
+			Expect(err).To(HaveOccurred(), "Should be able to update Machine")
+			Expect(err).To(MatchError(ContainSubstring("admission webhook \"validation.machine.machine.openshift.io\" denied the request")), "Should get an admission webhook denied error back")
 		}
 	})
 
@@ -169,15 +169,15 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 	It("should return an error when removing required fields from the MachineSet providerSpec", func() {
 		machineSetParams.Replicas = 0
 		machineSet, err := framework.CreateMachineSet(client, machineSetParams)
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "Should be able to create MachineSet")
 
 		updated := false
 		for !updated {
 			machineSet, err = framework.GetMachineSet(client, machineSet.Name)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred(), "Should be able to get MachineSet")
 
 			minimalSpec, err := createMinimalProviderSpec(platform, &machineSet.Spec.Template.Spec.ProviderSpec)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred(), "Should be able to generate Machine's ProviderSpec")
 
 			machineSet.Spec.Template.Spec.ProviderSpec = *minimalSpec
 			err = client.Update(ctx, machineSet)
@@ -188,8 +188,8 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 
 			// No conflict, so the update "worked"
 			updated = true
-			Expect(err).To(HaveOccurred())
-			Expect(err).To(MatchError(ContainSubstring("admission webhook \"validation.machineset.machine.openshift.io\" denied the request")))
+			Expect(err).To(HaveOccurred(), "Should be able to update MachineSet")
+			Expect(err).To(MatchError(ContainSubstring("admission webhook \"validation.machineset.machine.openshift.io\" denied the request")), "Should get an admission webhook denied error back")
 		}
 
 	})
