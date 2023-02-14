@@ -41,11 +41,11 @@ var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 		var err error
 
 		gatherer, err = framework.NewGatherer()
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "StateGatherer should be able to be created")
 
 		By("Creating the machineset")
 		client, err = framework.LoadClient()
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "Controller-runtime client should be able to be created")
 
 		// Build machine set parameters
 		expectedReplicas := 1
@@ -54,7 +54,7 @@ var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 		machineSetParams.Labels[lifecyclehooksWorkerNodeRoleLabel] = ""
 		// Create machine set
 		machineSet, err = framework.CreateMachineSet(client, machineSetParams)
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "MachineSet should be able to be created")
 		// Wait for machine to be running
 		framework.WaitForMachineSet(client, machineSet.GetName())
 
@@ -83,14 +83,14 @@ var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 	AfterEach(func() {
 		specReport := CurrentSpecReport()
 		if specReport.Failed() {
-			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
+			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed(), "StateGatherer should be able to gather resources")
 		}
 
 		By("Deleting the machineset")
 		cascadeDelete := metav1.DeletePropagationForeground
 		Expect(client.Delete(context.Background(), machineSet, &runtimeclient.DeleteOptions{
 			PropagationPolicy: &cascadeDelete,
-		})).To(Succeed())
+		})).To(Succeed(), "MachineSet should be able to be deleted")
 
 		By("Waiting for the MachineSet to be deleted...")
 		framework.WaitForMachineSetsDeleted(client, machineSet)
@@ -98,15 +98,15 @@ var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 		By("Deleting workload job")
 		Expect(client.Delete(context.Background(), workload, &runtimeclient.DeleteOptions{
 			PropagationPolicy: &cascadeDelete,
-		})).To(Succeed())
+		})).To(Succeed(), "Workload job should be able to be deleted")
 	})
 
 	// Machines required for test: 1
 	// Reason: Tracks the lifecycle of a single machine as we update its lifecycle hooks
 	It("pause lifecycle actions when present", func() {
 		machines, err := framework.GetMachinesFromMachineSet(client, machineSet)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(machines).To(HaveLen(1), "There should be only one machine")
+		Expect(err).ToNot(HaveOccurred(), "Should be able to get Machines from MachineSet")
+		Expect(machines).To(HaveLen(1), "There should be only one Machine")
 		machine := machines[0]
 		podKey := types.NamespacedName{Namespace: pod.Namespace, Name: pod.Name}
 		machineKey := types.NamespacedName{Namespace: machine.Namespace, Name: machine.Name}
@@ -136,7 +136,7 @@ var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 
 		By("Deleting the machine")
 		// Delete the machine by scaling down the machineset to zero
-		Expect(framework.ScaleMachineSet(machineSet.Name, 0)).To(Succeed())
+		Expect(framework.ScaleMachineSet(machineSet.Name, 0)).To(Succeed(), "Should be able to scale down MachineSet")
 
 		By("Checking that workload pod is running on machine")
 		// pre-drain hook should prevent pod from being evicted
@@ -204,7 +204,7 @@ var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 
 			return true, nil
 		}, framework.WaitShort, pollingInterval).Should(BeTrue(),
-			"Could not delete pre-termiante hook")
+			"Could not delete pre-terminate hook")
 
 		By("Checking that machine is deleted")
 		Eventually(func() bool {
