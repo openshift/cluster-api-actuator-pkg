@@ -41,16 +41,16 @@ var _ = Describe("MachineHealthCheck", framework.LabelMachineHealthChecks, func(
 		var err error
 
 		gatherer, err = framework.NewGatherer()
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "failed to create a new StateGatherer")
 
 		client, err = framework.LoadClient()
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "failed to create a new controller-runtime client")
 
 		machineSetParams := framework.BuildMachineSetParams(client, expectedReplicas)
 
 		By("Creating a new MachineSet")
 		machineSet, err = framework.CreateMachineSet(client, machineSetParams)
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "failed to create a new machineSet resource")
 
 		framework.WaitForMachineSet(client, machineSet.GetName())
 	})
@@ -58,14 +58,14 @@ var _ = Describe("MachineHealthCheck", framework.LabelMachineHealthChecks, func(
 	AfterEach(func() {
 		specReport := CurrentSpecReport()
 		if specReport.Failed() {
-			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
+			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed(), "failed to gather spec report")
 		}
 
 		By("Deleting the MachineHealthCheck resource")
-		Expect(client.Delete(context.Background(), machinehealthcheck)).To(Succeed())
+		Expect(client.Delete(context.Background(), machinehealthcheck)).To(Succeed(), "failed to delete MHC")
 
 		By("Deleting the new MachineSet")
-		Expect(client.Delete(context.Background(), machineSet)).To(Succeed())
+		Expect(client.Delete(context.Background(), machineSet)).To(Succeed(), "failed to delete machineSet")
 
 		framework.WaitForMachineSetsDeleted(client, machineSet)
 	})
@@ -75,15 +75,15 @@ var _ = Describe("MachineHealthCheck", framework.LabelMachineHealthChecks, func(
 	It("should remediate unhealthy nodes", func() {
 		selector := machineSet.Spec.Selector
 		machines, err := framework.GetMachines(client, &selector)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(machines).ToNot(BeEmpty())
+		Expect(err).ToNot(HaveOccurred(), "failed to get machines using a selector")
+		Expect(machines).ToNot(BeEmpty(), "expected to get a non empty list of machines, got an empty list of machines")
 
 		By("Setting unhealthy conditions on machine nodes, but not exceding maxUnhealthy threshold")
 		unhealthyMachines, healthyMachines := machines[:maxUnhealthy], machines[maxUnhealthy:]
 		for _, machine := range unhealthyMachines {
 			node, err := framework.GetNodeForMachine(client, machine)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(framework.AddNodeCondition(client, node, nodeCondition)).To(Succeed())
+			Expect(err).ToNot(HaveOccurred(), "failed to get a node for a machine")
+			Expect(framework.AddNodeCondition(client, node, nodeCondition)).To(Succeed(), "failed to add a condition in a node's status")
 		}
 
 		By("Creating a MachineHealthCheck resource")
@@ -101,22 +101,22 @@ var _ = Describe("MachineHealthCheck", framework.LabelMachineHealthChecks, func(
 		}
 
 		machinehealthcheck, err = framework.CreateMHC(client, mhcParams)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(machinehealthcheck).ToNot(BeNil())
+		Expect(err).ToNot(HaveOccurred(), "failed to create a new MHC resource")
+		Expect(machinehealthcheck).ToNot(BeNil(), "expected the new MHC resource to not be nil")
 
 		By("Waiting for each unhealthy machine to be deleted")
 		framework.WaitForMachinesDeleted(client, unhealthyMachines...)
 
 		By("Waiting for MachineDeleted event from MachineHealthCheck for each unhealthy machine")
 		for _, machine := range unhealthyMachines {
-			Expect(framework.WaitForEvent(client, "Machine", machine.Name, "MachineDeleted")).To(Succeed())
+			Expect(framework.WaitForEvent(client, "Machine", machine.Name, "MachineDeleted")).To(Succeed(), "failed to find event MachineDeleted for machine named %s: %v", machine.GetName(), err)
 		}
 
 		By("Ensure none of the healthy machines were deleted")
 		allMachines, err := framework.GetMachines(client, &selector)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(allMachines).ToNot(BeEmpty())
-		Expect(framework.MachinesPresent(allMachines, healthyMachines...)).To(BeTrue())
+		Expect(err).ToNot(HaveOccurred(), "failed to get machines using a selector: %v", err)
+		Expect(allMachines).ToNot(BeEmpty(), "expected to get a non empty list of machines, got an empty list of machines")
+		Expect(framework.MachinesPresent(allMachines, healthyMachines...)).To(BeTrue(), "expected all machines to be present, but atleast one is not present")
 
 		By("Verifying the MachineSet recovers")
 		framework.WaitForMachineSet(client, machineSet.GetName())
@@ -127,15 +127,15 @@ var _ = Describe("MachineHealthCheck", framework.LabelMachineHealthChecks, func(
 	It("should not remediate larger number of unhealthy machines then maxUnhealthy", func() {
 		selector := machineSet.Spec.Selector
 		machines, err := framework.GetMachines(client, &selector)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(machines).ToNot(BeEmpty())
+		Expect(err).ToNot(HaveOccurred(), "failed to get machines using a selector")
+		Expect(machines).ToNot(BeEmpty(), "expected to get a non empty list of machines, got an empty list of machines")
 
 		By("Setting unhealthy conditions on machine nodes, but exceding maxUnhealthy threshold")
 		unhealthyMachines := machines[:maxUnhealthy+1]
 		for _, machine := range unhealthyMachines {
 			node, err := framework.GetNodeForMachine(client, machine)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(framework.AddNodeCondition(client, node, nodeCondition)).To(Succeed())
+			Expect(err).ToNot(HaveOccurred(), "failed to get a node for machine")
+			Expect(framework.AddNodeCondition(client, node, nodeCondition)).To(Succeed(), "failed to a condition in a node's status")
 		}
 
 		By("Creating a MachineHealthCheck resource")
@@ -153,16 +153,16 @@ var _ = Describe("MachineHealthCheck", framework.LabelMachineHealthChecks, func(
 		}
 
 		machinehealthcheck, err = framework.CreateMHC(client, mhcParams)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(machinehealthcheck).ToNot(BeNil())
+		Expect(err).ToNot(HaveOccurred(), "failed to create a new MHC resource")
+		Expect(machinehealthcheck).ToNot(BeNil(), "expected the new MHC resource to not be nil")
 
 		By("Waiting for RemediationRestricted event from MachineHealthCheck")
-		Expect(framework.WaitForEvent(client, "MachineHealthCheck", machineSet.Name, "RemediationRestricted")).To(Succeed())
+		Expect(framework.WaitForEvent(client, "MachineHealthCheck", machineSet.Name, "RemediationRestricted")).To(Succeed(), "failed to find event RemediationRestricted for MHC")
 
 		By("Ensuring none of the machines were deleted")
 		allMachines, err := framework.GetMachines(client, &selector)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(allMachines).ToNot(BeEmpty())
-		Expect(framework.MachinesPresent(allMachines, machines...)).To(BeTrue())
+		Expect(err).ToNot(HaveOccurred(), "failed to get machines using a selector")
+		Expect(machines).ToNot(BeEmpty(), "expected to get a non empty list of machines, got an empty list of machines")
+		Expect(framework.MachinesPresent(allMachines, machines...)).To(BeTrue(), "expected all machines to be present, but atleast one is not present")
 	})
 })
