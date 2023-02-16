@@ -582,6 +582,10 @@ github.com/openshift/client-go/machine/clientset/versioned/typed/machine/v1beta1
 github.com/openshift/client-go/machine/informers/externalversions/internalinterfaces
 github.com/openshift/client-go/machine/informers/externalversions/machine/v1beta1
 github.com/openshift/client-go/machine/listers/machine/v1beta1
+# github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20230215160859-6f6ddf733522
+## explicit; go 1.19
+github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/apps/v1
+github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/core/v1
 # github.com/openshift/cluster-autoscaler-operator v0.0.1-0.20230201165928-338ec3b40e58
 ## explicit; go 1.19
 github.com/openshift/cluster-autoscaler-operator/pkg/apis
@@ -1535,6 +1539,7 @@ sigs.k8s.io/controller-runtime/pkg/config/v1alpha1
 sigs.k8s.io/controller-runtime/pkg/controller
 sigs.k8s.io/controller-runtime/pkg/controller/controllerutil
 sigs.k8s.io/controller-runtime/pkg/conversion
+sigs.k8s.io/controller-runtime/pkg/envtest/komega
 sigs.k8s.io/controller-runtime/pkg/event
 sigs.k8s.io/controller-runtime/pkg/handler
 sigs.k8s.io/controller-runtime/pkg/healthz

@@ -8,6 +8,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.8.0
 	github.com/onsi/gomega v1.26.0
 	github.com/openshift/api v0.0.0-20230213202419-42edf4f1d905
+	github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20230215160859-6f6ddf733522
 	github.com/openshift/cluster-autoscaler-operator v0.0.1-0.20230201165928-338ec3b40e58
 	github.com/openshift/library-go v0.0.0-20230130232623-47904dd9ff5a
 	github.com/openshift/machine-api-operator v0.2.1-0.20230210141533-c47a0529c978
