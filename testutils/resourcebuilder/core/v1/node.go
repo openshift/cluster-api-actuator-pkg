@@ -36,6 +36,7 @@ type NodeBuilder struct {
 	generateName string
 	name         string
 	labels       map[string]string
+	conditions   []corev1.NodeCondition
 }
 
 // Build builds a new node based on the configuration provided.
@@ -45,6 +46,9 @@ func (m NodeBuilder) Build() *corev1.Node {
 			GenerateName: m.generateName,
 			Name:         m.name,
 			Labels:       m.labels,
+		},
+		Status: corev1.NodeStatus{
+			Conditions: m.conditions,
 		},
 	}
 
@@ -59,6 +63,32 @@ func (m NodeBuilder) AsWorker() NodeBuilder {
 // AsMaster sets the master role on the node labels for the node builder.
 func (m NodeBuilder) AsMaster() NodeBuilder {
 	return m.WithLabel(masterNodeRoleLabel, "")
+}
+
+// AsNotReady sets the node as ready for the node builder.
+func (m NodeBuilder) AsNotReady() NodeBuilder {
+	return m.WithConditions([]corev1.NodeCondition{
+		{
+			Type:   corev1.NodeReady,
+			Status: corev1.ConditionFalse,
+		},
+	})
+}
+
+// AsReady sets the node as ready for the node builder.
+func (m NodeBuilder) AsReady() NodeBuilder {
+	return m.WithConditions([]corev1.NodeCondition{
+		{
+			Type:   corev1.NodeReady,
+			Status: corev1.ConditionTrue,
+		},
+	})
+}
+
+// WithConditions sets the conditions for the node builder.
+func (m NodeBuilder) WithConditions(conditions []corev1.NodeCondition) NodeBuilder {
+	m.conditions = conditions
+	return m
 }
 
 // WithGenerateName sets the generateName for the node builder.
