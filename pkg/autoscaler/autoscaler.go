@@ -395,6 +395,10 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			By("Creating ClusterAutoscaler")
 			clusterAutoscaler = clusterAutoscalerResource(100)
 			clusterAutoscaler.Spec.BalanceSimilarNodeGroups = pointer.Bool(true)
+			// Ignore this label to make test nodes similar
+			clusterAutoscaler.Spec.BalancingIgnoredLabels = []string{
+				"e2e.openshift.io",
+			}
 			Expect(client.Create(ctx, clusterAutoscaler)).Should(Succeed(), "Failed to create ClusterAutoscaler")
 			cleanupObjects[clusterAutoscaler.GetName()] = clusterAutoscaler
 		})
@@ -433,8 +437,6 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			for i := range transientMachineSets {
 				machineSetParams := framework.BuildMachineSetParams(client, 1)
 				machineSetParams.Labels[targetedNodeLabel] = ""
-				// remove this label to make the MachineSets similar, see below for more details
-				delete(machineSetParams.Labels, "e2e.openshift.io")
 				machineSet, err := framework.CreateMachineSet(client, machineSetParams)
 				Expect(err).ToNot(HaveOccurred(), "Failed to create MachineSet %d of %d", i, len(transientMachineSets))
 				cleanupObjects[machineSet.GetName()] = machineSet
@@ -446,7 +448,12 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			// ensure that no extra labels have been added.
 			// TODO it would be nice to check instance types as well, this will require adding some deserialization code for the machine specs.
 			By("Ensuring both MachineSets have the same .spec.template.spec.labels")
-			Expect(transientMachineSets[0].Spec.Template.Spec.Labels).To(Equal(transientMachineSets[1].Spec.Template.Spec.Labels), "Failed to match MachineSet labels for balancing similar nodes")
+			// Ignore e2e.openshift.io in the comparison to test BalancingIgnoredLabels feature
+			labelsMachineSetA := transientMachineSets[0].Spec.Template.Spec.Labels
+			delete(labelsMachineSetA, "e2e.openshift.io")
+			labelsMachineSetB := transientMachineSets[1].Spec.Template.Spec.Labels
+			delete(labelsMachineSetB, "e2e.openshift.io")
+			Expect(labelsMachineSetA).To(Equal(labelsMachineSetB), "Failed to match MachineSet labels for balancing similar nodes")
 
 			By("Waiting for all Machines in MachineSets to enter Running phase")
 			framework.WaitForMachineSet(client, transientMachineSets[0].GetName())
