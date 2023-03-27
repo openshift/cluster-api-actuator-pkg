@@ -3,7 +3,6 @@ package autoscaler
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -21,6 +20,7 @@ import (
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	caov1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1"
 	caov1beta1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1beta1"
+	"sigs.k8s.io/controller-runtime/pkg/envtest/komega"
 
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
@@ -35,6 +35,8 @@ const (
 	machineDeleteAnnotationKey    = "machine.openshift.io/cluster-api-delete-machine"
 	deletionCandidateTaintKey     = "DeletionCandidateOfClusterAutoscaler"
 	toBeDeletedTaintKey           = "ToBeDeletedByClusterAutoscaler"
+	caMinSizeAnnotation           = "machine.openshift.io/cluster-api-autoscaler-node-group-min-size"
+	caMaxSizeAnnotation           = "machine.openshift.io/cluster-api-autoscaler-node-group-max-size"
 )
 
 // Build default CA resource to allow fast scaling up and down.
@@ -120,6 +122,8 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 	BeforeEach(func() {
 		client, err = framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred(), "Failed to create Kubernetes client for test")
+
+		komega.SetClient(client)
 
 		workerNodes, err := framework.GetWorkerNodes(client)
 		Expect(err).NotTo(HaveOccurred(), "Failed to get worker Node objects")
@@ -437,12 +441,12 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 				transientMachineSets[i] = machineSet
 			}
 
-			// balance similar nodes requires that all the participating MachineSets have the same
+			// balance similar nodes requires that all the participating Nodes have the same
 			// instance types and labels. while the instance types should be the same, we want to
 			// ensure that no extra labels have been added.
 			// TODO it would be nice to check instance types as well, this will require adding some deserialization code for the machine specs.
-			By("Ensuring both MachineSets have the same labels")
-			Expect(reflect.DeepEqual(transientMachineSets[0].Labels, transientMachineSets[1].Labels)).Should(BeTrue(), "Failed to match MachineSet labels for balancing similar nodes")
+			By("Ensuring both MachineSets have the same .spec.template.spec.labels")
+			Expect(transientMachineSets[0].Spec.Template.Spec.Labels).To(Equal(transientMachineSets[1].Spec.Template.Spec.Labels), "Failed to match MachineSet labels for balancing similar nodes")
 
 			By("Waiting for all Machines in MachineSets to enter Running phase")
 			framework.WaitForMachineSet(client, transientMachineSets[0].GetName())
@@ -457,6 +461,65 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 				cleanupObjects[asr.GetName()] = asr
 			}
 
+			for _, machineSet := range transientMachineSets {
+				By(fmt.Sprintf("Waiting for MachineSet %s to acquire autoscaling annotations", machineSet.GetName()))
+				Eventually(komega.Object(machineSet), framework.WaitShort, pollingInterval).Should(HaveField("GetAnnotations()", SatisfyAll(
+					HaveKey(caMinSizeAnnotation),
+					HaveKey(caMaxSizeAnnotation),
+				)), "MachineSet %s did not acquire autoscaling annotation", machineSet.GetName())
+			}
+
+			// on some cloud providers, we have experienced the new nodes having resources added to their status.capacity
+			// after they have been initialized. this has been seen with `hugepages-1Gi` and `hugepages-2Mi`. so we
+			// wait until the nodes have both entries before moving on.
+			By("Waiting for the new Nodes to have hugepages-1Gi and hugepages-2Mi capacity")
+			Eventually(func() ([]*corev1.Node, error) {
+				nodes := []*corev1.Node{}
+
+				for _, machineSet := range transientMachineSets {
+					if n, err := framework.GetNodesFromMachineSet(client, machineSet); err != nil {
+						return nodes, err
+					} else if len(n) != 1 {
+						return nodes, fmt.Errorf("expected 1 node for MachineSet %s, found %d", machineSet.GetName(), len(n))
+					} else {
+						nodes = append(nodes, n[0])
+					}
+				}
+
+				return nodes, nil
+			}, framework.WaitMedium, pollingInterval).Should(HaveEach(
+				HaveField("Status.Capacity", SatisfyAll(
+					HaveKey(BeEquivalentTo(corev1.ResourceHugePagesPrefix+"1Gi")),
+					HaveKey(BeEquivalentTo(corev1.ResourceHugePagesPrefix+"2Mi")),
+				)),
+			), "Node capacity resources did not contain hugepages-1Gi and hugepages-2Mi")
+
+			// wait until the new nodes have the same resource keys before progressing, otherwise the balance will not work.
+			By("Waiting for the new Nodes to have similar resources")
+			Eventually(func() (map[corev1.ResourceName]int, error) {
+				nodes := []*corev1.Node{}
+
+				for _, machineSet := range transientMachineSets {
+					if n, err := framework.GetNodesFromMachineSet(client, machineSet); err != nil {
+						return nil, err
+					} else if len(n) != 1 {
+						return nil, fmt.Errorf("expected 1 node for MachineSet %s, found %d", machineSet.GetName(), len(n))
+					} else {
+						nodes = append(nodes, n[0])
+					}
+				}
+
+				// add the resources from each node's capacity, counting the number of each
+				resources := map[corev1.ResourceName]int{}
+				for _, n := range nodes {
+					for k := range n.Status.Capacity {
+						resources[k] += 1
+					}
+				}
+
+				return resources, nil
+			}, framework.WaitMedium, pollingInterval).Should(HaveEach(2), "Node capacity resources did not match")
+
 			// 4 job replicas are being chosen here to force the cluster to
 			// expand its size by 2 nodes. the cluster autoscaler should
 			// place 1 node in each of the 2 MachineSets created.
@@ -468,18 +531,27 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			cleanupObjects[workload.GetName()] = workload
 			Expect(client.Create(ctx, workload)).Should(Succeed(), "Failed to create scale-out workload %s", uniqueJobName)
 
-			expectedReplicas := int32(2)
-			for _, machineSet := range transientMachineSets {
-				By(fmt.Sprintf("Waiting for MachineSet %s replicas to scale out", machineSet.GetName()))
-				Eventually(func() (int, error) {
-					current, err := framework.GetMachineSet(client, machineSet.GetName())
+			expectedReplicas := int(2)
+			By("Waiting for transient MachineSets replicas to scale out")
+			Eventually(func() (map[string]int, error) {
+				allreplicas := map[string]int{}
+
+				for _, machineSet := range transientMachineSets {
+					ms, err := framework.GetMachineSet(client, machineSet.GetName())
 					if err != nil {
-						return 0, err
+						return allreplicas, err
 					}
 
-					return int(pointer.Int32Deref(current.Spec.Replicas, 0)), nil
-				}, framework.WaitOverMedium, pollingInterval).Should(BeEquivalentTo(expectedReplicas), "MachineSet %s failed to scale out to %d replicas", machineSet.GetName(), expectedReplicas)
-			}
+					replicas := int(pointer.Int32Deref(ms.Spec.Replicas, 0))
+					allreplicas[ms.GetName()] = replicas
+
+					if replicas > expectedReplicas {
+						return allreplicas, StopTrying(fmt.Sprintf("exceeded expected replicas in MachineSet %s", ms.GetName()))
+					}
+				}
+
+				return allreplicas, nil
+			}, framework.WaitOverMedium, pollingInterval).Should(HaveEach(expectedReplicas), "Failed to balance properly")
 		})
 	})
 
