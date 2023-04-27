@@ -95,7 +95,7 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 						Name:    "curl-metadata",
 						Image:   "registry.access.redhat.com/ubi8/ubi-minimal:latest",
 						Command: []string{"curl"},
-						Args:    []string{"-v", amiIDMetadataEndpoint},
+						Args:    []string{"-w 'HTTP_CODE:%{http_code}\n'", "-o /dev/null", "-s", amiIDMetadataEndpoint},
 					},
 				},
 			}
@@ -138,7 +138,7 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 	It("should enforce auth on metadata service if metadataServiceOptions.authentication set to Required", func() {
 		machineSet, err := createMachineSet(machinev1.MetadataServiceAuthenticationRequired)
 		Expect(err).ToNot(HaveOccurred())
-		assertIMDSavailability(machineSet, "HTTP/1.1 401 Unauthorized")
+		assertIMDSavailability(machineSet, "HTTP_CODE:401")
 	})
 
 	// Machines required for test: 1
@@ -146,6 +146,6 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 	It("should allow unauthorized requests to metadata service if metadataServiceOptions.authentication is Optional", func() {
 		machineSet, err := createMachineSet(machinev1.MetadataServiceAuthenticationOptional)
 		Expect(err).ToNot(HaveOccurred())
-		assertIMDSavailability(machineSet, "HTTP/1.1 200 OK")
+		assertIMDSavailability(machineSet, "HTTP_CODE:200")
 	})
 })
