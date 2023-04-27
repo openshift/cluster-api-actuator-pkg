@@ -96,6 +96,9 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 				if errors.Is(err, framework.ErrMachineNotProvisionedInsufficientCloudCapacity) {
 					By("Trying alternative machineSet because current one could not provision due to insufficient spot capacity")
 					// If machineSet cannot scale up due to insufficient capacity, try again with different machineSetParams
+					err = framework.DeleteMachineSets(client, machineSet)
+					Expect(err).ToNot(HaveOccurred(), "MachineSet should be be able to be deleted")
+					delete(delObjects, machineSet.Name)
 					framework.WaitForMachineSetsDeleted(client, machineSet)
 
 					continue
