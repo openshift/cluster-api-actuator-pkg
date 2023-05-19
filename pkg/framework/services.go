@@ -12,10 +12,10 @@ import (
 )
 
 // GetServices returns a list of services matching the provided selector.
-func GetServices(client runtimeclient.Client, selector map[string]string) (*corev1.ServiceList, error) {
+func GetServices(ctx context.Context, client runtimeclient.Client, selector map[string]string) (*corev1.ServiceList, error) {
 	services := &corev1.ServiceList{}
 
-	if err := client.List(context.TODO(), services, runtimeclient.MatchingLabels(selector)); err != nil {
+	if err := client.List(ctx, services, runtimeclient.MatchingLabels(selector)); err != nil {
 		return nil, fmt.Errorf("error getting Services %w", err)
 	}
 
@@ -23,15 +23,15 @@ func GetServices(client runtimeclient.Client, selector map[string]string) (*core
 }
 
 // GetService gets service object by name and namespace.
-func GetService(c runtimeclient.Client, name, namespace string) (*corev1.Service, error) {
+func GetService(ctx context.Context, c runtimeclient.Client, name, namespace string) (*corev1.Service, error) {
 	key := types.NamespacedName{
 		Namespace: namespace,
 		Name:      name,
 	}
 	s := &corev1.Service{}
 
-	if err := wait.PollImmediate(RetryMedium, WaitShort, func() (bool, error) {
-		if err := c.Get(context.TODO(), key, s); err != nil {
+	if err := wait.PollUntilContextTimeout(ctx, RetryMedium, WaitShort, true, func(ctx context.Context) (bool, error) {
+		if err := c.Get(ctx, key, s); err != nil {
 			klog.Errorf("Error querying api for Service object %q: %v, retrying...", name, err)
 			return false, nil
 		}
@@ -45,9 +45,9 @@ func GetService(c runtimeclient.Client, name, namespace string) (*corev1.Service
 }
 
 // IsServiceAvailable returns true if the service exists.
-func IsServiceAvailable(c runtimeclient.Client, name, namespace string) bool {
-	if err := wait.PollImmediate(RetryMedium, WaitLong, func() (bool, error) {
-		s, err := GetService(c, name, namespace)
+func IsServiceAvailable(ctx context.Context, c runtimeclient.Client, name, namespace string) bool {
+	if err := wait.PollUntilContextTimeout(ctx, RetryMedium, WaitLong, true, func(ctx context.Context) (bool, error) {
+		s, err := GetService(ctx, c, name, namespace)
 		if err != nil {
 			klog.Errorf("Error getting Service: %v", err)
 			return false, nil

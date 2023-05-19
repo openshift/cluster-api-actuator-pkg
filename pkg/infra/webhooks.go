@@ -41,7 +41,7 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 		Expect(err).ToNot(HaveOccurred(), "Controller-runtime client should be able to be created")
 
 		// Only run on platforms that have webhooks
-		clusterInfra, err := framework.GetInfrastructure(client)
+		clusterInfra, err := framework.GetInfrastructure(ctx, client)
 		Expect(err).NotTo(HaveOccurred(), "Should be able to get Infrastructure")
 		platform = clusterInfra.Status.PlatformStatus.Type
 		switch platform {
@@ -51,7 +51,7 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 			Skip(fmt.Sprintf("Platform %s does not have webhooks, skipping.", platform))
 		}
 
-		machineSetParams = framework.BuildMachineSetParams(client, 1)
+		machineSetParams = framework.BuildMachineSetParams(ctx, client, 1)
 		ps, err := createMinimalProviderSpec(platform, machineSetParams.ProviderSpec)
 		Expect(err).ToNot(HaveOccurred(), "Should be able to generate MachineSet ProviderSpec")
 		machineSetParams.ProviderSpec = ps
@@ -63,11 +63,11 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 
 		By("Checking the webhook configurations are synced", func() {
 			Eventually(func() bool {
-				return framework.IsMutatingWebhookConfigurationSynced(client)
+				return framework.IsMutatingWebhookConfigurationSynced(ctx, client)
 			}, framework.WaitShort).Should(BeTrue(), "MutatingWebhookConfiguration must be synced before running these tests")
 
 			Eventually(func() bool {
-				return framework.IsValidatingWebhookConfigurationSynced(client)
+				return framework.IsValidatingWebhookConfigurationSynced(ctx, client)
 			}, framework.WaitShort).Should(BeTrue(), "ValidingWebhookConfiguration must be synced before running these tests")
 		})
 	})
@@ -81,11 +81,11 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 		machineSets, err := framework.GetMachineSets(client, testSelector)
 		Expect(err).ToNot(HaveOccurred(), "Should be able to list test MachineSets")
 		Expect(framework.DeleteMachineSets(client, machineSets...)).To(Succeed(), "Should be able to delete test MachineSets")
-		framework.WaitForMachineSetsDeleted(client, machineSets...)
+		framework.WaitForMachineSetsDeleted(ctx, client, machineSets...)
 
-		machines, err := framework.GetMachines(client, testSelector)
+		machines, err := framework.GetMachines(ctx, client, testSelector)
 		Expect(err).ToNot(HaveOccurred(), "Should be able to get test Machines")
-		Expect(framework.DeleteMachines(client, machines...)).To(Succeed(), "Should be able to delete test Machines")
+		Expect(framework.DeleteMachines(ctx, client, machines...)).To(Succeed(), "Should be able to delete test Machines")
 		framework.WaitForMachinesDeleted(client, machines...)
 	})
 
@@ -124,7 +124,7 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 		machineSet, err := framework.CreateMachineSet(client, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "Should be able to create MachineSet")
 
-		framework.WaitForMachineSet(client, machineSet.Name)
+		framework.WaitForMachineSet(ctx, client, machineSet.Name)
 	})
 
 	// Machines required for test: 1
@@ -173,7 +173,7 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 
 		updated := false
 		for !updated {
-			machineSet, err = framework.GetMachineSet(client, machineSet.Name)
+			machineSet, err = framework.GetMachineSet(ctx, client, machineSet.Name)
 			Expect(err).ToNot(HaveOccurred(), "Should be able to get MachineSet")
 
 			minimalSpec, err := createMinimalProviderSpec(platform, &machineSet.Spec.Template.Spec.ProviderSpec)

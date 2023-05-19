@@ -12,15 +12,15 @@ import (
 )
 
 // GetDaemonset gets deployment object by name and namespace.
-func GetDaemonset(c client.Client, name, namespace string) (*kappsapi.DaemonSet, error) {
+func GetDaemonset(ctx context.Context, c client.Client, name, namespace string) (*kappsapi.DaemonSet, error) {
 	key := types.NamespacedName{
 		Namespace: namespace,
 		Name:      name,
 	}
 	d := &kappsapi.DaemonSet{}
 
-	if err := wait.PollImmediate(RetryMedium, WaitShort, func() (bool, error) {
-		if err := c.Get(context.TODO(), key, d); err != nil {
+	if err := wait.PollUntilContextTimeout(ctx, RetryMedium, WaitShort, true, func(ctx context.Context) (bool, error) {
+		if err := c.Get(ctx, key, d); err != nil {
 			klog.Errorf("Error querying api for DaemonSet object %q: %v, retrying...", name, err)
 			return false, nil
 		}
@@ -34,9 +34,9 @@ func GetDaemonset(c client.Client, name, namespace string) (*kappsapi.DaemonSet,
 }
 
 // DeleteDaemonset deletes the specified deployment.
-func DeleteDaemonset(c client.Client, deployment *kappsapi.DaemonSet) error {
-	return wait.PollImmediate(RetryMedium, WaitShort, func() (bool, error) {
-		if err := c.Delete(context.TODO(), deployment); err != nil {
+func DeleteDaemonset(ctx context.Context, c client.Client, deployment *kappsapi.DaemonSet) error {
+	return wait.PollUntilContextTimeout(ctx, RetryMedium, WaitShort, true, func(ctx context.Context) (bool, error) {
+		if err := c.Delete(ctx, deployment); err != nil {
 			klog.Errorf("error querying api for DaemonSet object %q: %v, retrying...", deployment.Name, err)
 			return false, nil
 		}
@@ -46,14 +46,14 @@ func DeleteDaemonset(c client.Client, deployment *kappsapi.DaemonSet) error {
 }
 
 // UpdateDaemonset updates the specified deployment.
-func UpdateDaemonset(c client.Client, name, namespace string, updated *kappsapi.DaemonSet) error {
-	return wait.PollImmediate(RetryMedium, WaitMedium, func() (bool, error) {
-		d, err := GetDeployment(c, name, namespace)
+func UpdateDaemonset(ctx context.Context, c client.Client, name, namespace string, updated *kappsapi.DaemonSet) error {
+	return wait.PollUntilContextTimeout(ctx, RetryMedium, WaitMedium, true, func(ctx context.Context) (bool, error) {
+		d, err := GetDeployment(ctx, c, name, namespace)
 		if err != nil {
 			klog.Errorf("Error getting DaemonSet: %v", err)
 			return false, nil
 		}
-		if err := c.Patch(context.TODO(), d, client.MergeFrom(updated)); err != nil {
+		if err := c.Patch(ctx, d, client.MergeFrom(updated)); err != nil {
 			klog.Errorf("error patching DaemonSet object %q: %v, retrying...", name, err)
 			return false, nil
 		}
@@ -63,9 +63,9 @@ func UpdateDaemonset(c client.Client, name, namespace string, updated *kappsapi.
 }
 
 // IsDaemonsetAvailable returns true if the deployment has one or more available replicas.
-func IsDaemonsetAvailable(c client.Client, name, namespace string) bool {
-	if err := wait.PollImmediate(RetryMedium, WaitLong, func() (bool, error) {
-		d, err := GetDaemonset(c, name, namespace)
+func IsDaemonsetAvailable(ctx context.Context, c client.Client, name, namespace string) bool {
+	if err := wait.PollUntilContextTimeout(ctx, RetryMedium, WaitLong, true, func(ctx context.Context) (bool, error) {
+		d, err := GetDaemonset(ctx, c, name, namespace)
 		if err != nil {
 			klog.Errorf("Error getting DaemonSet: %v", err)
 			return false, nil

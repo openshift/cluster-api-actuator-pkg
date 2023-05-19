@@ -28,6 +28,7 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 	var clientset *kubernetes.Clientset
 
 	var gatherer *gatherer.StateGatherer
+	var ctx context.Context
 
 	toDelete := make([]*machinev1.MachineSet, 0, 3)
 
@@ -42,7 +43,9 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 		gatherer, err = framework.NewGatherer()
 		Expect(err).ToNot(HaveOccurred())
 
-		platform, err := framework.GetPlatform(client)
+		ctx = framework.GetContext()
+
+		platform, err := framework.GetPlatform(ctx, client)
 		Expect(err).ToNot(HaveOccurred())
 		if platform != configv1.AWSPlatformType {
 			Skip(fmt.Sprintf("skipping AWS specific tests on %s", platform))
@@ -58,14 +61,14 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 		Expect(framework.DeleteMachineSets(client, toDelete...)).To(Succeed())
 		toDelete = make([]*machinev1.MachineSet, 0, 3)
 
-		framework.WaitForMachineSetsDeleted(client, toDelete...)
+		framework.WaitForMachineSetsDeleted(ctx, client, toDelete...)
 	})
 
 	createMachineSet := func(metadataAuth string) (*machinev1.MachineSet, error) {
 		var err error
 
 		By(fmt.Sprintf("Create machine with metadataServiceOptions.authentication %s", metadataAuth))
-		machineSetParams := framework.BuildMachineSetParams(client, 1)
+		machineSetParams := framework.BuildMachineSetParams(ctx, client, 1)
 		spec := machinev1.AWSMachineProviderConfig{}
 		Expect(json.Unmarshal(machineSetParams.ProviderSpec.Value.Raw, &spec)).To(Succeed())
 
@@ -79,14 +82,14 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 			return nil, err
 		}
 		toDelete = append(toDelete, mc)
-		framework.WaitForMachineSet(client, mc.GetName())
+		framework.WaitForMachineSet(ctx, client, mc.GetName())
 
 		return mc, nil
 	}
 
 	assertIMDSavailability := func(machineset *machinev1.MachineSet, responseSubstring string) {
 		By("Get node from machineset and spin a curl pod", func() {
-			nodes, err := framework.GetNodesFromMachineSet(client, machineset)
+			nodes, err := framework.GetNodesFromMachineSet(ctx, client, machineset)
 			Expect(err).ToNot(HaveOccurred())
 			podSpec := corev1.PodSpec{
 				HostNetwork: true,

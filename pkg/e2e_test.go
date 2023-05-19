@@ -48,7 +48,9 @@ var _ = BeforeSuite(func() {
 	client, err := framework.LoadClient()
 	Expect(err).ToNot(HaveOccurred())
 
-	platform, err := framework.GetPlatform(client)
+	ctx := framework.GetContext()
+
+	platform, err := framework.GetPlatform(ctx, client)
 	Expect(err).ToNot(HaveOccurred())
 
 	// Extend timeouts for slower providers

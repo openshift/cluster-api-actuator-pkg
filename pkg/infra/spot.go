@@ -60,7 +60,7 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 		client, err = framework.LoadClient()
 		Expect(err).ToNot(HaveOccurred(), "Controller-runtime client should be able to be created")
 
-		platform, err = framework.GetPlatform(client)
+		platform, err = framework.GetPlatform(ctx, client)
 		Expect(err).NotTo(HaveOccurred(), "Should be able to get Platform type")
 		switch platform {
 		case configv1.AWSPlatformType, configv1.AzurePlatformType:
@@ -78,7 +78,7 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 
 		By("Creating a Spot backed MachineSet", func() {
 			machineSetReady := false
-			machineSetParams := framework.BuildMachineSetParams(client, machinesCount)
+			machineSetParams := framework.BuildMachineSetParams(ctx, client, machinesCount)
 			machineSetParamsList, err := framework.BuildAlternativeMachineSetParams(machineSetParams, platform)
 			Expect(err).ToNot(HaveOccurred(), "Should be able to build list of MachineSet parameters")
 			for i, machineSetParams := range machineSetParamsList {
@@ -92,14 +92,14 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 				Expect(err).ToNot(HaveOccurred(), "MachineSet should be able to be created")
 				delObjects[machineSet.Name] = machineSet
 
-				err = framework.WaitForSpotMachineSet(client, machineSet.GetName())
+				err = framework.WaitForSpotMachineSet(ctx, client, machineSet.GetName())
 				if errors.Is(err, framework.ErrMachineNotProvisionedInsufficientCloudCapacity) {
 					By("Trying alternative machineSet because current one could not provision due to insufficient spot capacity")
 					// If machineSet cannot scale up due to insufficient capacity, try again with different machineSetParams
 					err = framework.DeleteMachineSets(client, machineSet)
 					Expect(err).ToNot(HaveOccurred(), "MachineSet should be be able to be deleted")
 					delete(delObjects, machineSet.Name)
-					framework.WaitForMachineSetsDeleted(client, machineSet)
+					framework.WaitForMachineSetsDeleted(ctx, client, machineSet)
 
 					continue
 				}
@@ -134,7 +134,7 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 		if len(machineSets) > 0 {
 			// Wait for all MachineSets and their Machines to be deleted.
 			By("Waiting for MachineSets to be deleted...")
-			framework.WaitForMachineSetsDeleted(client, machineSets...)
+			framework.WaitForMachineSetsDeleted(ctx, client, machineSets...)
 		}
 	})
 
@@ -143,7 +143,7 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 	It("should handle the spot instances", func() {
 		By("should label the Machine specs as interruptible", func() {
 			selector := machineSet.Spec.Selector
-			machines, err := framework.GetMachines(client, &selector)
+			machines, err := framework.GetMachines(ctx, client, &selector)
 			Expect(err).ToNot(HaveOccurred(), "Listing Machines should succeed")
 			Expect(machines).To(HaveLen(machinesCount), "Should match the expected number of Machines")
 
@@ -153,7 +153,7 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 		})
 
 		By("should deploy a termination handler pod to each instance", func() {
-			nodes, err := framework.GetNodesFromMachineSet(client, machineSet)
+			nodes, err := framework.GetNodesFromMachineSet(ctx, client, machineSet)
 			Expect(err).ToNot(HaveOccurred(), "Should be able to get Nodes linked to the MachineSet's Machines")
 			Expect(nodes).To(HaveLen(machinesCount), "Nodes and Machines count should match")
 
@@ -223,12 +223,12 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 				Expect(client.Create(ctx, deployment)).To(Succeed(), "Should be able to create metadata Deployment")
 				delObjects[deployment.Name] = deployment
 
-				Expect(framework.IsDeploymentAvailable(client, deployment.Name, deployment.Namespace)).To(BeTrue(), "Should find an available the metadata Deployment")
+				Expect(framework.IsDeploymentAvailable(ctx, client, deployment.Name, deployment.Namespace)).To(BeTrue(), "Should find an available the metadata Deployment")
 			})
 
 			var machine *machinev1.Machine
 			By("Choosing a Machine to terminate", func() {
-				machines, err := framework.GetMachinesFromMachineSet(client, machineSet)
+				machines, err := framework.GetMachinesFromMachineSet(ctx, client, machineSet)
 				Expect(err).ToNot(HaveOccurred(), "Should be able to get Machines from MachineSet")
 				Expect(len(machines)).To(BeNumerically(">", 0), "There should be at least one Machine")
 

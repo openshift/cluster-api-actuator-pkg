@@ -74,7 +74,7 @@ func MachinesPresent(existingMachines []*machinev1.Machine, machines ...*machine
 
 // GetMachines gets a list of machinesets from the default machine API namespace.
 // Optionaly, labels may be used to constrain listed machinesets.
-func GetMachines(client runtimeclient.Client, selectors ...*metav1.LabelSelector) ([]*machinev1.Machine, error) {
+func GetMachines(ctx context.Context, client runtimeclient.Client, selectors ...*metav1.LabelSelector) ([]*machinev1.Machine, error) {
 	machineList := &machinev1.MachineList{}
 
 	listOpts := append([]runtimeclient.ListOption{},
@@ -92,7 +92,7 @@ func GetMachines(client runtimeclient.Client, selectors ...*metav1.LabelSelector
 		)
 	}
 
-	if err := client.List(context.Background(), machineList, listOpts...); err != nil {
+	if err := client.List(ctx, machineList, listOpts...); err != nil {
 		return nil, fmt.Errorf("error querying api for machineList object: %w", err)
 	}
 
@@ -133,10 +133,10 @@ func GetMachineFromNode(client runtimeclient.Client, node *corev1.Node) (*machin
 }
 
 // DeleteMachines deletes the specified machines and returns an error on failure.
-func DeleteMachines(client runtimeclient.Client, machines ...*machinev1.Machine) error {
-	return wait.PollImmediate(RetryShort, time.Minute, func() (bool, error) {
+func DeleteMachines(ctx context.Context, client runtimeclient.Client, machines ...*machinev1.Machine) error {
+	return wait.PollUntilContextTimeout(ctx, RetryShort, time.Minute, true, func(ctx context.Context) (bool, error) {
 		for _, machine := range machines {
-			if err := client.Delete(context.TODO(), machine); err != nil {
+			if err := client.Delete(ctx, machine); err != nil {
 				klog.Errorf("Error querying api for machine object %q: %v, retrying...", machine.Name, err)
 				return false, err
 			}
