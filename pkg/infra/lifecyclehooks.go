@@ -34,11 +34,14 @@ var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 	var machineSet *machinev1.MachineSet
 	var workload *batchv1.Job
 	var pod corev1.Pod
+	var ctx context.Context
 
 	var gatherer *gatherer.StateGatherer
 
 	BeforeEach(func() {
 		var err error
+
+		ctx = framework.GetContext()
 
 		gatherer, err = framework.NewGatherer()
 		Expect(err).ToNot(HaveOccurred(), "StateGatherer should be able to be created")
@@ -49,14 +52,14 @@ var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 
 		// Build machine set parameters
 		expectedReplicas := 1
-		machineSetParams := framework.BuildMachineSetParams(client, expectedReplicas)
+		machineSetParams := framework.BuildMachineSetParams(ctx, client, expectedReplicas)
 		// Create a label for node and add to machine set parameters
 		machineSetParams.Labels[lifecyclehooksWorkerNodeRoleLabel] = ""
 		// Create machine set
 		machineSet, err = framework.CreateMachineSet(client, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "MachineSet should be able to be created")
 		// Wait for machine to be running
-		framework.WaitForMachineSet(client, machineSet.GetName())
+		framework.WaitForMachineSet(ctx, client, machineSet.GetName())
 
 		By("Running a workload on the machine")
 		// Run a pod on this machine
@@ -93,7 +96,7 @@ var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 		})).To(Succeed(), "MachineSet should be able to be deleted")
 
 		By("Waiting for the MachineSet to be deleted...")
-		framework.WaitForMachineSetsDeleted(client, machineSet)
+		framework.WaitForMachineSetsDeleted(ctx, client, machineSet)
 
 		By("Deleting workload job")
 		Expect(client.Delete(context.Background(), workload, &runtimeclient.DeleteOptions{
@@ -104,7 +107,7 @@ var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 	// Machines required for test: 1
 	// Reason: Tracks the lifecycle of a single machine as we update its lifecycle hooks
 	It("pause lifecycle actions when present", func() {
-		machines, err := framework.GetMachinesFromMachineSet(client, machineSet)
+		machines, err := framework.GetMachinesFromMachineSet(ctx, client, machineSet)
 		Expect(err).ToNot(HaveOccurred(), "Should be able to get Machines from MachineSet")
 		Expect(machines).To(HaveLen(1), "There should be only one Machine")
 		machine := machines[0]

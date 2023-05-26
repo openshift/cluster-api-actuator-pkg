@@ -20,12 +20,12 @@ var DefaultValidatingWebhookConfiguration = webhooks.NewMachineValidatingWebhook
 var DefaultMutatingWebhookConfiguration = webhooks.NewMachineMutatingWebhookConfiguration()
 
 // GetMutatingWebhookConfiguration gets MutatingWebhookConfiguration object by name.
-func GetMutatingWebhookConfiguration(c client.Client, name string) (*admissionregistrationv1.MutatingWebhookConfiguration, error) {
+func GetMutatingWebhookConfiguration(ctx context.Context, c client.Client, name string) (*admissionregistrationv1.MutatingWebhookConfiguration, error) {
 	key := client.ObjectKey{Name: name}
 	existing := &admissionregistrationv1.MutatingWebhookConfiguration{}
 
-	if err := wait.PollImmediate(RetryShort, WaitShort, func() (bool, error) {
-		if err := c.Get(context.TODO(), key, existing); err != nil {
+	if err := wait.PollUntilContextTimeout(ctx, RetryShort, WaitShort, true, func(ctx context.Context) (bool, error) {
+		if err := c.Get(ctx, key, existing); err != nil {
 			klog.Errorf("Error querying api for MutatingWebhookConfiguration object %q: %v, retrying...", name, err)
 			return false, nil
 		}
@@ -39,12 +39,12 @@ func GetMutatingWebhookConfiguration(c client.Client, name string) (*admissionre
 }
 
 // GetValidatingWebhookConfiguration gets ValidatingWebhookConfiguration object by name.
-func GetValidatingWebhookConfiguration(c client.Client, name string) (*admissionregistrationv1.ValidatingWebhookConfiguration, error) {
+func GetValidatingWebhookConfiguration(ctx context.Context, c client.Client, name string) (*admissionregistrationv1.ValidatingWebhookConfiguration, error) {
 	key := client.ObjectKey{Name: name}
 	existing := &admissionregistrationv1.ValidatingWebhookConfiguration{}
 
-	if err := wait.PollImmediate(RetryShort, WaitShort, func() (bool, error) {
-		if err := c.Get(context.TODO(), key, existing); err != nil {
+	if err := wait.PollUntilContextTimeout(ctx, RetryShort, WaitShort, true, func(ctx context.Context) (bool, error) {
+		if err := c.Get(ctx, key, existing); err != nil {
 			klog.Errorf("Error querying api for ValidatingWebhookConfiguration object %q: %v, retrying...", name, err)
 			return false, nil
 		}
@@ -58,9 +58,9 @@ func GetValidatingWebhookConfiguration(c client.Client, name string) (*admission
 }
 
 // DeleteValidatingWebhookConfiguration deletes the specified ValidatingWebhookConfiguration object.
-func DeleteValidatingWebhookConfiguration(c client.Client, webhookConfiguraiton *admissionregistrationv1.ValidatingWebhookConfiguration) error {
-	return wait.PollImmediate(RetryShort, WaitShort, func() (bool, error) {
-		if err := c.Delete(context.TODO(), webhookConfiguraiton); apierrors.IsNotFound(err) {
+func DeleteValidatingWebhookConfiguration(ctx context.Context, c client.Client, webhookConfiguraiton *admissionregistrationv1.ValidatingWebhookConfiguration) error {
+	return wait.PollUntilContextTimeout(ctx, RetryShort, WaitShort, true, func(ctx context.Context) (bool, error) {
+		if err := c.Delete(ctx, webhookConfiguraiton); apierrors.IsNotFound(err) {
 			return true, nil
 		} else if err != nil {
 			klog.Errorf("error querying api for ValidatingWebhookConfiguration object %q: %v, retrying...", webhookConfiguraiton.Name, err)
@@ -72,9 +72,9 @@ func DeleteValidatingWebhookConfiguration(c client.Client, webhookConfiguraiton 
 }
 
 // DeleteMutatingWebhookConfiguration deletes the specified MutatingWebhookConfiguration object.
-func DeleteMutatingWebhookConfiguration(c client.Client, webhookConfiguraiton *admissionregistrationv1.MutatingWebhookConfiguration) error {
-	return wait.PollImmediate(RetryShort, WaitShort, func() (bool, error) {
-		if err := c.Delete(context.TODO(), webhookConfiguraiton); apierrors.IsNotFound(err) {
+func DeleteMutatingWebhookConfiguration(ctx context.Context, c client.Client, webhookConfiguraiton *admissionregistrationv1.MutatingWebhookConfiguration) error {
+	return wait.PollUntilContextTimeout(ctx, RetryShort, WaitShort, true, func(ctx context.Context) (bool, error) {
+		if err := c.Delete(ctx, webhookConfiguraiton); apierrors.IsNotFound(err) {
 			return true, nil
 		} else if err != nil {
 			klog.Errorf("error querying api for MutatingWebhookConfiguration object %q: %v, retrying...", webhookConfiguraiton.Name, err)
@@ -86,14 +86,14 @@ func DeleteMutatingWebhookConfiguration(c client.Client, webhookConfiguraiton *a
 }
 
 // UpdateMutatingWebhookConfiguration updates the specified mutating webhook configuration.
-func UpdateMutatingWebhookConfiguration(c client.Client, updated *admissionregistrationv1.MutatingWebhookConfiguration) error {
-	return wait.PollImmediate(RetryShort, WaitShort, func() (bool, error) {
-		existing, err := GetMutatingWebhookConfiguration(c, updated.Name)
+func UpdateMutatingWebhookConfiguration(ctx context.Context, c client.Client, updated *admissionregistrationv1.MutatingWebhookConfiguration) error {
+	return wait.PollUntilContextTimeout(ctx, RetryShort, WaitShort, true, func(ctx context.Context) (bool, error) {
+		existing, err := GetMutatingWebhookConfiguration(ctx, c, updated.Name)
 		if err != nil {
 			klog.Errorf("Error getting MutatingWebhookConfiguration: %v", err)
 			return false, nil
 		}
-		if err := c.Patch(context.TODO(), existing, client.MergeFrom(updated)); err != nil {
+		if err := c.Patch(ctx, existing, client.MergeFrom(updated)); err != nil {
 			klog.Errorf("error patching MutatingWebhookConfiguration object %q: %v, retrying...", updated.Name, err)
 			return false, nil
 		}
@@ -103,14 +103,14 @@ func UpdateMutatingWebhookConfiguration(c client.Client, updated *admissionregis
 }
 
 // UpdateValidatingWebhookConfiguration updates the specified mutating webhook configuration.
-func UpdateValidatingWebhookConfiguration(c client.Client, updated *admissionregistrationv1.ValidatingWebhookConfiguration) error {
-	return wait.PollImmediate(RetryShort, WaitShort, func() (bool, error) {
-		existing, err := GetValidatingWebhookConfiguration(c, updated.Name)
+func UpdateValidatingWebhookConfiguration(ctx context.Context, c client.Client, updated *admissionregistrationv1.ValidatingWebhookConfiguration) error {
+	return wait.PollUntilContextTimeout(ctx, RetryShort, WaitShort, true, func(ctx context.Context) (bool, error) {
+		existing, err := GetValidatingWebhookConfiguration(ctx, c, updated.Name)
 		if err != nil {
 			klog.Errorf("Error getting ValidatingWebhookConfiguration: %v", err)
 			return false, nil
 		}
-		if err := c.Patch(context.TODO(), existing, client.MergeFrom(updated)); err != nil {
+		if err := c.Patch(ctx, existing, client.MergeFrom(updated)); err != nil {
 			klog.Errorf("error patching ValidatingWebhookConfiguration object %q: %v, retrying...", updated.Name, err)
 			return false, nil
 		}
@@ -120,9 +120,9 @@ func UpdateValidatingWebhookConfiguration(c client.Client, updated *admissionreg
 }
 
 // IsMutatingWebhookConfigurationSynced expects a matching MutatingWebhookConfiguration to be present in the cluster.
-func IsMutatingWebhookConfigurationSynced(c client.Client) bool {
-	if err := wait.PollImmediate(RetryShort, WaitMedium, func() (bool, error) {
-		existing, err := GetMutatingWebhookConfiguration(c, DefaultMutatingWebhookConfiguration.Name)
+func IsMutatingWebhookConfigurationSynced(ctx context.Context, c client.Client) bool {
+	if err := wait.PollUntilContextTimeout(ctx, RetryShort, WaitMedium, true, func(ctx context.Context) (bool, error) {
+		existing, err := GetMutatingWebhookConfiguration(ctx, c, DefaultMutatingWebhookConfiguration.Name)
 		if err != nil {
 			klog.Errorf("Error getting MutatingWebhookConfiguration: %v", err)
 			return false, nil
@@ -146,9 +146,9 @@ func IsMutatingWebhookConfigurationSynced(c client.Client) bool {
 }
 
 // IsValidatingWebhookConfigurationSynced expects a matching MutatingWebhookConfiguration to be present in the cluster.
-func IsValidatingWebhookConfigurationSynced(c client.Client) bool {
-	if err := wait.PollImmediate(RetryShort, WaitMedium, func() (bool, error) {
-		existing, err := GetValidatingWebhookConfiguration(c, DefaultValidatingWebhookConfiguration.Name)
+func IsValidatingWebhookConfigurationSynced(ctx context.Context, c client.Client) bool {
+	if err := wait.PollUntilContextTimeout(ctx, RetryShort, WaitMedium, true, func(ctx context.Context) (bool, error) {
+		existing, err := GetValidatingWebhookConfiguration(ctx, c, DefaultValidatingWebhookConfiguration.Name)
 		if err != nil {
 			klog.Errorf("Error getting MutatingWebhookConfiguration: %v", err)
 			return false, nil

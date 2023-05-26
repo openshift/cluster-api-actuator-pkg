@@ -13,15 +13,15 @@ import (
 )
 
 // GetDeployment gets deployment object by name and namespace.
-func GetDeployment(c client.Client, name, namespace string) (*kappsapi.Deployment, error) {
+func GetDeployment(ctx context.Context, c client.Client, name, namespace string) (*kappsapi.Deployment, error) {
 	key := types.NamespacedName{
 		Namespace: namespace,
 		Name:      name,
 	}
 	d := &kappsapi.Deployment{}
 
-	if err := wait.PollImmediate(RetryShort, WaitShort, func() (bool, error) {
-		if err := c.Get(context.TODO(), key, d); err != nil {
+	if err := wait.PollUntilContextTimeout(ctx, RetryShort, WaitShort, true, func(ctx context.Context) (bool, error) {
+		if err := c.Get(ctx, key, d); err != nil {
 			klog.Errorf("Error querying api for Deployment object %q: %v, retrying...", name, err)
 			return false, nil
 		}
@@ -35,9 +35,9 @@ func GetDeployment(c client.Client, name, namespace string) (*kappsapi.Deploymen
 }
 
 // DeleteDeployment deletes the specified deployment.
-func DeleteDeployment(c client.Client, deployment *kappsapi.Deployment) error {
-	return wait.PollImmediate(RetryShort, WaitShort, func() (bool, error) {
-		if err := c.Delete(context.TODO(), deployment); err != nil {
+func DeleteDeployment(ctx context.Context, c client.Client, deployment *kappsapi.Deployment) error {
+	return wait.PollUntilContextTimeout(ctx, RetryShort, WaitShort, true, func(ctx context.Context) (bool, error) {
+		if err := c.Delete(ctx, deployment); err != nil {
 			klog.Errorf("error querying api for deployment object %q: %v, retrying...", deployment.Name, err)
 			return false, nil
 		}
@@ -47,14 +47,14 @@ func DeleteDeployment(c client.Client, deployment *kappsapi.Deployment) error {
 }
 
 // UpdateDeployment updates the specified deployment.
-func UpdateDeployment(c client.Client, name, namespace string, updated *kappsapi.Deployment) error {
-	return wait.PollImmediate(RetryShort, WaitMedium, func() (bool, error) {
-		d, err := GetDeployment(c, name, namespace)
+func UpdateDeployment(ctx context.Context, c client.Client, name, namespace string, updated *kappsapi.Deployment) error {
+	return wait.PollUntilContextTimeout(ctx, RetryShort, WaitMedium, true, func(ctx context.Context) (bool, error) {
+		d, err := GetDeployment(ctx, c, name, namespace)
 		if err != nil {
 			klog.Errorf("Error getting deployment: %v", err)
 			return false, nil
 		}
-		if err := c.Patch(context.TODO(), d, client.MergeFrom(updated)); err != nil {
+		if err := c.Patch(ctx, d, client.MergeFrom(updated)); err != nil {
 			klog.Errorf("error patching deployment object %q: %v, retrying...", name, err)
 			return false, nil
 		}
@@ -64,9 +64,9 @@ func UpdateDeployment(c client.Client, name, namespace string, updated *kappsapi
 }
 
 // IsDeploymentAvailable returns true if the deployment has one or more available replicas.
-func IsDeploymentAvailable(c client.Client, name, namespace string) bool {
-	if err := wait.PollImmediate(RetryShort, WaitLong, func() (bool, error) {
-		d, err := GetDeployment(c, name, namespace)
+func IsDeploymentAvailable(ctx context.Context, c client.Client, name, namespace string) bool {
+	if err := wait.PollUntilContextTimeout(ctx, RetryShort, WaitLong, true, func(ctx context.Context) (bool, error) {
+		d, err := GetDeployment(ctx, c, name, namespace)
 		if err != nil {
 			klog.Errorf("Error getting deployment: %v", err)
 			return false, nil
@@ -90,8 +90,8 @@ func IsDeploymentAvailable(c client.Client, name, namespace string) bool {
 }
 
 // IsDeploymentSynced returns true if provided deployment spec matched one found on cluster.
-func IsDeploymentSynced(c client.Client, dep *kappsapi.Deployment, name, namespace string) bool {
-	d, err := GetDeployment(c, name, namespace)
+func IsDeploymentSynced(ctx context.Context, c client.Client, dep *kappsapi.Deployment, name, namespace string) bool {
+	d, err := GetDeployment(ctx, c, name, namespace)
 	if err != nil {
 		klog.Errorf("Error getting deployment: %v", err)
 		return false

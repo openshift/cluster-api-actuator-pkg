@@ -148,6 +148,7 @@ func deleteObjects(client runtimeclient.Client, delObjects map[string]runtimecli
 
 var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 	var client runtimeclient.Client
+	var ctx context.Context
 	var machineSet *machinev1.MachineSet
 	var machineSetParams framework.MachineSetParams
 
@@ -155,6 +156,8 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 
 	BeforeEach(func() {
 		var err error
+
+		ctx = framework.GetContext()
 
 		gatherer, err = framework.NewGatherer()
 		Expect(err).ToNot(HaveOccurred(), "StateGatherer should be able to be created")
@@ -172,8 +175,8 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 
 		if machineSet != nil {
 			By("Deleting the new MachineSet")
-			Expect(client.Delete(context.Background(), machineSet)).To(Succeed(), "MachineSet should be able to be deleted")
-			framework.WaitForMachineSetsDeleted(client, machineSet)
+			Expect(client.Delete(ctx, machineSet)).To(Succeed(), "MachineSet should be able to be deleted")
+			framework.WaitForMachineSetsDeleted(ctx, client, machineSet)
 		}
 
 	})
@@ -181,27 +184,27 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 	When("machineset has one replica", func() {
 		BeforeEach(func() {
 			var err error
-			machineSetParams = framework.BuildMachineSetParams(client, 1)
+			machineSetParams = framework.BuildMachineSetParams(ctx, client, 1)
 
 			By("Creating a new MachineSet")
 			machineSet, err = framework.CreateMachineSet(client, machineSetParams)
 			Expect(err).ToNot(HaveOccurred(), "MachineSet should be able to be created")
 
-			framework.WaitForMachineSet(client, machineSet.GetName())
+			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
 		})
 
 		// Machines required for test: 1
 		// Reason: This test works on a single machine and its node.
 		It("have ability to additively reconcile taints from machine to nodes", func() {
 			selector := machineSet.Spec.Selector
-			machines, err := framework.GetMachines(client, &selector)
+			machines, err := framework.GetMachines(ctx, client, &selector)
 			Expect(err).ToNot(HaveOccurred(), "Listing Machines should succeed")
 			Expect(machines).ToNot(BeEmpty(), "The list of Machines should not be empty")
 
 			machine := machines[0]
 			By(fmt.Sprintf("getting machine %q", machine.Name))
 
-			node, err := framework.GetNodeForMachine(client, machine)
+			node, err := framework.GetNodeForMachine(ctx, client, machine)
 			Expect(err).NotTo(HaveOccurred(), "Should be able to retrieve Node from its Machine")
 			By(fmt.Sprintf("getting the backed node %q", node.Name))
 
@@ -213,7 +216,7 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 			By(fmt.Sprintf("updating node %q with taint: %v", node.Name, nodeTaint))
 			for {
 				node.Spec.Taints = append(node.Spec.Taints, nodeTaint)
-				err = client.Update(context.TODO(), node)
+				err = client.Update(ctx, node)
 				if !apierrors.IsConflict(err) {
 					break
 				}
@@ -228,7 +231,7 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 			By(fmt.Sprintf("updating machine %q with taint: %v", machine.Name, machineTaint))
 			for {
 				machine.Spec.Taints = append(machine.Spec.Taints, machineTaint)
-				err = client.Update(context.TODO(), machine)
+				err = client.Update(ctx, machine)
 				if !apierrors.IsConflict(err) {
 					break
 				}
@@ -238,7 +241,7 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 			var expectedTaints = sets.NewString("not-from-machine", machineTaint.Key)
 			Eventually(func() bool {
 				klog.Info("Getting node from machine again for verification of taints")
-				node, err := framework.GetNodeForMachine(client, machine)
+				node, err := framework.GetNodeForMachine(ctx, client, machine)
 				if err != nil {
 					return false
 				}
@@ -261,35 +264,35 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 	When("machineset has 2 replicas", func() {
 		BeforeEach(func() {
 			var err error
-			machineSetParams = framework.BuildMachineSetParams(client, 2)
+			machineSetParams = framework.BuildMachineSetParams(ctx, client, 2)
 
 			By("Creating a new MachineSet")
 			machineSet, err = framework.CreateMachineSet(client, machineSetParams)
 			Expect(err).ToNot(HaveOccurred(), "MachineSet creation should succeed")
 
-			framework.WaitForMachineSet(client, machineSet.GetName())
+			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
 		})
 
 		// Machines required for test: 2
 		// Reason: We want to test that all machines get replaced when we delete them.
 		It("recover from deleted worker machines", func() {
 			selector := machineSet.Spec.Selector
-			machines, err := framework.GetMachines(client, &selector)
+			machines, err := framework.GetMachines(ctx, client, &selector)
 			Expect(err).ToNot(HaveOccurred(), "Listing Machines should succeed")
 			Expect(machines).ToNot(BeEmpty(), "The list of Machines should not be empty")
 
 			By("deleting all machines")
-			Expect(framework.DeleteMachines(client, machines...)).To(Succeed(), "Should be able to delete all Machines")
+			Expect(framework.DeleteMachines(ctx, client, machines...)).To(Succeed(), "Should be able to delete all Machines")
 			framework.WaitForMachinesDeleted(client, machines...)
 
-			framework.WaitForMachineSet(client, machineSet.GetName())
+			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
 		})
 
 		// Machines required for test: 4
 		// Reason: MachineSet scales 2->0 and MachineSet2 scales 0->2. Changing to scaling 1->0 and 0->1 might not test this thoroughly.
 		It("grow and decrease when scaling different machineSets simultaneously", framework.LabelPeriodic, func() {
 			By("Creating a second MachineSet") // Machineset 1 can start with 1 replica
-			machineSetParams := framework.BuildMachineSetParams(client, 0)
+			machineSetParams := framework.BuildMachineSetParams(ctx, client, 0)
 			machineSet2, err := framework.CreateMachineSet(client, machineSetParams)
 			Expect(err).ToNot(HaveOccurred(), "Should be able to create MachineSet")
 
@@ -297,16 +300,16 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 			defer func() {
 				By("Deleting the second MachineSet")
 				Expect(deleteObject(client, machineSet2)).To(Succeed(), "Should be able to delete MachineSet")
-				framework.WaitForMachineSetsDeleted(client, machineSet2)
+				framework.WaitForMachineSetsDeleted(ctx, client, machineSet2)
 			}()
 
-			framework.WaitForMachineSet(client, machineSet2.GetName())
+			framework.WaitForMachineSet(ctx, client, machineSet2.GetName())
 
 			Expect(framework.ScaleMachineSet(machineSet.GetName(), 0)).To(Succeed(), "Should be able to scale down MachineSet")
 			Expect(framework.ScaleMachineSet(machineSet2.GetName(), 1)).To(Succeed(), "Should be able to scale MachineSet")
 
-			framework.WaitForMachineSet(client, machineSet.GetName())
-			framework.WaitForMachineSet(client, machineSet2.GetName())
+			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
+			framework.WaitForMachineSet(ctx, client, machineSet2.GetName())
 		})
 
 		// Machines required for test: 2 (3 but it gets deleted without waiting for it to be ready)
@@ -315,7 +318,7 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 			By("Create a machine for node about to be drained")
 
 			selector := machineSet.Spec.Selector
-			machines, err := framework.GetMachines(client, &selector)
+			machines, err := framework.GetMachines(ctx, client, &selector)
 			Expect(err).ToNot(HaveOccurred(), "Should be able to List Machines")
 			Expect(len(machines)).To(BeNumerically(">=", 2), "Should have found at least 2 Machines")
 
@@ -354,7 +357,7 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 			delObjects["pdb"] = pdb
 
 			By("Wait until all replicas are ready")
-			Expect(framework.WaitUntilAllRCPodsAreReady(client, rc)).To(Succeed(), "Should wait until all Pod replicas are ready")
+			Expect(framework.WaitUntilAllRCPodsAreReady(ctx, client, rc)).To(Succeed(), "Should wait until all Pod replicas are ready")
 
 			// TODO(jchaloup): delete machine that has at least half of the RC pods
 
@@ -365,14 +368,14 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 
 			// We still should be able to list the machine as until rc.replicas-1 are running on the other node
 			By("Observing and verifying node draining")
-			drainedNodeName, err := framework.VerifyNodeDraining(client, machines[0], rc)
+			drainedNodeName, err := framework.VerifyNodeDraining(ctx, client, machines[0], rc)
 			Expect(err).NotTo(HaveOccurred(), "Should verify Node was drained")
 
 			By("Validating the machine is deleted")
 			framework.WaitForMachinesDeleted(client, machines[0])
 
 			By("Validate underlying node corresponding to machine1 is removed as well")
-			Expect(framework.WaitUntilNodeDoesNotExists(client, drainedNodeName)).To(Succeed(), "Should wait until Node does not exit")
+			Expect(framework.WaitUntilNodeDoesNotExists(ctx, client, drainedNodeName)).To(Succeed(), "Should wait until Node does not exit")
 		})
 	})
 

@@ -65,25 +65,25 @@ func isString(t types.Type) bool {
 	return isBasic(t) && t.(*types.Basic).Info()&types.IsString != 0
 }
 
-// isByteSlice reports whether t is []byte.
+// isByteSlice reports whether t is of the form []~bytes.
 func isByteSlice(t types.Type) bool {
 	if b, ok := t.(*types.Slice); ok {
-		e, _ := b.Elem().(*types.Basic)
+		e, _ := b.Elem().Underlying().(*types.Basic)
 		return e != nil && e.Kind() == types.Byte
 	}
 	return false
 }
 
-// isRuneSlice reports whether t is []rune.
+// isRuneSlice reports whether t is of the form []~runes.
 func isRuneSlice(t types.Type) bool {
 	if b, ok := t.(*types.Slice); ok {
-		e, _ := b.Elem().(*types.Basic)
+		e, _ := b.Elem().Underlying().(*types.Basic)
 		return e != nil && e.Kind() == types.Rune
 	}
 	return false
 }
 
-// isBasicConvType returns true when a type set can be
+// isBasicConvTypes returns true when a type set can be
 // one side of a Convert operation. This is when:
 // - All are basic, []byte, or []rune.
 // - At least 1 is basic.
@@ -106,6 +106,16 @@ func deref(typ types.Type) types.Type {
 		return p.Elem()
 	}
 	return typ
+}
+
+// mustDeref returns the element type of a type with a pointer core type.
+// Panics on failure.
+func mustDeref(typ types.Type) types.Type {
+	// TODO(taking): Replace deref with mustDeref when possible.
+	if p, ok := typeparams.CoreType(typ).(*types.Pointer); ok {
+		return p.Elem()
+	}
+	panic("cannot dereference type " + typ.String())
 }
 
 // recvType returns the receiver type of method obj.

@@ -163,7 +163,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 		if len(machineSets) > 0 {
 			// Wait for all MachineSets and their Machines to be deleted.
 			By("Waiting for MachineSets to be deleted...")
-			framework.WaitForMachineSetsDeleted(client, machineSets...)
+			framework.WaitForMachineSetsDeleted(ctx, client, machineSets...)
 		}
 	})
 
@@ -224,7 +224,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 		// Reason: This tests checks that autoscaler is able to scale from zero. It requires 2 machines to ensure it scales to the correct number of nodes based on the workload size.
 		It("It scales from/to zero", func() {
 			// Only run in platforms which support autoscaling from/to zero.
-			clusterInfra, err := framework.GetInfrastructure(client)
+			clusterInfra, err := framework.GetInfrastructure(ctx, client)
 			Expect(err).NotTo(HaveOccurred(), "Failed to get cluster infrastructure object")
 
 			platform := clusterInfra.Status.PlatformStatus.Type
@@ -236,7 +236,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			}
 
 			By("Creating a new MachineSet with 0 replicas")
-			machineSetParams := framework.BuildMachineSetParams(client, 0)
+			machineSetParams := framework.BuildMachineSetParams(ctx, client, 0)
 			targetedNodeLabel := fmt.Sprintf("%v-scale-from-zero", autoscalerWorkerNodeRoleLabel)
 			machineSetParams.Labels[targetedNodeLabel] = ""
 
@@ -244,7 +244,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			Expect(err).ToNot(HaveOccurred(), "Failed to create MachineSet with 0 replicas")
 			cleanupObjects[machineSet.GetName()] = machineSet
 
-			framework.WaitForMachineSet(client, machineSet.GetName())
+			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
 
 			expectedReplicas := int32(2)
 			By(fmt.Sprintf("Creating a MachineAutoscaler backed by MachineSet %s/%s - min:%v, max:%v",
@@ -260,7 +260,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			Expect(client.Create(ctx, workload)).Should(Succeed(), "Failed to create scale-out workload %s", workloadJobName)
 
 			Eventually(func() bool {
-				ms, err := framework.GetMachineSet(client, machineSet.GetName())
+				ms, err := framework.GetMachineSet(ctx, client, machineSet.GetName())
 				Expect(err).ToNot(HaveOccurred(), "Failed to get MachineSet %s", machineSet.GetName())
 
 				By(fmt.Sprintf("Waiting for machineSet replicas to scale out. Current replicas are %v, expected %v.",
@@ -270,14 +270,14 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "MachineSet %s failed to scale out to %d replicas", machineSet.GetName(), expectedReplicas)
 
 			By("Waiting for the machineSet replicas to become nodes")
-			framework.WaitForMachineSet(client, machineSet.GetName())
+			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
 
 			expectedReplicas = 0
 			By("Deleting the workload")
 			Expect(deleteObject(workload.Name, cleanupObjects[workload.Name])).Should(Succeed(), "Failed to delete scale-out workload %s", workload.Name)
 			delete(cleanupObjects, workload.Name)
 			Eventually(func() bool {
-				ms, err := framework.GetMachineSet(client, machineSet.GetName())
+				ms, err := framework.GetMachineSet(ctx, client, machineSet.GetName())
 				Expect(err).ToNot(HaveOccurred(), "Failed to get MachineSet %s", machineSet.GetName())
 
 				By(fmt.Sprintf("Waiting for machineSet replicas to scale in. Current replicas are %v, expected %v.",
@@ -292,14 +292,14 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 		It("cleanup deletion information after scale down [Slow]", func() {
 			By("Creating MachineSet with 1 replica")
 			targetedNodeLabel := fmt.Sprintf("%v-delete-cleanup", autoscalerWorkerNodeRoleLabel)
-			machineSetParams := framework.BuildMachineSetParams(client, 1)
+			machineSetParams := framework.BuildMachineSetParams(ctx, client, 1)
 			machineSetParams.Labels[targetedNodeLabel] = ""
 			machineSet, err := framework.CreateMachineSet(client, machineSetParams)
 			Expect(err).ToNot(HaveOccurred(), "Failed to create MachineSet with 1 replica")
 			cleanupObjects[machineSet.GetName()] = machineSet
 
 			By("Waiting for the machineSet to enter Running phase")
-			framework.WaitForMachineSet(client, machineSet.GetName())
+			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
 
 			expectedReplicas := int32(2)
 			By(fmt.Sprintf("Creating a MachineAutoscaler backed by MachineSet %s - min: 1, max: %d",
@@ -318,7 +318,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 
 			By(fmt.Sprintf("Waiting for MachineSet %s replicas to scale out", machineSet.GetName()))
 			Eventually(func() (int32, error) {
-				current, err := framework.GetMachineSet(client, machineSet.GetName())
+				current, err := framework.GetMachineSet(ctx, client, machineSet.GetName())
 				if err != nil {
 					return 0, err
 				}
@@ -327,7 +327,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			}, framework.WaitMedium, pollingInterval).Should(BeEquivalentTo(expectedReplicas), "MachineSet %s failed to scale out to %d replicas", machineSet.GetName(), expectedReplicas)
 
 			By("Waiting for all Machines in the MachineSet to enter Running phase")
-			framework.WaitForMachineSet(client, machineSet.GetName())
+			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
 
 			By("Deleting the workload")
 			Expect(deleteObject(workload.Name, cleanupObjects[workload.Name])).Should(Succeed(), "Failed to delete workload object %s", workload.Name)
@@ -337,7 +337,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			expectedLength := 1
 			var machines []*machinev1.Machine
 			Eventually(func() (int, error) {
-				machines, err = framework.GetMachinesFromMachineSet(client, machineSet)
+				machines, err = framework.GetMachinesFromMachineSet(ctx, client, machineSet)
 				if err != nil {
 					return 0, err
 				}
@@ -369,7 +369,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 				}
 				By(fmt.Sprintf("Checking Node %s for %s and %s taints", machine.Status.NodeRef.Name, deletionCandidateTaintKey, toBeDeletedTaintKey))
 				Eventually(func() (bool, error) {
-					n, err := framework.GetNodeForMachine(client, machine)
+					n, err := framework.GetNodeForMachine(ctx, client, machine)
 					if err != nil {
 						return false, err
 					}
@@ -435,7 +435,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			var transientMachineSets [2]*machinev1.MachineSet
 			targetedNodeLabel := fmt.Sprintf("%v-balance-nodes", autoscalerWorkerNodeRoleLabel)
 			for i := range transientMachineSets {
-				machineSetParams := framework.BuildMachineSetParams(client, 1)
+				machineSetParams := framework.BuildMachineSetParams(ctx, client, 1)
 				machineSetParams.Labels[targetedNodeLabel] = ""
 				machineSet, err := framework.CreateMachineSet(client, machineSetParams)
 				Expect(err).ToNot(HaveOccurred(), "Failed to create MachineSet %d of %d", i, len(transientMachineSets))
@@ -456,8 +456,8 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			Expect(labelsMachineSetA).To(Equal(labelsMachineSetB), "Failed to match MachineSet labels for balancing similar nodes")
 
 			By("Waiting for all Machines in MachineSets to enter Running phase")
-			framework.WaitForMachineSet(client, transientMachineSets[0].GetName())
-			framework.WaitForMachineSet(client, transientMachineSets[1].GetName())
+			framework.WaitForMachineSet(ctx, client, transientMachineSets[0].GetName())
+			framework.WaitForMachineSet(ctx, client, transientMachineSets[1].GetName())
 
 			maxMachineSetReplicas := int32(3)
 			for _, machineSet := range transientMachineSets {
@@ -484,7 +484,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 				nodes := []*corev1.Node{}
 
 				for _, machineSet := range transientMachineSets {
-					if n, err := framework.GetNodesFromMachineSet(client, machineSet); err != nil {
+					if n, err := framework.GetNodesFromMachineSet(ctx, client, machineSet); err != nil {
 						return nodes, err
 					} else if len(n) != 1 {
 						return nodes, fmt.Errorf("expected 1 node for MachineSet %s, found %d", machineSet.GetName(), len(n))
@@ -507,7 +507,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 				nodes := []*corev1.Node{}
 
 				for _, machineSet := range transientMachineSets {
-					if n, err := framework.GetNodesFromMachineSet(client, machineSet); err != nil {
+					if n, err := framework.GetNodesFromMachineSet(ctx, client, machineSet); err != nil {
 						return nil, err
 					} else if len(n) != 1 {
 						return nil, fmt.Errorf("expected 1 node for MachineSet %s, found %d", machineSet.GetName(), len(n))
@@ -544,7 +544,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 				allreplicas := map[string]int{}
 
 				for _, machineSet := range transientMachineSets {
-					ms, err := framework.GetMachineSet(client, machineSet.GetName())
+					ms, err := framework.GetMachineSet(ctx, client, machineSet.GetName())
 					if err != nil {
 						return allreplicas, err
 					}
@@ -607,7 +607,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			// This test requires to have exactly 6 machines in the cluster at the beginning and to run serially.
 			By("Ensuring there are 6 machines in the cluster")
 			Eventually(func() (int, error) {
-				machines, err := framework.GetMachines(client)
+				machines, err := framework.GetMachines(ctx, client)
 				if err != nil {
 					return 0, err
 				}
@@ -618,14 +618,14 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			By("Creating 1 MachineSet with 1 replica")
 			var transientMachineSet *machinev1.MachineSet
 			targetedNodeLabel := fmt.Sprintf("%v-scale-updown", autoscalerWorkerNodeRoleLabel)
-			machineSetParams := framework.BuildMachineSetParams(client, 1)
+			machineSetParams := framework.BuildMachineSetParams(ctx, client, 1)
 			machineSetParams.Labels[targetedNodeLabel] = ""
 			transientMachineSet, err = framework.CreateMachineSet(client, machineSetParams)
 			Expect(err).ToNot(HaveOccurred(), "Failed to create MachineSet with 1 replica")
 			cleanupObjects[transientMachineSet.GetName()] = transientMachineSet
 
 			By("Waiting for all Machines in the MachineSet to enter Running phase")
-			framework.WaitForMachineSet(client, transientMachineSet.GetName())
+			framework.WaitForMachineSet(ctx, client, transientMachineSet.GetName())
 
 			// To exercise the MaxNodesTotal mechanism we want to make sure
 			// that the MachineSet can grow large enough to reach the boundary.
@@ -666,7 +666,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			// that the cluster has reached a steady state and no more machines
 			// are in the process of being added.
 			By("Waiting for all Machines in MachineSet to enter Running phase")
-			framework.WaitForMachineSet(client, transientMachineSet.GetName())
+			framework.WaitForMachineSet(ctx, client, transientMachineSet.GetName())
 
 			// Now that the cluster has reached maximum size, we want to ensure
 			// that it doesn't try to grow larger.
@@ -687,7 +687,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			// its minimum size of 1.
 			By(fmt.Sprintf("Waiting for MachineSet %s replicas to scale down", transientMachineSet.GetName()))
 			Eventually(func() (bool, error) {
-				machineSet, err := framework.GetMachineSet(client, transientMachineSet.Name)
+				machineSet, err := framework.GetMachineSet(ctx, client, transientMachineSet.Name)
 				if err != nil {
 					return false, err
 				}
@@ -696,12 +696,12 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "MachineSet %s failed to scale down to 1 replica", transientMachineSet.GetName())
 			By(fmt.Sprintf("Waiting for Deleted MachineSet %s nodes to go away", transientMachineSet.GetName()))
 			Eventually(func() (bool, error) {
-				nodes, err := framework.GetNodesFromMachineSet(client, transientMachineSet)
+				nodes, err := framework.GetNodesFromMachineSet(ctx, client, transientMachineSet)
 				return len(nodes) == 1, err
 			}, framework.WaitLong, pollingInterval).Should(BeTrue(), "Nodes failed to scale down to 1 node")
 			By(fmt.Sprintf("Waiting for Deleted MachineSet %s machines to go away", transientMachineSet.GetName()))
 			Eventually(func() (bool, error) {
-				machines, err := framework.GetMachinesFromMachineSet(client, transientMachineSet)
+				machines, err := framework.GetMachinesFromMachineSet(ctx, client, transientMachineSet)
 				return len(machines) == 1, err
 			}, framework.WaitLong, pollingInterval).Should(BeTrue(), "Machines failed to scale down to 1 machine")
 		})

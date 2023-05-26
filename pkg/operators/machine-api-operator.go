@@ -43,52 +43,55 @@ var _ = Describe(
 		})
 
 		It("be available", func() {
+			ctx := framework.GetContext()
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred())
-			Expect(framework.IsDeploymentAvailable(client, maoDeployment, framework.MachineAPINamespace)).To(BeTrue())
+			Expect(framework.IsDeploymentAvailable(ctx, client, maoDeployment, framework.MachineAPINamespace)).To(BeTrue())
 		})
 
 		It("reconcile controllers deployment", func() {
+			ctx := framework.GetContext()
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred())
 
-			initialDeployment, err := framework.GetDeployment(client, maoManagedDeployment, framework.MachineAPINamespace)
+			initialDeployment, err := framework.GetDeployment(ctx, client, maoManagedDeployment, framework.MachineAPINamespace)
 			Expect(err).NotTo(HaveOccurred())
 
 			By(fmt.Sprintf("checking deployment %q is available", maoManagedDeployment))
-			Expect(framework.IsDeploymentAvailable(client, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
+			Expect(framework.IsDeploymentAvailable(ctx, client, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
 
 			By(fmt.Sprintf("deleting deployment %q", maoManagedDeployment))
-			Expect(framework.DeleteDeployment(client, initialDeployment)).NotTo(HaveOccurred())
+			Expect(framework.DeleteDeployment(ctx, client, initialDeployment)).NotTo(HaveOccurred())
 
 			By(fmt.Sprintf("checking deployment %q is available again", maoManagedDeployment))
-			Expect(framework.IsDeploymentAvailable(client, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
+			Expect(framework.IsDeploymentAvailable(ctx, client, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
 
 			By(fmt.Sprintf("checking deployment %q spec matches", maoManagedDeployment))
-			Expect(framework.IsDeploymentSynced(client, initialDeployment, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
+			Expect(framework.IsDeploymentSynced(ctx, client, initialDeployment, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
 		})
 
 		It("maintains deployment spec", func() {
+			ctx := framework.GetContext()
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred())
 
-			initialDeployment, err := framework.GetDeployment(client, maoManagedDeployment, framework.MachineAPINamespace)
+			initialDeployment, err := framework.GetDeployment(ctx, client, maoManagedDeployment, framework.MachineAPINamespace)
 			Expect(err).NotTo(HaveOccurred())
 
 			By(fmt.Sprintf("checking deployment %q is available", maoManagedDeployment))
-			Expect(framework.IsDeploymentAvailable(client, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
+			Expect(framework.IsDeploymentAvailable(ctx, client, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
 
 			changedDeployment := initialDeployment.DeepCopy()
 			changedDeployment.Spec.Replicas = pointer.Int32(0)
 
 			By(fmt.Sprintf("updating deployment %q", maoManagedDeployment))
-			Expect(framework.UpdateDeployment(client, maoManagedDeployment, framework.MachineAPINamespace, changedDeployment)).NotTo(HaveOccurred())
+			Expect(framework.UpdateDeployment(ctx, client, maoManagedDeployment, framework.MachineAPINamespace, changedDeployment)).NotTo(HaveOccurred())
 
 			By(fmt.Sprintf("checking deployment %q spec matches", maoManagedDeployment))
-			Expect(framework.IsDeploymentSynced(client, initialDeployment, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
+			Expect(framework.IsDeploymentSynced(ctx, client, initialDeployment, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
 
 			By(fmt.Sprintf("checking deployment %q is available again", maoManagedDeployment))
-			Expect(framework.IsDeploymentAvailable(client, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
+			Expect(framework.IsDeploymentAvailable(ctx, client, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
 
 		})
 
@@ -96,27 +99,33 @@ var _ = Describe(
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(framework.IsMutatingWebhookConfigurationSynced(client)).To(BeTrue())
+			ctx := framework.GetContext()
+
+			Expect(framework.IsMutatingWebhookConfigurationSynced(ctx, client)).To(BeTrue())
 		})
 
 		It("reconcile validating webhook configuration", func() {
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(framework.IsValidatingWebhookConfigurationSynced(client)).To(BeTrue())
+			ctx := framework.GetContext()
+
+			Expect(framework.IsValidatingWebhookConfigurationSynced(ctx, client)).To(BeTrue())
 		})
 
 		It("recover after validating webhook configuration deletion", func() {
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred())
 
+			ctx := framework.GetContext()
+
 			// Record the UID of the current ValidatingWebhookConfiguration
-			initial, err := framework.GetValidatingWebhookConfiguration(client, framework.DefaultValidatingWebhookConfiguration.Name)
+			initial, err := framework.GetValidatingWebhookConfiguration(ctx, client, framework.DefaultValidatingWebhookConfiguration.Name)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(initial).ToNot(BeNil())
 			initialUID := initial.GetUID()
 
-			Expect(framework.DeleteValidatingWebhookConfiguration(client, initial)).To(Succeed())
+			Expect(framework.DeleteValidatingWebhookConfiguration(ctx, client, initial)).To(Succeed())
 
 			// Ensure that either UID changes (to show a new object) or that the existing object is gone
 			key := runtimeclient.ObjectKey{Name: initial.Name}
@@ -130,20 +139,22 @@ var _ = Describe(
 			}).ShouldNot(Equal(initialUID))
 
 			// Ensure that a new object has been created and matches expectations
-			Expect(framework.IsValidatingWebhookConfigurationSynced(client)).To(BeTrue())
+			Expect(framework.IsValidatingWebhookConfigurationSynced(ctx, client)).To(BeTrue())
 		})
 
 		It("recover after mutating webhook configuration deletion", func() {
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred())
 
+			ctx := framework.GetContext()
+
 			// Record the UID of the current MutatingWebhookConfiguration
-			initial, err := framework.GetMutatingWebhookConfiguration(client, framework.DefaultMutatingWebhookConfiguration.Name)
+			initial, err := framework.GetMutatingWebhookConfiguration(ctx, client, framework.DefaultMutatingWebhookConfiguration.Name)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(initial).ToNot(BeNil())
 			initialUID := initial.GetUID()
 
-			Expect(framework.DeleteMutatingWebhookConfiguration(client, initial)).To(Succeed())
+			Expect(framework.DeleteMutatingWebhookConfiguration(ctx, client, initial)).To(Succeed())
 
 			// Ensure that either UID changes (to show a new object) or that the existing object is gone
 			key := runtimeclient.ObjectKey{Name: initial.Name}
@@ -157,14 +168,16 @@ var _ = Describe(
 			}).ShouldNot(Equal(initialUID))
 
 			// Ensure that a new object has been created and matches expectations
-			Expect(framework.IsMutatingWebhookConfigurationSynced(client)).To(BeTrue())
+			Expect(framework.IsMutatingWebhookConfigurationSynced(ctx, client)).To(BeTrue())
 		})
 
 		It("maintains spec after mutating webhook configuration change and preserve caBundle", func() {
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred())
 
-			initial, err := framework.GetMutatingWebhookConfiguration(client, framework.DefaultMutatingWebhookConfiguration.Name)
+			ctx := framework.GetContext()
+
+			initial, err := framework.GetMutatingWebhookConfiguration(ctx, client, framework.DefaultMutatingWebhookConfiguration.Name)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(initial).ToNot(BeNil())
 
@@ -174,11 +187,11 @@ var _ = Describe(
 				webhook.AdmissionReviewVersions = []string{"test"}
 			}
 
-			Expect(framework.UpdateMutatingWebhookConfiguration(client, toUpdate)).To(Succeed())
+			Expect(framework.UpdateMutatingWebhookConfiguration(ctx, client, toUpdate)).To(Succeed())
 
-			Expect(framework.IsMutatingWebhookConfigurationSynced(client)).To(BeTrue())
+			Expect(framework.IsMutatingWebhookConfigurationSynced(ctx, client)).To(BeTrue())
 
-			updated, err := framework.GetMutatingWebhookConfiguration(client, framework.DefaultMutatingWebhookConfiguration.Name)
+			updated, err := framework.GetMutatingWebhookConfiguration(ctx, client, framework.DefaultMutatingWebhookConfiguration.Name)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(updated).ToNot(BeNil())
 
@@ -191,7 +204,9 @@ var _ = Describe(
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred())
 
-			initial, err := framework.GetValidatingWebhookConfiguration(client, framework.DefaultValidatingWebhookConfiguration.Name)
+			ctx := framework.GetContext()
+
+			initial, err := framework.GetValidatingWebhookConfiguration(ctx, client, framework.DefaultValidatingWebhookConfiguration.Name)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(initial).ToNot(BeNil())
 
@@ -201,11 +216,11 @@ var _ = Describe(
 				webhook.AdmissionReviewVersions = []string{"test"}
 			}
 
-			Expect(framework.UpdateValidatingWebhookConfiguration(client, toUpdate)).To(Succeed())
+			Expect(framework.UpdateValidatingWebhookConfiguration(ctx, client, toUpdate)).To(Succeed())
 
-			Expect(framework.IsValidatingWebhookConfigurationSynced(client)).To(BeTrue())
+			Expect(framework.IsValidatingWebhookConfigurationSynced(ctx, client)).To(BeTrue())
 
-			updated, err := framework.GetValidatingWebhookConfiguration(client, framework.DefaultValidatingWebhookConfiguration.Name)
+			updated, err := framework.GetValidatingWebhookConfiguration(ctx, client, framework.DefaultValidatingWebhookConfiguration.Name)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(updated).ToNot(BeNil())
 
@@ -218,9 +233,12 @@ var _ = Describe(
 var _ = Describe(
 	"Machine API cluster operator status should", framework.LabelOperators, framework.LabelMachines, func() {
 		It("be available", func() {
+			ctx := framework.GetContext()
+
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred())
-			Expect(framework.WaitForStatusAvailableShort(client, "machine-api")).To(BeTrue())
+
+			Expect(framework.WaitForStatusAvailableShort(ctx, client, "machine-api")).To(BeTrue())
 		})
 	})
 
@@ -231,6 +249,7 @@ var _ = Describe(
 	func() {
 		var gatherer *gatherer.StateGatherer
 		client, err := framework.LoadClient()
+		ctx := framework.GetContext()
 		Expect(err).NotTo(HaveOccurred())
 
 		BeforeEach(func() {
@@ -249,15 +268,15 @@ var _ = Describe(
 		// Reason: Tests that machine creation is possible behind a proxy.
 		It("create machines when configured behind a proxy", func() {
 			By("creating a machineset")
-			machineSet, err := framework.CreateMachineSet(client, framework.BuildMachineSetParams(client, 1))
+			machineSet, err := framework.CreateMachineSet(client, framework.BuildMachineSetParams(ctx, client, 1))
 			Expect(err).ToNot(HaveOccurred())
 
 			By("waiting for the all MachineSet's Machines (and Nodes) to become Running (and Ready)")
-			framework.WaitForMachineSet(client, machineSet.GetName())
+			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
 
 			By("destroying a machineset")
 			Expect(client.Delete(context.Background(), machineSet)).To(Succeed())
-			framework.WaitForMachineSetsDeleted(client, machineSet)
+			framework.WaitForMachineSetsDeleted(ctx, client, machineSet)
 		})
 
 		AfterEach(func() {
@@ -274,13 +293,13 @@ var _ = Describe(
 			Expect(err).NotTo(HaveOccurred())
 
 			By("waiting for KAPI cluster operator to become available")
-			Expect(framework.WaitForStatusAvailableOverLong(client, "kube-apiserver")).To(BeTrue())
+			Expect(framework.WaitForStatusAvailableOverLong(ctx, client, "kube-apiserver")).To(BeTrue())
 
 			By("waiting for KCM cluster operator to become available")
-			Expect(framework.WaitForStatusAvailableOverLong(client, "kube-controller-manager")).To(BeTrue())
+			Expect(framework.WaitForStatusAvailableOverLong(ctx, client, "kube-controller-manager")).To(BeTrue())
 
 			By("waiting for MAO cluster operator to become available")
-			Expect(framework.WaitForStatusAvailableMedium(client, "machine-api")).To(BeTrue())
+			Expect(framework.WaitForStatusAvailableMedium(ctx, client, "machine-api")).To(BeTrue())
 
 			By("Removing the mitm-proxy")
 			framework.DeleteProxy(client)

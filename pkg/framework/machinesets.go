@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/scale"
 	"k8s.io/klog"
 	"k8s.io/utils/pointer"
@@ -53,16 +54,16 @@ var (
 	errMachineInMachineSetFailed = errors.New("machine in the machineset is in a failed phase")
 )
 
-func BuildMachineSetParams(client runtimeclient.Client, replicas int) MachineSetParams {
+func BuildMachineSetParams(ctx context.Context, client runtimeclient.Client, replicas int) MachineSetParams {
 	// Get the current workers MachineSets so we can copy a ProviderSpec
 	// from one to use with our new dedicated MachineSet.
-	workers, err := GetWorkerMachineSets(client)
+	workers, err := GetWorkerMachineSets(ctx, client)
 	Expect(err).ToNot(HaveOccurred())
 
 	providerSpec := workers[0].Spec.Template.Spec.ProviderSpec.DeepCopy()
 	clusterName := workers[0].Spec.Template.Labels[ClusterKey]
 
-	clusterInfra, err := GetInfrastructure(client)
+	clusterInfra, err := GetInfrastructure(ctx, client)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(clusterInfra.Status.InfrastructureName).ShouldNot(BeEmpty())
 
@@ -240,11 +241,11 @@ func GetMachineSets(client runtimeclient.Client, selectors ...*metav1.LabelSelec
 }
 
 // GetMachineSet gets a machineset by its name from the default machine API namespace.
-func GetMachineSet(client runtimeclient.Client, name string) (*machinev1.MachineSet, error) {
+func GetMachineSet(ctx context.Context, client runtimeclient.Client, name string) (*machinev1.MachineSet, error) {
 	machineSet := &machinev1.MachineSet{}
 	key := runtimeclient.ObjectKey{Namespace: MachineAPINamespace, Name: name}
 
-	if err := client.Get(context.Background(), key, machineSet); err != nil {
+	if err := client.Get(ctx, key, machineSet); err != nil {
 		return nil, fmt.Errorf("error querying api for machineSet object: %w", err)
 	}
 
@@ -253,10 +254,10 @@ func GetMachineSet(client runtimeclient.Client, name string) (*machinev1.Machine
 
 // GetWorkerMachineSets returns the MachineSets that label their Machines with
 // the "worker" role.
-func GetWorkerMachineSets(client runtimeclient.Client) ([]*machinev1.MachineSet, error) {
+func GetWorkerMachineSets(ctx context.Context, client runtimeclient.Client) ([]*machinev1.MachineSet, error) {
 	machineSets := &machinev1.MachineSetList{}
 
-	if err := client.List(context.Background(), machineSets); err != nil {
+	if err := client.List(ctx, machineSets); err != nil {
 		return nil, err
 	}
 
@@ -285,8 +286,8 @@ func GetWorkerMachineSets(client runtimeclient.Client) ([]*machinev1.MachineSet,
 }
 
 // GetMachinesFromMachineSet returns an array of machines owned by a given machineSet.
-func GetMachinesFromMachineSet(client runtimeclient.Client, machineSet *machinev1.MachineSet) ([]*machinev1.Machine, error) {
-	machines, err := GetMachines(client)
+func GetMachinesFromMachineSet(ctx context.Context, client runtimeclient.Client, machineSet *machinev1.MachineSet) ([]*machinev1.Machine, error) {
+	machines, err := GetMachines(ctx, client)
 	if err != nil {
 		return nil, fmt.Errorf("error getting machines: %w", err)
 	}
@@ -391,7 +392,12 @@ func getScaleClient() (scale.ScalesGetter, error) {
 		return nil, fmt.Errorf("error getting config %w", err)
 	}
 
-	mapper, err := apiutil.NewDiscoveryRESTMapper(cfg)
+	httpClient, err := rest.HTTPClientFor(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("error calling rest.HTTPClientFor %w", err)
+	}
+
+	mapper, err := apiutil.NewDiscoveryRESTMapper(cfg, httpClient)
 	if err != nil {
 		return nil, fmt.Errorf("error calling NewDiscoveryRESTMapper %w", err)
 	}
@@ -411,12 +417,12 @@ func getScaleClient() (scale.ScalesGetter, error) {
 // MachineSet to enter the "Running" phase, and for all nodes belonging to those
 // Machines to be ready. If a Machine is detected in "Failed" phase, the test
 // will exit early.
-func WaitForMachineSet(c runtimeclient.Client, name string) {
-	machineSet, err := GetMachineSet(c, name)
+func WaitForMachineSet(ctx context.Context, c runtimeclient.Client, name string) {
+	machineSet, err := GetMachineSet(ctx, c, name)
 	Expect(err).ToNot(HaveOccurred())
 
 	Eventually(func() error {
-		machines, err := GetMachinesFromMachineSet(c, machineSet)
+		machines, err := GetMachinesFromMachineSet(ctx, c, machineSet)
 		if err != nil {
 			return err
 		}
@@ -455,7 +461,7 @@ func WaitForMachineSet(c runtimeclient.Client, name string) {
 		}
 
 		for _, m := range running {
-			node, err := GetNodeForMachine(c, m)
+			node, err := GetNodeForMachine(ctx, c, m)
 			if err != nil {
 				return err
 			}
@@ -471,15 +477,15 @@ func WaitForMachineSet(c runtimeclient.Client, name string) {
 
 // WaitForSpotMachineSet waits for all Machines belonging to the machineSet to be running and their nodes to be ready.
 // Unlike WaitForMachineSet, this function does not fail the test when machine cannoct be provisioned due to insufficient spot capacity.
-func WaitForSpotMachineSet(c runtimeclient.Client, name string) error {
-	machineSet, err := GetMachineSet(c, name)
+func WaitForSpotMachineSet(ctx context.Context, c runtimeclient.Client, name string) error {
+	machineSet, err := GetMachineSet(ctx, c, name)
 	if err != nil {
 		return fmt.Errorf("could not get machineset %s: %w", name, err)
 	}
 
 	// Retry until the MachineSet is ready.
-	return wait.PollImmediate(RetryMedium, WaitLong, func() (bool, error) {
-		machines, err := GetMachinesFromMachineSet(c, machineSet)
+	return wait.PollUntilContextTimeout(ctx, RetryMedium, WaitLong, true, func(ctx context.Context) (bool, error) {
+		machines, err := GetMachinesFromMachineSet(ctx, c, machineSet)
 		if err != nil {
 			return false, fmt.Errorf("error getting machines from machineSet %s: %w", machineSet.Name, err)
 		}
@@ -528,7 +534,7 @@ func WaitForSpotMachineSet(c runtimeclient.Client, name string) error {
 		}
 
 		for _, m := range running {
-			node, err := GetNodeForMachine(c, m)
+			node, err := GetNodeForMachine(ctx, c, m)
 			if err != nil {
 				klog.Infof("Node for machine %s not found yet: %v", m.Name, err)
 				return false, nil
@@ -593,7 +599,7 @@ func hasInsufficientCapacityCondition(conditions []metav1.Condition, platform co
 
 // WaitForMachineSetsDeleted polls until the given MachineSets are not found, and
 // there are zero Machines found matching the MachineSet's label selector.
-func WaitForMachineSetsDeleted(c runtimeclient.Client, machineSets ...*machinev1.MachineSet) {
+func WaitForMachineSetsDeleted(ctx context.Context, c runtimeclient.Client, machineSets ...*machinev1.MachineSet) {
 	for _, ms := range machineSets {
 		// Run a short check to wait for the deletion timestamp to show up.
 		// If it doesn't show there's no reason to run the longer check.
@@ -620,7 +626,7 @@ func WaitForMachineSetsDeleted(c runtimeclient.Client, machineSets ...*machinev1
 		Eventually(func() error {
 			selector := ms.Spec.Selector
 
-			machines, err := GetMachines(c, &selector)
+			machines, err := GetMachines(ctx, c, &selector)
 			if err != nil {
 				return fmt.Errorf("could not fetch Machines for MachineSet %s: %w", ms.GetName(), err)
 			}
@@ -629,7 +635,7 @@ func WaitForMachineSetsDeleted(c runtimeclient.Client, machineSets ...*machinev1
 				return fmt.Errorf("%d Machines still present for MachineSet %s", len(machines), ms.GetName())
 			}
 
-			machineSetErr := c.Get(context.Background(), runtimeclient.ObjectKey{
+			machineSetErr := c.Get(ctx, runtimeclient.ObjectKey{
 				Name:      ms.GetName(),
 				Namespace: ms.GetNamespace(),
 			}, &machinev1.MachineSet{})

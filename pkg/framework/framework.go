@@ -57,13 +57,13 @@ var (
 )
 
 // GetInfrastructure fetches the global cluster infrastructure object.
-func GetInfrastructure(c runtimeclient.Client) (*configv1.Infrastructure, error) {
+func GetInfrastructure(ctx context.Context, c runtimeclient.Client) (*configv1.Infrastructure, error) {
 	infra := &configv1.Infrastructure{}
 	infraName := runtimeclient.ObjectKey{
 		Name: GlobalInfrastuctureName,
 	}
 
-	if err := c.Get(context.Background(), infraName, infra); err != nil {
+	if err := c.Get(ctx, infraName, infra); err != nil {
 		return nil, err
 	}
 
@@ -74,13 +74,13 @@ var platform configv1.PlatformType
 
 // GetPlatform fetches the PlatformType from the infrastructure object.
 // Caches value after first successful retrieval.
-func GetPlatform(c runtimeclient.Client) (configv1.PlatformType, error) {
+func GetPlatform(ctx context.Context, c runtimeclient.Client) (configv1.PlatformType, error) {
 	// platform won't change during test run and might be cached
 	if platform != "" {
 		return platform, nil
 	}
 
-	infra, err := GetInfrastructure(c)
+	infra, err := GetInfrastructure(ctx, c)
 	if err != nil {
 		return "", err
 	}
@@ -114,26 +114,31 @@ func LoadClientset() (*kubernetes.Clientset, error) {
 	return kubernetes.NewForConfig(cfg)
 }
 
-func WaitForStatusAvailableShort(client runtimeclient.Client, name string) bool {
-	return expectStatusAvailableIn(client, name, WaitShort)
+// GetContext returns a context.
+func GetContext() context.Context {
+	return context.Background()
 }
 
-func WaitForStatusAvailableMedium(client runtimeclient.Client, name string) bool {
-	return expectStatusAvailableIn(client, name, WaitMedium)
+func WaitForStatusAvailableShort(ctx context.Context, client runtimeclient.Client, name string) bool {
+	return expectStatusAvailableIn(ctx, client, name, WaitShort)
 }
 
-func WaitForStatusAvailableOverLong(client runtimeclient.Client, name string) bool {
-	return expectStatusAvailableIn(client, name, WaitOverLong)
+func WaitForStatusAvailableMedium(ctx context.Context, client runtimeclient.Client, name string) bool {
+	return expectStatusAvailableIn(ctx, client, name, WaitMedium)
 }
 
-func expectStatusAvailableIn(client runtimeclient.Client, name string, timeout time.Duration) bool {
+func WaitForStatusAvailableOverLong(ctx context.Context, client runtimeclient.Client, name string) bool {
+	return expectStatusAvailableIn(ctx, client, name, WaitOverLong)
+}
+
+func expectStatusAvailableIn(ctx context.Context, client runtimeclient.Client, name string, timeout time.Duration) bool {
 	key := types.NamespacedName{
 		Name: name,
 	}
 	clusterOperator := &configv1.ClusterOperator{}
 
-	if err := wait.PollImmediate(RetryMedium, timeout, func() (bool, error) {
-		if err := client.Get(context.TODO(), key, clusterOperator); err != nil {
+	if err := wait.PollUntilContextTimeout(ctx, RetryMedium, timeout, true, func(ctx context.Context) (bool, error) {
+		if err := client.Get(ctx, key, clusterOperator); err != nil {
 			klog.Errorf("error querying api for OperatorStatus object: %v, retrying...", err)
 			return false, nil
 		}
@@ -159,12 +164,12 @@ func expectStatusAvailableIn(client runtimeclient.Client, name string, timeout t
 	return true
 }
 
-func WaitForValidatingWebhook(client runtimeclient.Client, name string) bool {
+func WaitForValidatingWebhook(ctx context.Context, client runtimeclient.Client, name string) bool {
 	key := types.NamespacedName{Name: name}
 	webhook := &admissionregistrationv1.ValidatingWebhookConfiguration{}
 
-	if err := wait.PollImmediate(RetryShort, WaitShort, func() (bool, error) {
-		if err := client.Get(context.TODO(), key, webhook); err != nil {
+	if err := wait.PollUntilContextTimeout(ctx, RetryShort, WaitShort, true, func(ctx context.Context) (bool, error) {
+		if err := client.Get(ctx, key, webhook); err != nil {
 			klog.Errorf("error querying api for ValidatingWebhookConfiguration: %v, retrying...", err)
 			return false, nil
 		}
@@ -179,10 +184,10 @@ func WaitForValidatingWebhook(client runtimeclient.Client, name string) bool {
 }
 
 // WaitForEvent expects to find the given event.
-func WaitForEvent(c runtimeclient.Client, kind, name, reason string) error {
-	return wait.PollImmediate(RetryMedium, WaitMedium, func() (bool, error) {
+func WaitForEvent(ctx context.Context, c runtimeclient.Client, kind, name, reason string) error {
+	return wait.PollUntilContextTimeout(ctx, RetryMedium, WaitMedium, true, func(ctx context.Context) (bool, error) {
 		eventList := corev1.EventList{}
-		if err := c.List(context.Background(), &eventList); err != nil {
+		if err := c.List(ctx, &eventList); err != nil {
 			klog.Errorf("error querying api for eventList object: %v, retrying...", err)
 			return false, nil
 		}
