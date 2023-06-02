@@ -49,6 +49,9 @@ func clusterAutoscalerResource(maxNodesTotal int) *caov1.ClusterAutoscaler {
 	// pods already scheduled and running on the node.
 	unneededTimeString := "60s"
 
+	// set the logging verbosity high enough that we can get more debugging information
+	var logverbosity int32 = 4
+
 	return &caov1.ClusterAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "default",
@@ -72,6 +75,7 @@ func clusterAutoscalerResource(maxNodesTotal int) *caov1.ClusterAutoscaler {
 			ResourceLimits: &caov1.ResourceLimits{
 				MaxNodesTotal: pointer.Int32(int32(maxNodesTotal)),
 			},
+			LogVerbosity: pointer.Int32(logverbosity),
 		},
 	}
 }
@@ -553,7 +557,9 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 					allreplicas[ms.GetName()] = replicas
 
 					if replicas > expectedReplicas {
-						return allreplicas, StopTrying(fmt.Sprintf("exceeded expected replicas in MachineSet %s", ms.GetName()))
+						return allreplicas, StopTrying(fmt.Sprintf(
+							"observed %d replicas in MachineSet %s, which exceeds the expected replicas of %d",
+							replicas, ms.GetName(), expectedReplicas))
 					}
 				}
 
