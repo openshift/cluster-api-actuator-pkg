@@ -531,6 +531,19 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 				return resources, nil
 			}, framework.WaitMedium, pollingInterval).Should(HaveEach(2), "Node capacity resources did not match")
 
+			// in some cases, instance creation is slow for one of the node being introduced
+			// by the previous steps in this test. in these cases, the nodes can be slow to
+			// acquire their full .status.capacity resources (such as hugepages and pods).
+			// this timing causes issues with the cluster-autoscaler as it appears to have "stale"
+			// information about the Node objects in its kubernetes client.
+			// in testing we have found that having the test wait for up to a minute here
+			// seems to alleviate the inaccuracy between the autoscaler's Node object cache and the
+			// API server's source of truth.
+			// TODO (elmiko) reevaluate this period once we have the upstream logging in place
+			// to more accurately see why the tests are failing, sometime post 1.28 rebase.
+			By("Waiting 1 minute for the cluster-autoscaler client to catch up")
+			time.Sleep(time.Duration(1) * time.Minute)
+
 			// 4 job replicas are being chosen here to force the cluster to
 			// expand its size by 2 nodes. the cluster autoscaler should
 			// place 1 node in each of the 2 MachineSets created.
