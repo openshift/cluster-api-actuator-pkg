@@ -134,6 +134,33 @@ func (i InfrastructureBuilder) AsGCP(name string, region string) InfrastructureB
 	return i
 }
 
+// AsOpenStack sets the Status for the infrastructure builder.
+func (i InfrastructureBuilder) AsOpenStack(name string) InfrastructureBuilder {
+	i.spec = &configv1.InfrastructureSpec{
+		PlatformSpec: configv1.PlatformSpec{
+			Type:      configv1.OpenStackPlatformType,
+			OpenStack: &configv1.OpenStackPlatformSpec{},
+		},
+	}
+	i.status = &configv1.InfrastructureStatus{
+		InfrastructureName:     name,
+		APIServerURL:           "https://api.test-cluster.test-domain:6443",
+		APIServerInternalURL:   "https://api-int.test-cluster.test-domain:6443",
+		EtcdDiscoveryDomain:    "",
+		ControlPlaneTopology:   configv1.HighlyAvailableTopologyMode,
+		InfrastructureTopology: configv1.HighlyAvailableTopologyMode,
+		PlatformStatus: &configv1.PlatformStatus{
+			Type: configv1.OpenStackPlatformType,
+			OpenStack: &configv1.OpenStackPlatformStatus{
+				APIServerInternalIPs: []string{"10.0.0.5"},
+				IngressIPs:           []string{"10.0.0.7"},
+			},
+		},
+	}
+
+	return i
+}
+
 // WithGenerateName sets the generateName for the infrastructure builder.
 func (i InfrastructureBuilder) WithGenerateName(generateName string) InfrastructureBuilder {
 	i.generateName = generateName
