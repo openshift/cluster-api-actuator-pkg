@@ -35,6 +35,7 @@ type MachineBuilder struct {
 	namespace           string
 	labels              map[string]string
 	creationTimestamp   metav1.Time
+	deletionTimestamp   *metav1.Time
 	providerSpecBuilder resourcebuilder.RawExtensionBuilder
 
 	// status fields
@@ -49,6 +50,7 @@ func (m MachineBuilder) Build() *machinev1beta1.Machine {
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName:      m.generateName,
 			CreationTimestamp: m.creationTimestamp,
+			DeletionTimestamp: m.deletionTimestamp,
 			Name:              m.name,
 			Namespace:         m.namespace,
 			Labels:            m.labels,
@@ -86,6 +88,14 @@ func (m MachineBuilder) AsMaster() MachineBuilder {
 // WithCreationTimestamp sets the creationTimestamp for the machine builder.
 func (m MachineBuilder) WithCreationTimestamp(time metav1.Time) MachineBuilder {
 	m.creationTimestamp = time
+	return m
+}
+
+// WithDeletionTimestamp sets the deletionTimestamp for the machine builder.
+// Note: This can only be used in unit testing as the API server will drop this
+// field if a create/update request tries to set it.
+func (m MachineBuilder) WithDeletionTimestamp(time *metav1.Time) MachineBuilder {
+	m.deletionTimestamp = time
 	return m
 }
 
