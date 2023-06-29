@@ -41,6 +41,9 @@ type MachineSetParams struct {
 
 const (
 	machineAPIGroup = "machine.openshift.io"
+	amd64           = "amd64"
+	ArchLabel       = "e2e.openshift.io/arch"
+	LabelsKey       = "capacity.cluster-autoscaler.kubernetes.io/labels"
 )
 
 var (
@@ -52,6 +55,9 @@ var (
 
 	// errMachineInMachineSetFailed is used when one of the machines in the machine set is in a failed state.
 	errMachineInMachineSetFailed = errors.New("machine in the machineset is in a failed phase")
+
+	// errMachineSetHasNoNodes is used when a machine set has no nodes.
+	errMachineSetHasNoNodes = errors.New("machine set has no nodes")
 )
 
 func BuildMachineSetParams(ctx context.Context, client runtimeclient.Client, replicas int) MachineSetParams {
@@ -60,8 +66,29 @@ func BuildMachineSetParams(ctx context.Context, client runtimeclient.Client, rep
 	workers, err := GetWorkerMachineSets(ctx, client)
 	Expect(err).ToNot(HaveOccurred())
 
-	providerSpec := workers[0].Spec.Template.Spec.ProviderSpec.DeepCopy()
-	clusterName := workers[0].Spec.Template.Labels[ClusterKey]
+	worker := workers[0]
+
+	var arch string
+
+	if arch, err = getArchitectureFromMachineSetNodes(ctx, client, worker); err != nil {
+		klog.Warningf("error getting architecture from the machine set %s's nodes - the capacity annotation will be tried: %v", worker.Name, err)
+	}
+	// Find the first machine set that controls non-amd64 machines, if any.
+	for _, w := range workers {
+		if arch2, err := getArchitectureFromMachineSetNodes(ctx, client, w); err != nil {
+			klog.Warningf("error getting architecture from the machine set %s's nodes: %v", w.Name, err)
+		} else {
+			if arch2 != amd64 && arch2 != "" {
+				arch = arch2
+				worker = w
+
+				break
+			}
+		}
+	}
+
+	providerSpec := worker.Spec.Template.Spec.ProviderSpec.DeepCopy()
+	clusterName := worker.Spec.Template.Labels[ClusterKey]
 
 	clusterInfra, err := GetInfrastructure(ctx, client)
 	Expect(err).NotTo(HaveOccurred())
@@ -76,7 +103,12 @@ func BuildMachineSetParams(ctx context.Context, client runtimeclient.Client, rep
 		ProviderSpec: providerSpec,
 		Labels: map[string]string{
 			"e2e.openshift.io": uid.String(),
-			ClusterKey:         clusterName,
+			// This label can be consumed by the caller of this function to define the node affinity for the workload.
+			// It is set to the empty string in case of errors, in particular when no nodes are found: in such case,
+			// the caller can rely on the "capacity.cluster-autoscaler.kubernetes.io/labels" annotation.
+			"e2e.openshift.io/arch": arch, // This is set empty in case of errors (in particular when no nodes are found).
+
+			ClusterKey: clusterName,
 		},
 		Taints: []corev1.Taint{
 			{
@@ -283,6 +315,18 @@ func GetWorkerMachineSets(ctx context.Context, client runtimeclient.Client) ([]*
 	}
 
 	return result, nil
+}
+
+// getArchitectureFromMachineSetNodes returns the architecture of the nodes controlled by the given machineSet's machines.
+func getArchitectureFromMachineSetNodes(ctx context.Context, client runtimeclient.Client, machineSet *machinev1.MachineSet) (string, error) {
+	nodes, err := GetNodesFromMachineSet(ctx, client, machineSet)
+	if err != nil {
+		return "", fmt.Errorf("error getting machines: %w", err)
+	}
+	if len(nodes) > 0 {
+		return nodes[0].Status.NodeInfo.Architecture, nil
+	}
+	return "", errMachineSetHasNoNodes
 }
 
 // GetMachinesFromMachineSet returns an array of machines owned by a given machineSet.
