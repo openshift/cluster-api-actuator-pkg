@@ -9,7 +9,7 @@ import (
 )
 
 func NewWorkLoad(njobs int32, memoryRequest resource.Quantity, workloadJobName string,
-	testLabel string, nodeSelector string, podLabel string) *batchv1.Job {
+	testLabel string, podLabel string, nodeSelectorReqs ...corev1.NodeSelectorRequirement) *batchv1.Job {
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      workloadJobName,
@@ -54,9 +54,18 @@ func NewWorkLoad(njobs int32, memoryRequest resource.Quantity, workloadJobName s
 		},
 	}
 
-	if nodeSelector != "" {
-		job.Spec.Template.Spec.NodeSelector = map[string]string{
-			nodeSelector: "",
+	if len(nodeSelectorReqs) > 0 {
+		// Create the empty node selector terms in the spec
+		job.Spec.Template.Spec.Affinity = &corev1.Affinity{
+			NodeAffinity: &corev1.NodeAffinity{
+				RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+					NodeSelectorTerms: []corev1.NodeSelectorTerm{
+						{
+							MatchExpressions: nodeSelectorReqs,
+						},
+					},
+				},
+			},
 		}
 	}
 
