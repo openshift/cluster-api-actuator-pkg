@@ -30,7 +30,7 @@ func OpenStackProviderSpec() OpenStackProviderSpecBuilder {
 	return OpenStackProviderSpecBuilder{
 		flavor:           "m1.large",
 		availabilityZone: "",
-		rootVolume:       &machinev1alpha1.RootVolume{},
+		rootVolume:       nil,
 		serverGroupName:  "master",
 	}
 }

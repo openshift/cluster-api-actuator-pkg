@@ -29,15 +29,15 @@ import (
 func OpenStackFailureDomains() OpenStackFailureDomainsBuilder {
 	return OpenStackFailureDomainsBuilder{[]OpenStackFailureDomainBuilder{
 		OpenStackFailureDomain().WithComputeAvailabilityZone("nova-az0").
-			WithRootVolume(machinev1.RootVolume{
+			WithRootVolume(&machinev1.RootVolume{
 				AvailabilityZone: "cinder-az0",
 			}),
 		OpenStackFailureDomain().WithComputeAvailabilityZone("nova-az1").
-			WithRootVolume(machinev1.RootVolume{
+			WithRootVolume(&machinev1.RootVolume{
 				AvailabilityZone: "cinder-az1",
 			}),
 		OpenStackFailureDomain().WithComputeAvailabilityZone("nova-az2").
-			WithRootVolume(machinev1.RootVolume{
+			WithRootVolume(&machinev1.RootVolume{
 				AvailabilityZone: "cinder-az2",
 			}),
 	}}
@@ -100,7 +100,7 @@ func (a OpenStackFailureDomainBuilder) WithComputeAvailabilityZone(zone string) 
 }
 
 // WithRootVolume sets the root volume for the OpenStack failuredomain builder.
-func (a OpenStackFailureDomainBuilder) WithRootVolume(rootVolume machinev1.RootVolume) OpenStackFailureDomainBuilder {
-	a.RootVolume = &rootVolume
+func (a OpenStackFailureDomainBuilder) WithRootVolume(rootVolume *machinev1.RootVolume) OpenStackFailureDomainBuilder {
+	a.RootVolume = rootVolume
 	return a
 }
