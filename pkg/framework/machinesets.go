@@ -17,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -41,9 +42,9 @@ type MachineSetParams struct {
 
 const (
 	machineAPIGroup = "machine.openshift.io"
-	amd64           = "amd64"
+	Amd64           = "amd64"
 	ArchLabel       = "e2e.openshift.io/arch"
-	LabelsKey       = "capacity.cluster-autoscaler.kubernetes.io/labels"
+	labelsKey       = "capacity.cluster-autoscaler.kubernetes.io/labels"
 )
 
 var (
@@ -55,38 +56,47 @@ var (
 
 	// errMachineInMachineSetFailed is used when one of the machines in the machine set is in a failed state.
 	errMachineInMachineSetFailed = errors.New("machine in the machineset is in a failed phase")
-
-	// errMachineSetHasNoNodes is used when a machine set has no nodes.
-	errMachineSetHasNoNodes = errors.New("machine set has no nodes")
 )
 
-func BuildMachineSetParams(ctx context.Context, client runtimeclient.Client, replicas int) MachineSetParams {
+func BuildPerArchMachineSetParamsSet(ctx context.Context, client runtimeclient.Client, replicas int) []MachineSetParams {
+	clusterArchitecturesSet := sets.New[string]()
+	machineSetParamsList := make([]MachineSetParams, 0)
+
 	// Get the current workers MachineSets so we can copy a ProviderSpec
 	// from one to use with our new dedicated MachineSet.
 	workers, err := GetWorkerMachineSets(ctx, client)
 	Expect(err).ToNot(HaveOccurred())
 
-	worker := workers[0]
-
 	var arch string
 
-	if arch, err = getArchitectureFromMachineSetNodes(ctx, client, worker); err != nil {
-		klog.Warningf("error getting architecture from the machine set %s's nodes - the capacity annotation will be tried: %v", worker.Name, err)
-	}
-	// Find the first machine set that controls non-amd64 machines, if any.
-	for _, w := range workers {
-		if arch2, err := getArchitectureFromMachineSetNodes(ctx, client, w); err != nil {
-			klog.Warningf("error getting architecture from the machine set %s's nodes: %v", w.Name, err)
-		} else {
-			if arch2 != amd64 && arch2 != "" {
-				arch = arch2
-				worker = w
+	var params MachineSetParams
 
-				break
-			}
+	for _, worker := range workers {
+		if arch, err = getArchitectureFromMachineSetNodes(ctx, client, worker); err != nil {
+			klog.Warningf("unable to get the architecture for the machine set %s: %v", worker.Name, err)
+			continue
 		}
+
+		if clusterArchitecturesSet.Has(arch) {
+			// If a machine set with the same architecture was already visited, skip it.
+			continue
+		}
+
+		clusterArchitecturesSet.Insert(arch)
+
+		params = buildMachineSetParamsFromMachineSet(ctx, client, replicas, worker)
+		// This label can be consumed by the caller of this function to define the node affinity for the workload.
+		// It is set to the empty string in case of errors, in particular when no nodes are found: in such case,
+		// the caller can rely on the "capacity.cluster-autoscaler.kubernetes.io/labels" annotation.
+		params.Labels[ArchLabel] = arch
+		machineSetParamsList = append(machineSetParamsList, params)
 	}
 
+	return machineSetParamsList
+}
+
+func buildMachineSetParamsFromMachineSet(ctx context.Context, client runtimeclient.Client, replicas int,
+	worker *machinev1.MachineSet) MachineSetParams {
 	providerSpec := worker.Spec.Template.Spec.ProviderSpec.DeepCopy()
 	clusterName := worker.Spec.Template.Labels[ClusterKey]
 
@@ -103,12 +113,7 @@ func BuildMachineSetParams(ctx context.Context, client runtimeclient.Client, rep
 		ProviderSpec: providerSpec,
 		Labels: map[string]string{
 			"e2e.openshift.io": uid.String(),
-			// This label can be consumed by the caller of this function to define the node affinity for the workload.
-			// It is set to the empty string in case of errors, in particular when no nodes are found: in such case,
-			// the caller can rely on the "capacity.cluster-autoscaler.kubernetes.io/labels" annotation.
-			"e2e.openshift.io/arch": arch, // This is set empty in case of errors (in particular when no nodes are found).
-
-			ClusterKey: clusterName,
+			ClusterKey:         clusterName,
 		},
 		Taints: []corev1.Taint{
 			{
@@ -117,6 +122,15 @@ func BuildMachineSetParams(ctx context.Context, client runtimeclient.Client, rep
 			},
 		},
 	}
+}
+
+func BuildMachineSetParams(ctx context.Context, client runtimeclient.Client, replicas int) MachineSetParams {
+	// Get the current workers MachineSets so we can copy a ProviderSpec
+	// from one to use with our new dedicated MachineSet.
+	workers, err := GetWorkerMachineSets(ctx, client)
+	Expect(err).ToNot(HaveOccurred())
+
+	return buildMachineSetParamsFromMachineSet(ctx, client, replicas, workers[0])
 }
 
 // CreateMachineSet creates a new MachineSet resource.
@@ -320,13 +334,19 @@ func GetWorkerMachineSets(ctx context.Context, client runtimeclient.Client) ([]*
 // getArchitectureFromMachineSetNodes returns the architecture of the nodes controlled by the given machineSet's machines.
 func getArchitectureFromMachineSetNodes(ctx context.Context, client runtimeclient.Client, machineSet *machinev1.MachineSet) (string, error) {
 	nodes, err := GetNodesFromMachineSet(ctx, client, machineSet)
-	if err != nil {
-		return "", fmt.Errorf("error getting machines: %w", err)
+	if err != nil || len(nodes) == 0 {
+		klog.Warningf("error getting the machineSet's nodes or no nodes associated with %s. Using the capacity annotation", machineSet.Name)
+
+		for _, kv := range strings.Split(machineSet.Labels[labelsKey], ",") {
+			if strings.Contains(kv, "kubernetes.io/arch") {
+				return strings.Split(kv, "=")[1], nil
+			}
+		}
+
+		return "", fmt.Errorf("error getting the machineSet's nodes and unable to infer the architecture from the %s's capacity annotations", machineSet.Name)
 	}
-	if len(nodes) > 0 {
-		return nodes[0].Status.NodeInfo.Architecture, nil
-	}
-	return "", errMachineSetHasNoNodes
+
+	return nodes[0].Status.NodeInfo.Architecture, nil
 }
 
 // GetMachinesFromMachineSet returns an array of machines owned by a given machineSet.
