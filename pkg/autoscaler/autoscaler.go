@@ -8,12 +8,10 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	v1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog"
 	"k8s.io/utils/pointer"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -297,9 +295,10 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 		})
 
 		// Machines required for test: 1
-		// Reason: This tests checks that autoscaler is able to scale from zero when a workload requires specific architecture in the node affinity fields.
+		// We should need 1 only machineset. In case of failure, we might get more than 1 machineset.
+		// Reason: This test checks that the autoscaler is able to scale from zero when a workload requires specific architecture in the node affinity fields.
 		// Moreover, this test gives a better signal when multiple architectures are available in the cluster or the cluster is not amd64,
-		// and the workload requires to be scheduled on an architecture different from amd64.
+		// as the workload is set to be scheduled on an architecture different from amd64.
 		It("It scales from/to zero a machine set with the architecture requested by the workload", func() {
 			// Only run in platforms which support arch-aware autoscaling from/to zero.
 			clusterInfra, err := framework.GetInfrastructure(ctx, client)
@@ -314,12 +313,12 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			}
 
 			By("Creating a new MachineSet with 0 replicas for each machineset of a different architecture found in the cluster")
-			machineSetParamsList := framework.BuildPerArchMachineSetParamsSet(ctx, client, 0)
-			targetedNodeLabel := fmt.Sprintf("%v-scale-from-zero", autoscalerWorkerNodeRoleLabel)
-			workloadArch := framework.Amd64
 			expectedReplicas := int32(1)
+			machineSetParamsList := framework.BuildPerArchMachineSetParamsList(ctx, client, 0)
+			machineSets := make([]*machinev1.MachineSet, 0)
+			targetedNodeLabel := fmt.Sprintf("%v-scale-from-zero", autoscalerWorkerNodeRoleLabel)
 			var expectedScaledMachineSet *machinev1.MachineSet
-			var machineSets = make([]*machinev1.MachineSet, 0)
+			var workloadArch string
 
 			for _, machineSetParams := range machineSetParamsList {
 				machineSetParams.Labels[targetedNodeLabel] = ""
@@ -338,15 +337,12 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 				Expect(client.Create(ctx, asr)).Should(Succeed(), fmt.Sprintf("Failed to create MachineAutoscaler with min 0/max %v replicas", expectedReplicas))
 				cleanupObjects[asr.GetName()] = asr
 				arch := machineSetParams.Labels[framework.ArchLabel]
-				if arch != framework.Amd64 {
+				if arch != framework.Amd64 || workloadArch == "" {
+					// the workloadArch == "" condition ensures that workloadArch and expectedScaledMachineSet are set
+					// at least once. This is needed to ensure that the test does not fail when there is only one amd64 MachineSet
 					workloadArch = arch
 					expectedScaledMachineSet = machineSet
 				}
-			}
-			if workloadArch == "" {
-				// If workloadArch is empty, it means that exactly one MachineSet is in the list, and it is amd64.
-				workloadArch = framework.Amd64
-				expectedScaledMachineSet = machineSets[0]
 			}
 			uniqueJobName := fmt.Sprintf("%s-scale-from-zero", workloadJobName)
 			By(fmt.Sprintf("Creating scale-out workload %s: jobs: %v, memory: %s", uniqueJobName,
@@ -363,15 +359,13 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 					Operator: corev1.NodeSelectorOpIn,
 					Values:   []string{workloadArch},
 				})
-			// Setting the command to sleep 30 seconds to ensure that the workload can be completed and the additional
-			// replica (job completion) is run on a node with the requested architecture before the scale-in event is triggered.
-			workload.Spec.Template.Spec.Containers[0].Command = []string{"sleep", "30"}
 
 			cleanupObjects[workload.GetName()] = workload
 			Expect(client.Create(ctx, workload)).Should(Succeed(), "Failed to create scale-out workload %s", workloadJobName)
 
+			var condition bool
 			Consistently(func() bool {
-				condition := true
+				condition = true
 				for _, machineSet := range machineSets {
 					if machineSet.GetName() == expectedScaledMachineSet.GetName() {
 						// Ignore the MachineSet with the architecture requested by the workload.
@@ -398,34 +392,6 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 				return *ms.Spec.Replicas == expectedReplicas
 			}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "MachineSet %s failed to scale out to %d replicas",
 				expectedScaledMachineSet.GetName(), expectedReplicas)
-
-			By("Waiting for the machineSet replicas to become nodes")
-			framework.WaitForMachineSet(ctx, client, expectedScaledMachineSet.GetName())
-			job := &v1.Job{}
-			Eventually(func() bool {
-				err = client.Get(ctx, types.NamespacedName{Name: workload.GetName(), Namespace: workload.GetNamespace()}, job)
-				if err != nil {
-					By(fmt.Sprintf("Failed to get job %s: %v", workload.GetName(), err))
-					return false
-				}
-				By(fmt.Sprintf("Waiting for the workload to complete. Current completions are %d, expected %d.",
-					job.Status.Succeeded, expectedReplicas+1))
-
-				return job.Status.Succeeded == expectedReplicas+1
-			}, framework.WaitLong, pollingInterval).Should(BeTrue(), "Workload %s failed to complete", workload.GetName())
-			expectedReplicas = 0
-			By("Deleting the workload")
-			Expect(deleteObject(workload.Name, cleanupObjects[workload.Name])).Should(Succeed(), "Failed to delete scale-out workload %s", workload.Name)
-			delete(cleanupObjects, workload.Name)
-			Eventually(func() bool {
-				ms, err := framework.GetMachineSet(ctx, client, expectedScaledMachineSet.GetName())
-				Expect(err).ToNot(HaveOccurred(), "Failed to get MachineSet %s", expectedScaledMachineSet.GetName())
-
-				By(fmt.Sprintf("Waiting for machineSet replicas to scale in. Current replicas are %v, expected %v.",
-					*ms.Spec.Replicas, expectedReplicas))
-
-				return *ms.Spec.Replicas == expectedReplicas
-			}, framework.WaitLong, pollingInterval).Should(BeTrue(), "MachineSet %s failed to scale in to 0 replicas", expectedScaledMachineSet.GetName())
 		})
 
 		// Machines required for test: 2

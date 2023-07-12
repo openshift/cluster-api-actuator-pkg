@@ -58,7 +58,9 @@ var (
 	errMachineInMachineSetFailed = errors.New("machine in the machineset is in a failed phase")
 )
 
-func BuildPerArchMachineSetParamsSet(ctx context.Context, client runtimeclient.Client, replicas int) []MachineSetParams {
+// BuildPerArchMachineSetParamsList builds a list of MachineSetParams for each architecture in the cluster.
+// Given a cluster with N machinesets, and M <= N total different architectures, this function will return M MachineSetParams.
+func BuildPerArchMachineSetParamsList(ctx context.Context, client runtimeclient.Client, replicas int) []MachineSetParams {
 	clusterArchitecturesSet := sets.New[string]()
 	machineSetParamsList := make([]MachineSetParams, 0)
 
@@ -86,8 +88,7 @@ func BuildPerArchMachineSetParamsSet(ctx context.Context, client runtimeclient.C
 
 		params = buildMachineSetParamsFromMachineSet(ctx, client, replicas, worker)
 		// This label can be consumed by the caller of this function to define the node affinity for the workload.
-		// It is set to the empty string in case of errors, in particular when no nodes are found: in such case,
-		// the caller can rely on the "capacity.cluster-autoscaler.kubernetes.io/labels" annotation.
+		// It should never be the empty string at this point.
 		params.Labels[ArchLabel] = arch
 		machineSetParamsList = append(machineSetParamsList, params)
 	}
@@ -95,6 +96,7 @@ func BuildPerArchMachineSetParamsSet(ctx context.Context, client runtimeclient.C
 	return machineSetParamsList
 }
 
+// buildMachineSetParamsFromMachineSet builds a MachineSetParams from a given MachineSet.
 func buildMachineSetParamsFromMachineSet(ctx context.Context, client runtimeclient.Client, replicas int,
 	worker *machinev1.MachineSet) MachineSetParams {
 	providerSpec := worker.Spec.Template.Spec.ProviderSpec.DeepCopy()
@@ -124,6 +126,7 @@ func buildMachineSetParamsFromMachineSet(ctx context.Context, client runtimeclie
 	}
 }
 
+// BuildMachineSetParams builds a MachineSetParams object from the first worker MachineSet retrieved from the cluster.
 func BuildMachineSetParams(ctx context.Context, client runtimeclient.Client, replicas int) MachineSetParams {
 	// Get the current workers MachineSets so we can copy a ProviderSpec
 	// from one to use with our new dedicated MachineSet.
