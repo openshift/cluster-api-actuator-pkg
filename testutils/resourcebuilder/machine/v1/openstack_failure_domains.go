@@ -31,14 +31,17 @@ func OpenStackFailureDomains() OpenStackFailureDomainsBuilder {
 		OpenStackFailureDomain().WithComputeAvailabilityZone("nova-az0").
 			WithRootVolume(&machinev1.RootVolume{
 				AvailabilityZone: "cinder-az0",
+				VolumeType:       "fast-az0",
 			}),
 		OpenStackFailureDomain().WithComputeAvailabilityZone("nova-az1").
 			WithRootVolume(&machinev1.RootVolume{
 				AvailabilityZone: "cinder-az1",
+				VolumeType:       "fast-az1",
 			}),
 		OpenStackFailureDomain().WithComputeAvailabilityZone("nova-az2").
 			WithRootVolume(&machinev1.RootVolume{
 				AvailabilityZone: "cinder-az2",
+				VolumeType:       "fast-az2",
 			}),
 	}}
 }
