@@ -362,36 +362,34 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 
 			cleanupObjects[workload.GetName()] = workload
 			Expect(client.Create(ctx, workload)).Should(Succeed(), "Failed to create scale-out workload %s", workloadJobName)
-
-			var condition bool
-			Consistently(func() bool {
-				condition = true
-				for _, machineSet := range machineSets {
-					if machineSet.GetName() == expectedScaledMachineSet.GetName() {
-						// Ignore the MachineSet with the architecture requested by the workload.
-						continue
+			runCtx, cancel := context.WithTimeout(ctx, framework.WaitLong)
+			defer cancel()
+			framework.RunCheckUntil(runCtx,
+				func(ctx context.Context, g framework.GomegaAssertions) bool { // Continuous check condition
+					updatedMachineSets := []*machinev1.MachineSet{}
+					for _, machineSet := range machineSets {
+						if machineSet.GetName() == expectedScaledMachineSet.GetName() {
+							// Ignore the MachineSet with the architecture requested by the workload.
+							continue
+						}
+						ms, err := framework.GetMachineSet(ctx, client, machineSet.GetName())
+						g.Expect(err).ToNot(HaveOccurred(), "Failed to get MachineSet %s", machineSet.GetName())
+						updatedMachineSets = append(updatedMachineSets, ms)
 					}
-					ms, err := framework.GetMachineSet(ctx, client, machineSet.GetName())
-					Expect(err).ToNot(HaveOccurred(), "Failed to get MachineSet %s", machineSet.GetName())
 
-					By(fmt.Sprintf("Current replicas for %s are %d, expected %d.", machineSet.GetName(),
-						*ms.Spec.Replicas, 0))
+					return g.Expect(updatedMachineSets).To(SatisfyAny(
+						HaveLen(0), // In single-arch clusters the updatedMachineSets slice is empty
+						HaveEach(HaveField("Spec.Replicas", HaveValue(Equal(int32(0))))),
+					))
+				}, func(ctx context.Context, g framework.GomegaAssertions) bool { // Until condition
+					ms, err := framework.GetMachineSet(ctx, client, expectedScaledMachineSet.GetName())
+					g.Expect(err).ToNot(HaveOccurred(), "Failed to get MachineSet %s", expectedScaledMachineSet.GetName())
 
-					condition = condition && *ms.Spec.Replicas == 0
-				}
+					By(fmt.Sprintf("Waiting for machineSet replicas to scale out. Current replicas are %v, expected %v.",
+						*ms.Spec.Replicas, expectedReplicas))
 
-				return condition
-			}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "Some MachineSets scaled out unexpectedly.")
-			Eventually(func() bool {
-				ms, err := framework.GetMachineSet(ctx, client, expectedScaledMachineSet.GetName())
-				Expect(err).ToNot(HaveOccurred(), "Failed to get MachineSet %s", expectedScaledMachineSet.GetName())
-
-				By(fmt.Sprintf("Waiting for machineSet replicas to scale out. Current replicas are %v, expected %v.",
-					*ms.Spec.Replicas, expectedReplicas))
-
-				return *ms.Spec.Replicas == expectedReplicas
-			}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "MachineSet %s failed to scale out to %d replicas",
-				expectedScaledMachineSet.GetName(), expectedReplicas)
+					return g.Expect(ms.Spec.Replicas).To(HaveValue(Equal(expectedReplicas)))
+				})
 		})
 
 		// Machines required for test: 2
