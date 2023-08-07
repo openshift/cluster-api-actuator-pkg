@@ -17,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -41,6 +42,9 @@ type MachineSetParams struct {
 
 const (
 	machineAPIGroup = "machine.openshift.io"
+	Amd64           = "amd64"
+	ArchLabel       = "e2e.openshift.io/arch"
+	labelsKey       = "capacity.cluster-autoscaler.kubernetes.io/labels"
 )
 
 var (
@@ -54,14 +58,49 @@ var (
 	errMachineInMachineSetFailed = errors.New("machine in the machineset is in a failed phase")
 )
 
-func BuildMachineSetParams(ctx context.Context, client runtimeclient.Client, replicas int) MachineSetParams {
+// BuildPerArchMachineSetParamsList builds a list of MachineSetParams for each architecture in the cluster.
+// Given a cluster with N machinesets, and M <= N total different architectures, this function will return M MachineSetParams.
+func BuildPerArchMachineSetParamsList(ctx context.Context, client runtimeclient.Client, replicas int) []MachineSetParams {
+	clusterArchitecturesSet := sets.New[string]()
+	machineSetParamsList := make([]MachineSetParams, 0)
+
 	// Get the current workers MachineSets so we can copy a ProviderSpec
 	// from one to use with our new dedicated MachineSet.
 	workers, err := GetWorkerMachineSets(ctx, client)
 	Expect(err).ToNot(HaveOccurred())
 
-	providerSpec := workers[0].Spec.Template.Spec.ProviderSpec.DeepCopy()
-	clusterName := workers[0].Spec.Template.Labels[ClusterKey]
+	var arch string
+
+	var params MachineSetParams
+
+	for _, worker := range workers {
+		if arch, err = getArchitectureFromMachineSetNodes(ctx, client, worker); err != nil {
+			klog.Warningf("unable to get the architecture for the machine set %s: %v", worker.Name, err)
+			continue
+		}
+
+		if clusterArchitecturesSet.Has(arch) {
+			// If a machine set with the same architecture was already visited, skip it.
+			continue
+		}
+
+		clusterArchitecturesSet.Insert(arch)
+
+		params = buildMachineSetParamsFromMachineSet(ctx, client, replicas, worker)
+		// This label can be consumed by the caller of this function to define the node affinity for the workload.
+		// It should never be the empty string at this point.
+		params.Labels[ArchLabel] = arch
+		machineSetParamsList = append(machineSetParamsList, params)
+	}
+
+	return machineSetParamsList
+}
+
+// buildMachineSetParamsFromMachineSet builds a MachineSetParams from a given MachineSet.
+func buildMachineSetParamsFromMachineSet(ctx context.Context, client runtimeclient.Client, replicas int,
+	worker *machinev1.MachineSet) MachineSetParams {
+	providerSpec := worker.Spec.Template.Spec.ProviderSpec.DeepCopy()
+	clusterName := worker.Spec.Template.Labels[ClusterKey]
 
 	clusterInfra, err := GetInfrastructure(ctx, client)
 	Expect(err).NotTo(HaveOccurred())
@@ -85,6 +124,16 @@ func BuildMachineSetParams(ctx context.Context, client runtimeclient.Client, rep
 			},
 		},
 	}
+}
+
+// BuildMachineSetParams builds a MachineSetParams object from the first worker MachineSet retrieved from the cluster.
+func BuildMachineSetParams(ctx context.Context, client runtimeclient.Client, replicas int) MachineSetParams {
+	// Get the current workers MachineSets so we can copy a ProviderSpec
+	// from one to use with our new dedicated MachineSet.
+	workers, err := GetWorkerMachineSets(ctx, client)
+	Expect(err).ToNot(HaveOccurred())
+
+	return buildMachineSetParamsFromMachineSet(ctx, client, replicas, workers[0])
 }
 
 // CreateMachineSet creates a new MachineSet resource.
@@ -283,6 +332,24 @@ func GetWorkerMachineSets(ctx context.Context, client runtimeclient.Client) ([]*
 	}
 
 	return result, nil
+}
+
+// getArchitectureFromMachineSetNodes returns the architecture of the nodes controlled by the given machineSet's machines.
+func getArchitectureFromMachineSetNodes(ctx context.Context, client runtimeclient.Client, machineSet *machinev1.MachineSet) (string, error) {
+	nodes, err := GetNodesFromMachineSet(ctx, client, machineSet)
+	if err != nil || len(nodes) == 0 {
+		klog.Warningf("error getting the machineSet's nodes or no nodes associated with %s. Using the capacity annotation", machineSet.Name)
+
+		for _, kv := range strings.Split(machineSet.Labels[labelsKey], ",") {
+			if strings.Contains(kv, "kubernetes.io/arch") {
+				return strings.Split(kv, "=")[1], nil
+			}
+		}
+
+		return "", fmt.Errorf("error getting the machineSet's nodes and unable to infer the architecture from the %s's capacity annotations", machineSet.Name)
+	}
+
+	return nodes[0].Status.NodeInfo.Architecture, nil
 }
 
 // GetMachinesFromMachineSet returns an array of machines owned by a given machineSet.

@@ -65,7 +65,10 @@ var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 		// Run a pod on this machine
 		workloadMemRequest := resource.MustParse("100m")
 		workload = framework.NewWorkLoad(int32(expectedReplicas), workloadMemRequest,
-			lifecycleWorkloadJobName, lifecycleHooksTestLabel, lifecyclehooksWorkerNodeRoleLabel, lifecycleHooksPodLabel)
+			lifecycleWorkloadJobName, lifecycleHooksTestLabel, lifecycleHooksPodLabel, corev1.NodeSelectorRequirement{
+				Key:      lifecyclehooksWorkerNodeRoleLabel,
+				Operator: corev1.NodeSelectorOpExists,
+			})
 		Expect(client.Create(context.Background(), workload)).To(Succeed(), "Could not create workload job")
 
 		By("Waiting for job pod to start running on machine.")

@@ -259,7 +259,10 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 
 			uniqueJobName := fmt.Sprintf("%s-scale-from-zero", workloadJobName)
 			By(fmt.Sprintf("Creating scale-out workload %s: jobs: %v, memory: %s", uniqueJobName, expectedReplicas, workloadMemRequest.String()))
-			workload := framework.NewWorkLoad(expectedReplicas, workloadMemRequest, uniqueJobName, autoscalingTestLabel, targetedNodeLabel, "")
+			workload := framework.NewWorkLoad(expectedReplicas, workloadMemRequest, uniqueJobName, autoscalingTestLabel, "", corev1.NodeSelectorRequirement{
+				Key:      targetedNodeLabel,
+				Operator: corev1.NodeSelectorOpExists,
+			})
 			cleanupObjects[workload.GetName()] = workload
 			Expect(client.Create(ctx, workload)).Should(Succeed(), "Failed to create scale-out workload %s", workloadJobName)
 
@@ -291,6 +294,104 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			}, framework.WaitLong, pollingInterval).Should(BeTrue(), "MachineSet %s failed to scale in to 0 replicas", machineSet.GetName())
 		})
 
+		// Machines required for test: 1
+		// We should need 1 only machineset. In case of failure, we might get more than 1 machineset.
+		// Reason: This test checks that the autoscaler is able to scale from zero when a workload requires specific architecture in the node affinity fields.
+		// Moreover, this test gives a better signal when multiple architectures are available in the cluster or the cluster is not amd64,
+		// as the workload is set to be scheduled on an architecture different from amd64.
+		It("It scales from/to zero a machine set with the architecture requested by the workload", func() {
+			// Only run in platforms which support arch-aware autoscaling from/to zero.
+			clusterInfra, err := framework.GetInfrastructure(ctx, client)
+			Expect(err).NotTo(HaveOccurred(), "Failed to get cluster infrastructure object")
+
+			platform := clusterInfra.Status.PlatformStatus.Type
+			switch platform {
+			case configv1.AWSPlatformType, configv1.AzurePlatformType:
+				klog.Infof("Platform is %v", platform)
+			default:
+				Skip(fmt.Sprintf("Platform %v does not support arch-aware autoscaling from/to zero, skipping.", platform))
+			}
+
+			By("Creating a new MachineSet with 0 replicas for each machineset of a different architecture found in the cluster")
+			expectedReplicas := int32(1)
+			machineSetParamsList := framework.BuildPerArchMachineSetParamsList(ctx, client, 0)
+			machineSets := make([]*machinev1.MachineSet, 0)
+			targetedNodeLabel := fmt.Sprintf("%v-scale-from-zero", autoscalerWorkerNodeRoleLabel)
+			var expectedScaledMachineSet *machinev1.MachineSet
+			var workloadArch string
+
+			for _, machineSetParams := range machineSetParamsList {
+				machineSetParams.Labels[targetedNodeLabel] = ""
+				By(fmt.Sprintf("Deploying the MachineSet with 0 replicas (architecture: %s)",
+					machineSetParams.Labels[framework.ArchLabel]))
+				machineSet, err := framework.CreateMachineSet(client, machineSetParams)
+				Expect(err).ToNot(HaveOccurred(), "Failed to create MachineSet with 0 replicas")
+				machineSets = append(machineSets, machineSet)
+				cleanupObjects[machineSet.GetName()] = machineSet
+
+				framework.WaitForMachineSet(ctx, client, machineSet.GetName())
+
+				By(fmt.Sprintf("Creating a MachineAutoscaler backed by MachineSet %s/%s - min:%v, max:%v",
+					machineSet.GetNamespace(), machineSet.GetName(), 0, expectedReplicas))
+				asr := machineAutoscalerResource(machineSet, 0, expectedReplicas)
+				Expect(client.Create(ctx, asr)).Should(Succeed(), fmt.Sprintf("Failed to create MachineAutoscaler with min 0/max %v replicas", expectedReplicas))
+				cleanupObjects[asr.GetName()] = asr
+				arch := machineSetParams.Labels[framework.ArchLabel]
+				if arch != framework.Amd64 || workloadArch == "" {
+					// the workloadArch == "" condition ensures that workloadArch and expectedScaledMachineSet are set
+					// at least once. This is needed to ensure that the test does not fail when there is only one amd64 MachineSet
+					workloadArch = arch
+					expectedScaledMachineSet = machineSet
+				}
+			}
+			uniqueJobName := fmt.Sprintf("%s-scale-from-zero", workloadJobName)
+			By(fmt.Sprintf("Creating scale-out workload %s: jobs: %v, memory: %s", uniqueJobName,
+				expectedReplicas+1, workloadMemRequest.String()))
+			// Executing one additional replica to ensure that the workload does not triggers other scale-out events with
+			// other MachineSets not having the requested architecture.
+			workload := framework.NewWorkLoad(expectedReplicas+1, workloadMemRequest, uniqueJobName, autoscalingTestLabel, "",
+				corev1.NodeSelectorRequirement{
+					Key:      targetedNodeLabel,
+					Operator: corev1.NodeSelectorOpExists,
+				},
+				corev1.NodeSelectorRequirement{
+					Key:      "kubernetes.io/arch",
+					Operator: corev1.NodeSelectorOpIn,
+					Values:   []string{workloadArch},
+				})
+
+			cleanupObjects[workload.GetName()] = workload
+			Expect(client.Create(ctx, workload)).Should(Succeed(), "Failed to create scale-out workload %s", workloadJobName)
+			runCtx, cancel := context.WithTimeout(ctx, framework.WaitLong)
+			defer cancel()
+			framework.RunCheckUntil(runCtx,
+				func(ctx context.Context, g framework.GomegaAssertions) bool { // Continuous check condition
+					updatedMachineSets := []*machinev1.MachineSet{}
+					for _, machineSet := range machineSets {
+						if machineSet.GetName() == expectedScaledMachineSet.GetName() {
+							// Ignore the MachineSet with the architecture requested by the workload.
+							continue
+						}
+						ms, err := framework.GetMachineSet(ctx, client, machineSet.GetName())
+						g.Expect(err).ToNot(HaveOccurred(), "Failed to get MachineSet %s", machineSet.GetName())
+						updatedMachineSets = append(updatedMachineSets, ms)
+					}
+
+					return g.Expect(updatedMachineSets).To(SatisfyAny(
+						HaveLen(0), // In single-arch clusters the updatedMachineSets slice is empty
+						HaveEach(HaveField("Spec.Replicas", HaveValue(Equal(int32(0))))),
+					))
+				}, func(ctx context.Context, g framework.GomegaAssertions) bool { // Until condition
+					ms, err := framework.GetMachineSet(ctx, client, expectedScaledMachineSet.GetName())
+					g.Expect(err).ToNot(HaveOccurred(), "Failed to get MachineSet %s", expectedScaledMachineSet.GetName())
+
+					By(fmt.Sprintf("Waiting for machineSet replicas to scale out. Current replicas are %v, expected %v.",
+						*ms.Spec.Replicas, expectedReplicas))
+
+					return g.Expect(ms.Spec.Replicas).To(HaveValue(Equal(expectedReplicas)))
+				})
+		})
+
 		// Machines required for test: 2
 		// Reason: Needs to scale down to minReplicas = 1. Scales 1 -> 2 -> 1.
 		It("cleanup deletion information after scale down [Slow]", func() {
@@ -316,7 +417,10 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			uniqueJobName := fmt.Sprintf("%s-cleanup-after-scale-down", workloadJobName)
 			By(fmt.Sprintf("Creating scale-out workload %s: jobs: %v, memory: %s",
 				uniqueJobName, jobReplicas, workloadMemRequest.String()))
-			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, uniqueJobName, autoscalingTestLabel, targetedNodeLabel, "")
+			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, uniqueJobName, autoscalingTestLabel, "", corev1.NodeSelectorRequirement{
+				Key:      targetedNodeLabel,
+				Operator: corev1.NodeSelectorOpExists,
+			})
 			cleanupObjects[workload.GetName()] = workload
 			Expect(client.Create(ctx, workload)).Should(Succeed(), "Failed to create scale-out workload %s", uniqueJobName)
 
@@ -551,7 +655,10 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			uniqueJobName := fmt.Sprintf("%s-balance-nodegroups", workloadJobName)
 			By(fmt.Sprintf("Creating scale-out workload %s: jobs: %v, memory: %s",
 				uniqueJobName, jobReplicas, workloadMemRequest.String()))
-			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, uniqueJobName, autoscalingTestLabel, targetedNodeLabel, "")
+			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, uniqueJobName, autoscalingTestLabel, "", corev1.NodeSelectorRequirement{
+				Key:      targetedNodeLabel,
+				Operator: corev1.NodeSelectorOpExists,
+			})
 			cleanupObjects[workload.GetName()] = workload
 			Expect(client.Create(ctx, workload)).Should(Succeed(), "Failed to create scale-out workload %s", uniqueJobName)
 
@@ -666,7 +773,10 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			uniqueJobName := fmt.Sprintf("%s-scale-to-maxnodestotal", workloadJobName)
 			By(fmt.Sprintf("Creating scale-out workload %s: jobs: %v, memory: %s",
 				uniqueJobName, jobReplicas, workloadMemRequest.String()))
-			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, uniqueJobName, autoscalingTestLabel, targetedNodeLabel, "")
+			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, uniqueJobName, autoscalingTestLabel, "", corev1.NodeSelectorRequirement{
+				Key:      targetedNodeLabel,
+				Operator: corev1.NodeSelectorOpExists,
+			})
 			cleanupObjects[workload.GetName()] = workload
 			Expect(client.Create(ctx, workload)).Should(Succeed(), "Failed to create scale-out workload %s", uniqueJobName)
 
