@@ -622,8 +622,8 @@ github.com/onsi/gomega v0.0.0-20170829124025-dcabb60a477c/go.mod h1:C1qb7wdrVGGV
 github.com/onsi/gomega v1.7.0/go.mod h1:ex+gbHU/CVuBBDIJjb2X0qEXbFg53c61hWP/1CpauHY=
 github.com/onsi/gomega v1.27.7 h1:fVih9JD6ogIiHUN6ePK7HJidyEDpWGVB5mzM7cWNXoU=
 github.com/onsi/gomega v1.27.7/go.mod h1:1p8OOlwo2iUUDsHnOrjE5UKYJ+e3W8eQ3qSlRahPmr4=
-github.com/openshift/api v0.0.0-20230524230522-75b5a44dbeeb h1:HsUNsqiMfpBdSYgtg0HwE8ZxaYcX2/TvcsNCN2vh42E=
-github.com/openshift/api v0.0.0-20230524230522-75b5a44dbeeb/go.mod h1:4VWG+W22wrB4HfBL88P40DxLEpSOaiBVxUnfalfJo9k=
+github.com/openshift/api v0.0.0-20230815081605-d7f5a4c98505 h1:Sz3DJC0QR5n7ynD4ubVD0ixR/vjAIG7iJ8ezA0Xtuu0=
+github.com/openshift/api v0.0.0-20230815081605-d7f5a4c98505/go.mod h1:yimSGmjsI+XF1mr+AKBs2//fSXIOhhetHGbMlBEfXbs=
 github.com/openshift/client-go v0.0.0-20230503144108-75015d2347cb h1:Nij5OnaECrkmcRQMAE9LMbQXPo95aqFnf+12B7SyFVI=
 github.com/openshift/client-go v0.0.0-20230503144108-75015d2347cb/go.mod h1:Rhb3moCqeiTuGHAbXBOlwPubUMlOZEkrEWTRjIF3jzs=
 github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20230428103603-98e6d5c4def7 h1:I4kHqyechQ8p0BpEXanEsT4oavRs9ldWFv6uOvuPAAU=

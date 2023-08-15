@@ -31,6 +31,7 @@ func AzureProviderSpec() AzureProviderSpecBuilder {
 		internalLoadBalancer: "internal-load-balancer-12345678",
 		vmSize:               "Standard_D4s_v3",
 		zone:                 "1",
+		subnet:               "cluster-subnet-12345678",
 	}
 }
 
@@ -39,6 +40,7 @@ type AzureProviderSpecBuilder struct {
 	internalLoadBalancer string
 	vmSize               string
 	zone                 string
+	subnet               string
 }
 
 // Build builds a new Azure machine config based on the configuration provided.
@@ -76,7 +78,7 @@ func (m AzureProviderSpecBuilder) Build() *machinev1beta1.AzureMachineProviderSp
 		ResourceGroup:         "resource-group-12345678",
 		Zone:                  &m.zone,
 		AcceleratedNetworking: true,
-		Subnet:                "subnet-12345678",
+		Subnet:                m.subnet,
 	}
 }
 
@@ -110,5 +112,11 @@ func (m AzureProviderSpecBuilder) WithVMSize(vmSize string) AzureProviderSpecBui
 // WithZone sets the availabilityZone for the Azure machine config builder.
 func (m AzureProviderSpecBuilder) WithZone(az string) AzureProviderSpecBuilder {
 	m.zone = az
+	return m
+}
+
+// WithZone sets the availabilityZone for the Azure machine config builder.
+func (m AzureProviderSpecBuilder) WithSubnet(subnet string) AzureProviderSpecBuilder {
+	m.subnet = subnet
 	return m
 }

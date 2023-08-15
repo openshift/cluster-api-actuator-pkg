@@ -72,18 +72,26 @@ func AzureFailureDomain() AzureFailureDomainBuilder {
 
 // AzureFailureDomainBuilder is used to build an Azure failuredomain.
 type AzureFailureDomainBuilder struct {
-	Zone string
+	Zone   string
+	Subnet string
 }
 
 // Build builds a Azure failuredomain from the configuration.
 func (a AzureFailureDomainBuilder) Build() machinev1.AzureFailureDomain {
 	return machinev1.AzureFailureDomain{
-		Zone: a.Zone,
+		Zone:   a.Zone,
+		Subnet: a.Subnet,
 	}
 }
 
 // WithZone sets the zone for the Azure failuredomain builder.
 func (a AzureFailureDomainBuilder) WithZone(zone string) AzureFailureDomainBuilder {
 	a.Zone = zone
+	return a
+}
+
+// WithSubnet sets the subnet for the Azure failuredomain builder.
+func (a AzureFailureDomainBuilder) WithSubnet(subnet string) AzureFailureDomainBuilder {
+	a.Subnet = subnet
 	return a
 }
