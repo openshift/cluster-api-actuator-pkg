@@ -67,7 +67,7 @@ func BuildPerArchMachineSetParamsList(ctx context.Context, client runtimeclient.
 	// Get the current workers MachineSets so we can copy a ProviderSpec
 	// from one to use with our new dedicated MachineSet.
 	workers, err := GetWorkerMachineSets(ctx, client)
-	Expect(err).ToNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred(), "listing worker MachineSets should not error.")
 
 	var arch string
 
@@ -103,11 +103,11 @@ func buildMachineSetParamsFromMachineSet(ctx context.Context, client runtimeclie
 	clusterName := worker.Spec.Template.Labels[ClusterKey]
 
 	clusterInfra, err := GetInfrastructure(ctx, client)
-	Expect(err).NotTo(HaveOccurred())
-	Expect(clusterInfra.Status.InfrastructureName).ShouldNot(BeEmpty())
+	Expect(err).NotTo(HaveOccurred(), "getting infrastructure global object should not error.")
+	Expect(clusterInfra.Status.InfrastructureName).ShouldNot(BeEmpty(), "infrastructure name was empty on Infrastructure.Status.")
 
 	uid, err := uuid.NewUUID()
-	Expect(err).NotTo(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred(), "generating a new UUID should not fail.")
 
 	return MachineSetParams{
 		Name:         clusterInfra.Status.InfrastructureName,
@@ -131,7 +131,7 @@ func BuildMachineSetParams(ctx context.Context, client runtimeclient.Client, rep
 	// Get the current workers MachineSets so we can copy a ProviderSpec
 	// from one to use with our new dedicated MachineSet.
 	workers, err := GetWorkerMachineSets(ctx, client)
-	Expect(err).ToNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred(), "listing Worker MachineSets should not error.")
 
 	return buildMachineSetParamsFromMachineSet(ctx, client, replicas, workers[0])
 }
@@ -486,7 +486,7 @@ func getScaleClient() (scale.ScalesGetter, error) {
 // will exit early.
 func WaitForMachineSet(ctx context.Context, c runtimeclient.Client, name string) {
 	machineSet, err := GetMachineSet(ctx, c, name)
-	Expect(err).ToNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred(), "listing MachineSets should not error.")
 
 	Eventually(func() error {
 		machines, err := GetMachinesFromMachineSet(ctx, c, machineSet)
@@ -517,7 +517,7 @@ func WaitForMachineSet(ctx context.Context, c runtimeclient.Client, name string)
 				klog.Errorf("Failed machine: %s, Reason: %s, Message: %s", m.Name, reason, message)
 			}
 		}
-		Expect(len(failed)).To(Equal(0))
+		Expect(len(failed)).To(Equal(0), "zero machines should be in a Failed phase")
 
 		running := FilterRunningMachines(machines)
 

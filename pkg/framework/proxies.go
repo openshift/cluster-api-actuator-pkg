@@ -77,7 +77,7 @@ func DeployProxy(c client.Client, gomegaArgs ...interface{}) {
 	// Generate an RSA private key and its corresponding X.509 certificate,
 	// for the MITM proxy.
 	certBytes, keyBytes, err := generateCert()
-	Expect(err).NotTo(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred(), "generating private key and certificate should not error.")
 
 	mitmSignerKey := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: keyBytes})
 	mitmSignerCert := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certBytes})
@@ -98,26 +98,28 @@ func DeployProxy(c client.Client, gomegaArgs ...interface{}) {
 		WithLabels(proxyLabels).WithSelector(proxyLabels).WithPorts(buildServicePorts()).Build()
 
 	By("Creating the MITM proxy Secret")
-	Eventually(c.Create(ctx, mitmSignerSecret)).Should(Succeed())
+	Eventually(c.Create(ctx, mitmSignerSecret)).Should(Succeed(), "timed out creating the MITM proxy Secret.")
 
 	By("Creating the MITM proxy ConfigMaps")
-	Eventually(c.Create(ctx, mitmBootstrapConfigMap)).Should(Succeed())
-	Eventually(c.Create(ctx, mitmCustomPkiConfigMap)).Should(Succeed())
+	Eventually(c.Create(ctx, mitmBootstrapConfigMap)).Should(Succeed(), "timed out creating the MITM proxy Bootstrap ConfigMap.")
+	Eventually(c.Create(ctx, mitmCustomPkiConfigMap)).Should(Succeed(), "timed out creating the MITM proxy Custom PKI ConfigMap.")
 
 	By("Creating the MITM proxy DaemonSet")
-	Eventually(c.Create(ctx, mitmDaemonset)).Should(Succeed())
+	Eventually(c.Create(ctx, mitmDaemonset)).Should(Succeed(), "timed out creating the MITM proxy DaemonSet.")
 
 	By("Waiting for the MITM proxy DaemonSet to be available")
 	Eventually(kom.Object(mitmDaemonset), time.Minute*1).Should(
 		HaveField("Status.NumberAvailable", Not(BeZero())),
+		"timed out waiting for MITM proxy DaemonSet to be available.",
 	)
 
 	By("Creating the MITM proxy Service")
-	Eventually(c.Create(ctx, mitmService)).Should(Succeed())
+	Eventually(c.Create(ctx, mitmService)).Should(Succeed(), "timed out creating the MITM proxy Service.")
 
 	By("Waiting for the MITM proxy Service to be available")
 	Eventually(kom.Object(mitmService), time.Minute*1).Should(
 		HaveField("Spec.ClusterIP", Not(Equal(""))),
+		"timed out waiting for the MITM proxy Service to be available.",
 	)
 }
 
@@ -127,10 +129,10 @@ func ConfigureClusterWideProxy(c client.Client, gomegaArgs ...interface{}) {
 	kom := komega.New(c)
 
 	services := &corev1.ServiceList{}
-	Eventually(c.List(ctx, services, client.MatchingLabels(map[string]string{"app": "mitm-proxy"}))).Should(Succeed())
+	Eventually(c.List(ctx, services, client.MatchingLabels(map[string]string{"app": "mitm-proxy"}))).Should(Succeed(), "timed out listing Services for app=mitm-proxy.")
 
 	proxy := &configv1.Proxy{}
-	Eventually(c.Get(ctx, client.ObjectKey{Name: "cluster"}, proxy)).Should(Succeed())
+	Eventually(c.Get(ctx, client.ObjectKey{Name: "cluster"}, proxy)).Should(Succeed(), "timed out getting Proxy named 'cluster.'")
 
 	Eventually(kom.Update(proxy, func() {
 		proxy.Spec.HTTPProxy = "http://" + services.Items[0].Spec.ClusterIP + ":8080"
@@ -168,6 +170,7 @@ func ConfigureClusterWideProxy(c client.Client, gomegaArgs ...interface{}) {
 				)),
 			)),
 		))),
+		"Cluster-wide proxy environment variables were not set.",
 	)
 }
 
@@ -177,14 +180,14 @@ func UnconfigureClusterWideProxy(c client.Client, gomegaArgs ...interface{}) {
 	kom := komega.New(c)
 
 	proxy := &configv1.Proxy{}
-	Eventually(c.Get(ctx, client.ObjectKey{Name: "cluster"}, proxy)).Should(Succeed())
+	Eventually(c.Get(ctx, client.ObjectKey{Name: "cluster"}, proxy)).Should(Succeed(), "timed out getting Proxy named 'cluster.'")
 
 	Eventually(c.Patch(context.Background(), proxy, client.RawPatch(apitypes.JSONPatchType, []byte(`[
 		{"op": "remove", "path": "/spec/httpProxy"},
 		{"op": "remove", "path": "/spec/httpsProxy"},
 		{"op": "remove", "path": "/spec/noProxy"},
 		{"op": "remove", "path": "/spec/trustedCA"}
-	]`)))).Should(Succeed())
+	]`)))).Should(Succeed(), "timed out patching Proxy Spec.")
 
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -209,6 +212,7 @@ func UnconfigureClusterWideProxy(c client.Client, gomegaArgs ...interface{}) {
 				))),
 			)),
 		))),
+		"Cluster-wide proxy environmenet variables were still set.",
 	)
 }
 
@@ -224,17 +228,17 @@ func DeleteProxy(c client.Client, gomegaArgs ...interface{}) {
 	mitmService := corev1resourcebuilder.Service().WithName(mitmServiceName).WithNamespace(proxyNamespace).Build()
 
 	By("Deleting the MITM proxy Secret")
-	Eventually(c.Delete(ctx, mitmSignerSecret)).Should(Succeed())
+	Eventually(c.Delete(ctx, mitmSignerSecret)).Should(Succeed(), "timed out deleting the MITM proxy Secret.")
 
 	By("Deleting the MITM proxy ConfigMaps")
-	Eventually(c.Delete(ctx, mitmBootstrapConfigMap)).Should(Succeed())
-	Eventually(c.Delete(ctx, mitmCustomPkiConfigMap)).Should(Succeed())
+	Eventually(c.Delete(ctx, mitmBootstrapConfigMap)).Should(Succeed(), "timed out deleting the MITM proxy Bootstrap ConfigMap.")
+	Eventually(c.Delete(ctx, mitmCustomPkiConfigMap)).Should(Succeed(), "timed out deleting the MITM proxy Custom PKI ConfigMap.")
 
 	By("Deleting the MITM proxy DaemonSet")
-	Eventually(c.Delete(ctx, mitmDaemonset)).Should(Succeed())
+	Eventually(c.Delete(ctx, mitmDaemonset)).Should(Succeed(), "timed out deleting the MITM proxy DaemonSet.")
 
 	By("Deleting the MITM proxy Service")
-	Eventually(c.Delete(ctx, mitmService)).Should(Succeed())
+	Eventually(c.Delete(ctx, mitmService)).Should(Succeed(), "timed out deleting the MITM proxy Service.")
 
 	By("Checking that the MITM proxy components are removed from the cluster")
 
