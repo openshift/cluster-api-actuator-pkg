@@ -76,7 +76,7 @@ func (m AzureProviderSpecBuilder) Build() *machinev1beta1.AzureMachineProviderSp
 		PublicLoadBalancer:    "public-load-balancer-12345678",
 		PublicIP:              false,
 		ResourceGroup:         "resource-group-12345678",
-		Zone:                  &m.zone,
+		Zone:                  m.zone,
 		AcceleratedNetworking: true,
 		Subnet:                m.subnet,
 	}
