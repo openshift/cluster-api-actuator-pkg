@@ -7,7 +7,7 @@ require (
 	github.com/golangci/golangci-lint v1.52.2
 	github.com/onsi/ginkgo/v2 v2.9.1
 	github.com/onsi/gomega v1.27.4
-	github.com/openshift/api v0.0.0-20230815081605-d7f5a4c98505
+	github.com/openshift/api v0.0.0-20230822121351-cd0541be0908
 	k8s.io/api v0.27.2
 	k8s.io/apimachinery v0.27.2
 	k8s.io/client-go v0.27.1
