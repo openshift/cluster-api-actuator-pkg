@@ -35,18 +35,18 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 	BeforeEach(func() {
 		var err error
 		client, err = framework.LoadClient()
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "Failed to load client")
 
 		clientset, err = framework.LoadClientset()
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "Failed to load clientset")
 
 		gatherer, err = framework.NewGatherer()
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "Failed to load gatherer")
 
 		ctx = framework.GetContext()
 
 		platform, err := framework.GetPlatform(ctx, client)
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "Failed to get platform")
 		if platform != configv1.AWSPlatformType {
 			Skip(fmt.Sprintf("skipping AWS specific tests on %s", platform))
 		}
@@ -75,7 +75,7 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 		spec.MetadataServiceOptions.Authentication = machinev1.MetadataServiceAuthentication(metadataAuth)
 
 		machineSetParams.ProviderSpec.Value.Raw, err = json.Marshal(spec)
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "Failed to get MachineSet parameters")
 
 		mc, err := framework.CreateMachineSet(client, machineSetParams)
 		if err != nil {
@@ -90,7 +90,7 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 	assertIMDSavailability := func(machineset *machinev1.MachineSet, responseSubstring string) {
 		By("Get node from machineset and spin a curl pod", func() {
 			nodes, err := framework.GetNodesFromMachineSet(ctx, client, machineset)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred(), "Failed to get nodes from MachineSet")
 			podSpec := corev1.PodSpec{
 				HostNetwork: true,
 				Containers: []corev1.Container{
@@ -103,7 +103,7 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 				},
 			}
 			pod, lastLog, cleanupPod, err := framework.RunPodOnNode(clientset, nodes[0], framework.MachineAPINamespace, podSpec)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred(), "Failed to run pod on node")
 			defer func() {
 				Expect(cleanupPod()).To(Succeed())
 			}()
@@ -123,7 +123,7 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 			}, framework.WaitMedium, framework.RetryShort).Should(BeTrue())
 
 			logs, err := lastLog("curl-metadata", 100, false)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred(), "Failed to get logs from curl pod")
 			Expect(logs).Should(ContainSubstring(responseSubstring))
 		})
 	}
@@ -132,7 +132,7 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 	// No machines are created, because the machineSet is rejected.
 	It("should not allow to create machineset with incorrect metadataServiceOptions.authentication", func() {
 		_, err := createMachineSet("fooobaar")
-		Expect(err).To(HaveOccurred())
+		Expect(err).To(HaveOccurred(), "Expected error, shouldn't be able to create machineSet with incorrect metadataServiceOptions.authentication")
 		Expect(err.Error()).Should(ContainSubstring("Invalid value: \"fooobaar\": Allowed values are either 'Optional' or 'Required'"))
 	})
 
@@ -140,7 +140,7 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 	// Reason: Deploys a pod on the node, so it requires a machine to be running.
 	It("should enforce auth on metadata service if metadataServiceOptions.authentication set to Required", func() {
 		machineSet, err := createMachineSet(machinev1.MetadataServiceAuthenticationRequired)
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "metadataServiceOptions.authentication set to Required, authentication needed")
 		assertIMDSavailability(machineSet, "HTTP_CODE:401")
 	})
 
@@ -148,7 +148,7 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 	// Reason: Deploys a pod on the node, so it requires a machine to be running.
 	It("should allow unauthorized requests to metadata service if metadataServiceOptions.authentication is Optional", func() {
 		machineSet, err := createMachineSet(machinev1.MetadataServiceAuthenticationOptional)
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "Failed to create unauthorized request to metadata service")
 		assertIMDSavailability(machineSet, "HTTP_CODE:200")
 	})
 })
