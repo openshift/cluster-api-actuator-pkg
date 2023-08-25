@@ -159,5 +159,5 @@ func WaitForMachinesDeleted(c runtimeclient.Client, machines ...*machinev1.Machi
 		}
 
 		return true // Everything was deleted.
-	}, WaitLong, RetryMedium).Should(BeTrue())
+	}, WaitLong, RetryMedium).Should(BeTrue(), "error encountered while waiting for Machines to be deleted.")
 }
