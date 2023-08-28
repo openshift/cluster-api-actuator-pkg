@@ -120,7 +120,7 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 				default:
 					return false, nil
 				}
-			}, framework.WaitMedium, framework.RetryShort).Should(BeTrue())
+			}, framework.WaitMedium, framework.RetryShort).Should(BeTrue(), "Curl pod failed to reach a ready state")
 
 			logs, err := lastLog("curl-metadata", 100, false)
 			Expect(err).ToNot(HaveOccurred(), "Failed to get logs from curl pod")
