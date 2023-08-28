@@ -27,8 +27,7 @@ If you do not disable the CVO, when you try to deploy your test code, the CVO wi
 To disable the CVO, scale its deployment to 0 replicas:
 
 ```console
-$ oc scale --replicas 0 -n openshift-cluster-version deployments/cluster-version-operator
-deployment.apps/cluster-version-operator scaled
+oc scale --replicas 0 -n openshift-cluster-version deployments/cluster-version-operator
 ```
 
 Now deploy the code either directly into the cluster, or by running it locally.
@@ -39,8 +38,7 @@ To deploy your test code within the cluster, you must first build and push a con
 Once pushed, override the image within the deployment to deploy your code for testing:
 
 ```console
-$ oc set image -n machine-api-operator deployment/cluster-autoscaler-operator cluster-autoscaler-operator=<YOUR CONTAINER IMAGE>
-deployment.apps/cluster-autoscaler-operator image updated
+oc set image -n machine-api-operator deployment/cluster-autoscaler-operator cluster-autoscaler-operator=<YOUR CONTAINER IMAGE>
 ```
 
 ### Deploy the code to test locally
@@ -48,30 +46,37 @@ deployment.apps/cluster-autoscaler-operator image updated
 To deploy your test code locally, you must first disable the existing operator running within the OpenShift cluster:
 
 ```console
-$ oc scale --replicas 0 -n openshift-machine-api deployments/cluster-autoscaler-operator
-deployment.apps/cluster-autoscaler-operator scaled
+oc scale --replicas 0 -n openshift-machine-api deployments/cluster-autoscaler-operator
 ```
 
 Once the operator has been disabled, build your code to test locally and run it on your machine,
 pointing it to the cluster by passing the appropriate `--kubeconfig` flag:
 
 ```console
-$ make build
-  ...
-$ ./bin/cluster-autoscaler-operator --kubeconfig=<PATH/TO/YOUR/CLUSTERS/KUBECONFIG> ...
+make build
+```
+
+```
+./bin/cluster-autoscaler-operator --kubeconfig=<PATH/TO/YOUR/CLUSTERS/KUBECONFIG>
 ```
 
 ### Build the e2e tests
 
 ```console
-$ make build-e2e 
-go test -c -o bin/e2e github.com/openshift/cluster-api-actuator-pkg/pkg/
+make build-e2e 
 ```
 
 ### Run the autoscaler e2e tests
 
 ```console
-$ NAMESPACE=kube-system ./hack/ci-integration.sh -focus "Autoscaler should" -v -dryRun
+NAMESPACE=kube-system ./hack/ci-integration.sh -focus "Autoscaler should" -v --dry-run
+```
+
+Adjust `-focus` as appropriate.
+
+Some example expected output:
+
+```
 Running Suite: Machine Suite
 ============================
 Random Seed: 1617813491
@@ -105,5 +110,3 @@ PASS
 Ginkgo ran 1 suite in 1.887727166s
 Test Suite Passed
 ```
-
-Adjust `-focus` as appropriate.
