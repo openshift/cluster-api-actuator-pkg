@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -73,9 +73,9 @@ func clusterAutoscalerResource(maxNodesTotal int) *caov1.ClusterAutoscaler {
 				UnneededTime:      &unneededTimeString,
 			},
 			ResourceLimits: &caov1.ResourceLimits{
-				MaxNodesTotal: pointer.Int32(int32(maxNodesTotal)),
+				MaxNodesTotal: ptr.To[int32](int32(maxNodesTotal)),
 			},
-			LogVerbosity: pointer.Int32(logverbosity),
+			LogVerbosity: ptr.To[int32](logverbosity),
 		},
 	}
 }
@@ -502,7 +502,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 
 			By("Creating ClusterAutoscaler")
 			clusterAutoscaler = clusterAutoscalerResource(100)
-			clusterAutoscaler.Spec.BalanceSimilarNodeGroups = pointer.Bool(true)
+			clusterAutoscaler.Spec.BalanceSimilarNodeGroups = ptr.To[bool](true)
 			// Ignore this label to make test nodes similar
 			clusterAutoscaler.Spec.BalancingIgnoredLabels = []string{
 				"e2e.openshift.io",
@@ -673,7 +673,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 						return allreplicas, err
 					}
 
-					replicas := int(pointer.Int32Deref(ms.Spec.Replicas, 0))
+					replicas := int(ptr.Deref(ms.Spec.Replicas, 0))
 					allreplicas[ms.GetName()] = replicas
 
 					if replicas > expectedReplicas {
@@ -821,7 +821,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 					return false, err
 				}
 
-				return pointer.Int32Deref(machineSet.Spec.Replicas, -1) == 1, nil
+				return ptr.Deref(machineSet.Spec.Replicas, -1) == 1, nil
 			}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "MachineSet %s failed to scale down to 1 replica", transientMachineSet.GetName())
 			By(fmt.Sprintf("Waiting for Deleted MachineSet %s nodes to go away", transientMachineSet.GetName()))
 			Eventually(func() (bool, error) {

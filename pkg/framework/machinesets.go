@@ -24,7 +24,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/scale"
 	"k8s.io/klog"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -164,7 +164,7 @@ func CreateMachineSet(c runtimeclient.Client, params MachineSetParams) (*machine
 					Taints:       params.Taints,
 				},
 			},
-			Replicas: pointer.Int32(params.Replicas),
+			Replicas: ptr.To[int32](params.Replicas),
 		},
 	}
 
@@ -408,7 +408,7 @@ func NewMachineSet(
 					ProviderSpec: *providerSpec.DeepCopy(),
 				},
 			},
-			Replicas: pointer.Int32(replicas),
+			Replicas: ptr.To[int32](replicas),
 		},
 	}
 
@@ -494,7 +494,7 @@ func WaitForMachineSet(ctx context.Context, c runtimeclient.Client, name string)
 			return err
 		}
 
-		replicas := pointer.Int32Deref(machineSet.Spec.Replicas, 0)
+		replicas := ptr.Deref(machineSet.Spec.Replicas, 0)
 
 		if len(machines) != int(replicas) {
 			return fmt.Errorf("%q: found %d Machines, but MachineSet has %d replicas",
@@ -557,7 +557,7 @@ func WaitForSpotMachineSet(ctx context.Context, c runtimeclient.Client, name str
 			return false, fmt.Errorf("error getting machines from machineSet %s: %w", machineSet.Name, err)
 		}
 
-		replicas := pointer.Int32Deref(machineSet.Spec.Replicas, 0)
+		replicas := ptr.Deref(machineSet.Spec.Replicas, 0)
 		if len(machines) != int(replicas) {
 			klog.Infof("%q: found %d Machines, but MachineSet has %d replicas", name, len(machines), int(replicas))
 			return false, nil

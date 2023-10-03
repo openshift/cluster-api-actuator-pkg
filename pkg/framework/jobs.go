@@ -5,7 +5,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func NewWorkLoad(njobs int32, memoryRequest resource.Quantity, workloadJobName string,
@@ -48,9 +48,9 @@ func NewWorkLoad(njobs int32, memoryRequest resource.Quantity, workloadJobName s
 					},
 				},
 			},
-			BackoffLimit: pointer.Int32(4),
-			Completions:  pointer.Int32(njobs),
-			Parallelism:  pointer.Int32(njobs),
+			BackoffLimit: ptr.To[int32](4),
+			Completions:  ptr.To[int32](njobs),
+			Parallelism:  ptr.To[int32](njobs),
 		},
 	}
 

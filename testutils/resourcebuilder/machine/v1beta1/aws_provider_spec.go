@@ -23,7 +23,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 // AWSProviderSpec creates a new AWS machine config builder.
@@ -72,14 +72,14 @@ func (m AWSProviderSpecBuilder) Build() *machinev1beta1.AWSMachineProviderConfig
 			Kind:       "AWSMachineProviderConfig",
 		},
 		AMI: machinev1beta1.AWSResourceReference{
-			ID: pointer.String("aws-ami-12345678"),
+			ID: ptr.To[string]("aws-ami-12345678"),
 		},
 		BlockDevices: []machinev1beta1.BlockDeviceMappingSpec{
 			{
 				EBS: &machinev1beta1.EBSBlockDeviceSpec{
-					Encrypted:  pointer.Bool(true),
-					VolumeSize: pointer.Int64(120),
-					VolumeType: pointer.String("gp3"),
+					Encrypted:  ptr.To[bool](true),
+					VolumeSize: ptr.To[int64](120),
+					VolumeType: ptr.To[string]("gp3"),
 				},
 			},
 		},
@@ -87,7 +87,7 @@ func (m AWSProviderSpecBuilder) Build() *machinev1beta1.AWSMachineProviderConfig
 			Name: "aws-cloud-credentials",
 		},
 		IAMInstanceProfile: &machinev1beta1.AWSResourceReference{
-			ID: pointer.String("aws-iam-instance-profile-12345678"),
+			ID: ptr.To[string]("aws-iam-instance-profile-12345678"),
 		},
 		InstanceType: m.instanceType,
 		LoadBalancers: []machinev1beta1.LoadBalancerReference{

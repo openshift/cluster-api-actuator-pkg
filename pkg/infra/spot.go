@@ -19,7 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -232,8 +232,8 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 				Expect(err).ToNot(HaveOccurred(), "Should be able to get Machines from MachineSet")
 				Expect(len(machines)).To(BeNumerically(">", 0), "There should be at least one Machine")
 
-				rand.Seed(time.Now().Unix())
-				machine = machines[rand.Intn(len(machines))]
+				customRand := rand.New(rand.NewSource(time.Now().Unix()))
+				machine = machines[customRand.Intn(len(machines))]
 				Expect(machine.Status.NodeRef).ToNot(BeNil(), "Machine should have a linked Node")
 			})
 
@@ -362,7 +362,7 @@ func getMetadataMockDeployment(platform configv1.PlatformType) *appsv1.Deploymen
 			Labels:    getMetadataMockLabels(),
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: pointer.Int32(1),
+			Replicas: ptr.To[int32](1),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: getMetadataMockLabels(),
 			},
@@ -505,7 +505,7 @@ echo "Redirected metadata service to ${SERVICE_IP}:${MOCK_SERVICE_PORT}";`
 								},
 							},
 							SecurityContext: &corev1.SecurityContext{
-								Privileged: pointer.Bool(true),
+								Privileged: ptr.To[bool](true),
 								Capabilities: &corev1.Capabilities{
 									Add: []corev1.Capability{"NET_ADMIN", "NET_RAW"},
 								},

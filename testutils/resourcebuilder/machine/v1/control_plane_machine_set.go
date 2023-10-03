@@ -21,7 +21,7 @@ import (
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 const (
@@ -86,7 +86,7 @@ func (m ControlPlaneMachineSetBuilder) Build() *machinev1.ControlPlaneMachineSet
 			Generation: m.generation,
 		},
 		Spec: machinev1.ControlPlaneMachineSetSpec{
-			Replicas: pointer.Int32(m.replicas),
+			Replicas: ptr.To[int32](m.replicas),
 			Selector: m.selector,
 			State:    m.state,
 			Strategy: machinev1.ControlPlaneMachineSetStrategy{

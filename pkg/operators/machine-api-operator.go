@@ -10,7 +10,7 @@ import (
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apitypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
@@ -88,7 +88,7 @@ var _ = Describe(
 				fmt.Sprintf("Failed to wait %s Deployment to become available", maoManagedDeployment))
 
 			changedDeployment := initialDeployment.DeepCopy()
-			changedDeployment.Spec.Replicas = pointer.Int32(0)
+			changedDeployment.Spec.Replicas = ptr.To[int32](0)
 
 			By(fmt.Sprintf("updating deployment %q", maoManagedDeployment))
 			Expect(framework.UpdateDeployment(ctx, client, maoManagedDeployment, framework.MachineAPINamespace, changedDeployment)).NotTo(HaveOccurred(),
