@@ -306,7 +306,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 
 			platform := clusterInfra.Status.PlatformStatus.Type
 			switch platform {
-			case configv1.AWSPlatformType, configv1.AzurePlatformType:
+			case configv1.AWSPlatformType, configv1.AzurePlatformType, configv1.GCPPlatformType:
 				klog.Infof("Platform is %v", platform)
 			default:
 				Skip(fmt.Sprintf("Platform %v does not support arch-aware autoscaling from/to zero, skipping.", platform))
