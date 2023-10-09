@@ -19,7 +19,7 @@ package v1
 import (
 	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 // AWSFailureDomains creates a new failure domains builder for AWS.
@@ -29,17 +29,17 @@ func AWSFailureDomains() AWSFailureDomainsBuilder {
 			AWSFailureDomain().WithAvailabilityZone("us-east-1a").
 				WithSubnet(machinev1.AWSResourceReference{
 					Type: machinev1.AWSIDReferenceType,
-					ID:   pointer.String("subenet-us-east-1a"),
+					ID:   ptr.To[string]("subenet-us-east-1a"),
 				}),
 			AWSFailureDomain().WithAvailabilityZone("us-east-1b").
 				WithSubnet(machinev1.AWSResourceReference{
 					Type: machinev1.AWSIDReferenceType,
-					ID:   pointer.String("subenet-us-east-1b"),
+					ID:   ptr.To[string]("subenet-us-east-1b"),
 				}),
 			AWSFailureDomain().WithAvailabilityZone("us-east-1c").
 				WithSubnet(machinev1.AWSResourceReference{
 					Type: machinev1.AWSIDReferenceType,
-					ID:   pointer.String("subenet-us-east-1c"),
+					ID:   ptr.To[string]("subenet-us-east-1c"),
 				}),
 		},
 	}
