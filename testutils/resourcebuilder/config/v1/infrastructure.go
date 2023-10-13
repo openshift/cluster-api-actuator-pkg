@@ -161,6 +161,27 @@ func (i InfrastructureBuilder) AsOpenStack(name string) InfrastructureBuilder {
 	return i
 }
 
+// AsNone sets the Status for the infrastructure builder.
+func (i InfrastructureBuilder) AsNone(name string) InfrastructureBuilder {
+	i.spec = &configv1.InfrastructureSpec{
+		PlatformSpec: configv1.PlatformSpec{
+			Type: configv1.NonePlatformType,
+		},
+	}
+	i.status = &configv1.InfrastructureStatus{
+		InfrastructureName:     name,
+		APIServerURL:           "https://api.test-cluster.test-domain:6443",
+		APIServerInternalURL:   "https://api-int.test-cluster.test-domain:6443",
+		EtcdDiscoveryDomain:    "",
+		ControlPlaneTopology:   configv1.HighlyAvailableTopologyMode,
+		InfrastructureTopology: configv1.HighlyAvailableTopologyMode,
+		PlatformStatus: &configv1.PlatformStatus{
+			Type: configv1.NonePlatformType,
+		},
+	}
+	return i
+}
+
 // WithGenerateName sets the generateName for the infrastructure builder.
 func (i InfrastructureBuilder) WithGenerateName(generateName string) InfrastructureBuilder {
 	i.generateName = generateName
