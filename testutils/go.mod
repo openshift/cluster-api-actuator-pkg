@@ -16,6 +16,9 @@ require (
 	sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20230926180527-c93e2abcb28e
 )
 
+// (rmanak) OCPBUGS-17851 Keep old version of API pinned until this bug is fixed.
+replace github.com/openshift/api => github.com/openshift/api v0.0.0-20230807121159-a81c3efc8824
+
 require (
 	4d63.com/gocheckcompilerdirectives v1.2.1 // indirect
 	4d63.com/gochecknoglobals v0.2.1 // indirect
