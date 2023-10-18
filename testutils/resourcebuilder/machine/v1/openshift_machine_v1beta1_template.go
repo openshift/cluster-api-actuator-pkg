@@ -21,6 +21,7 @@ import (
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder"
 	machinev1beta1resourcebuilder "github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/machine/v1beta1"
+	"k8s.io/utils/ptr"
 )
 
 // OpenShiftMachineV1Beta1Template creates a new OpenShift machine template builder.
@@ -54,7 +55,7 @@ func (m OpenShiftMachineV1Beta1TemplateBuilder) BuildTemplate() machinev1.Contro
 	}
 
 	if m.failureDomainsBuilder != nil {
-		template.OpenShiftMachineV1Beta1Machine.FailureDomains = m.failureDomainsBuilder.BuildFailureDomains()
+		template.OpenShiftMachineV1Beta1Machine.FailureDomains = ptr.To[machinev1.FailureDomains](m.failureDomainsBuilder.BuildFailureDomains())
 	}
 
 	if m.providerSpecBuilder != nil {
