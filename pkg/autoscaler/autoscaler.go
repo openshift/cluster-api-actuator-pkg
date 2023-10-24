@@ -688,14 +688,17 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 		})
 	})
 
-	Context("use a ClusterAutoscaler that has 8 maximum total nodes", framework.LabelPeriodic, func() {
+	Context("use a ClusterAutoscaler that has initial + 2 maximum total nodes", framework.LabelPeriodic, func() {
 		var clusterAutoscaler *caov1.ClusterAutoscaler
-		caMaxNodesTotal := 8
+		var caMaxNodesTotal, initialNodesTotal int
 
 		BeforeEach(func() {
 			gatherer, err = framework.NewGatherer()
 			Expect(err).ToNot(HaveOccurred(), "Failed to create gatherer")
-
+			machines, err := framework.GetMachines(ctx, client)
+			Expect(err).ToNot(HaveOccurred(), "Failed to get current machines")
+			initialNodesTotal = len(machines)
+			caMaxNodesTotal = initialNodesTotal + 2
 			By("Creating ClusterAutoscaler")
 			clusterAutoscaler = clusterAutoscalerResource(caMaxNodesTotal)
 			Expect(client.Create(ctx, clusterAutoscaler)).Should(Succeed(), "Failed to create ClusterAutoscaler")
@@ -727,19 +730,23 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 
 		// Machines required for test: 2
 		// Reason: This test starts with 1 replica machineSet. Then it creates a workload that would require 3 replicas,
-		// but it only scales up to 2 replicas because the cluster is at maximum size of 8 machines. (3 masters and 3 other worker machines; 2 workers from this test)
+		// but it only scales up to 2 replicas because the cluster is at maximum size of N0 + 2 machines.
+		// N0 is the number of machines in the cluster before the test starts: 3 masters, 3 worker machines,
+		// and 2 workers when multi-arch compute nodes are tested; 2 workers are created from this test finally.
 		// Does not start with replicas=0 machineset to avoid scaling from 0.
 		It("scales up and down while respecting MaxNodesTotal [Slow][Serial]", func() {
-			// This test requires to have exactly 6 machines in the cluster at the beginning and to run serially.
-			By("Ensuring there are 6 machines in the cluster")
+			// This test requires to run serially.
+			By(fmt.Sprintf("Ensuring there are %d machines in the cluster", initialNodesTotal))
 			Eventually(func() (int, error) {
 				machines, err := framework.GetMachines(ctx, client)
+				// We avoid counting any additional nodes left from other tests when this test starts
+				machines = framework.FilterRunningMachines(machines)
 				if err != nil {
 					return 0, err
 				}
 
 				return len(machines), nil
-			}, framework.WaitLong, pollingInterval).Should(BeEquivalentTo(6), "Expected to have 6 machines in the cluster")
+			}, framework.WaitLong, pollingInterval).Should(BeEquivalentTo(initialNodesTotal), fmt.Sprintf("Expected to have %d machines in the cluster", initialNodesTotal))
 
 			By("Creating 1 MachineSet with 1 replica")
 			var transientMachineSet *machinev1.MachineSet
