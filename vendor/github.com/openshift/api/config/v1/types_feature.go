@@ -163,14 +163,13 @@ var FeatureSets = map[FeatureSet]*FeatureGateEnabledDisabled{
 		Disabled: []FeatureGateDescription{},
 	},
 	TechPreviewNoUpgrade: newDefaultFeatures().
-		without(validatingAdmissionPolicy).
+		with(validatingAdmissionPolicy).
 		with(csiDriverSharedResource).
 		with(nodeSwap).
 		with(machineAPIProviderOpenStack).
 		with(insightsConfigAPI).
 		with(retroactiveDefaultStorageClass).
 		with(dynamicResourceAllocation).
-		with(admissionWebhookMatchConditions).
 		with(gateGatewayAPI).
 		with(maxUnavailableStatefulSet).
 		without(eventedPleg).
@@ -179,8 +178,11 @@ var FeatureSets = map[FeatureSet]*FeatureGateEnabledDisabled{
 		with(vSphereStaticIPs).
 		with(routeExternalCertificate).
 		with(automatedEtcdBackup).
+		with(vSphereControlPlaneMachineset).
 		without(machineAPIOperatorDisableMachineHealthCheckController).
 		with(adminNetworkPolicy).
+		with(dnsNameResolver).
+		with(machineConfigNodes).
 		toFeatures(defaultFeatures),
 	LatencySensitive: newDefaultFeatures().
 		toFeatures(defaultFeatures),
