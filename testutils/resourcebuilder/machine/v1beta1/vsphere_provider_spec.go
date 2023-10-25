@@ -41,6 +41,7 @@ type VSphereProviderSpecBuilder struct {
 	cpmsProviderSpec  bool
 	failureDomainName string
 	infrastructure    *configv1.Infrastructure
+	ippool            bool
 }
 
 // Build builds a new VSphere machine config based on the configuration provided.
@@ -63,6 +64,16 @@ func (v VSphereProviderSpecBuilder) Build() *machinev1beta1.VSphereMachineProvid
 		{
 			NetworkName: "test-network",
 		},
+	}
+
+	if v.ippool {
+		networkDevices[0].AddressesFromPools = []machinev1beta1.AddressesFromPool{
+			{
+				Group:    "test",
+				Resource: "IPpool",
+				Name:     "test",
+			},
+		}
 	}
 
 	template := v.template
@@ -156,5 +167,11 @@ func (v VSphereProviderSpecBuilder) WithTemplate(template string) VSphereProvide
 // WithZone sets the zone for the VSphere machine config builder.
 func (v VSphereProviderSpecBuilder) WithZone(zone string) VSphereProviderSpecBuilder {
 	v.failureDomainName = zone
+	return v
+}
+
+// WithIPPool sets the ippool for the VSphere machine config builder.
+func (v VSphereProviderSpecBuilder) WithIPPool() VSphereProviderSpecBuilder {
+	v.ippool = true
 	return v
 }
