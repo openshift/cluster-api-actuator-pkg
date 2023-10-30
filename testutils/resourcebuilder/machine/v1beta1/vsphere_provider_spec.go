@@ -18,8 +18,11 @@ package v1beta1
 
 import (
 	"encoding/json"
+	"fmt"
 
+	configv1 "github.com/openshift/api/config/v1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
+	configv1resourcebuilder "github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/config/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -34,11 +37,74 @@ func VSphereProviderSpec() VSphereProviderSpecBuilder {
 
 // VSphereProviderSpecBuilder is used to build out a VSphere machine config object.
 type VSphereProviderSpecBuilder struct {
-	template string
+	template          string
+	cpmsProviderSpec  bool
+	failureDomainName string
+	infrastructure    *configv1.Infrastructure
+	ippool            bool
 }
 
 // Build builds a new VSphere machine config based on the configuration provided.
 func (v VSphereProviderSpecBuilder) Build() *machinev1beta1.VSphereMachineProviderSpec {
+	var networkDevices []machinev1beta1.NetworkDeviceSpec
+
+	if v.infrastructure == nil {
+		v.infrastructure = configv1resourcebuilder.Infrastructure().AsVSphereWithFailureDomains("vsphere-test", nil).Build()
+	}
+
+	failureDomains := v.infrastructure.Spec.PlatformSpec.VSphere.FailureDomains
+
+	workspace := &machinev1beta1.Workspace{
+		Server:       "test-vcenter",
+		Datacenter:   "test-datacenter",
+		Datastore:    "test-datastore",
+		ResourcePool: "/test-datacenter/hosts/test-cluster/resources",
+	}
+	networkDevices = []machinev1beta1.NetworkDeviceSpec{
+		{
+			NetworkName: "test-network",
+		},
+	}
+
+	if v.ippool {
+		networkDevices[0].AddressesFromPools = []machinev1beta1.AddressesFromPool{
+			{
+				Group:    "test",
+				Resource: "IPpool",
+				Name:     "test",
+			},
+		}
+	}
+
+	template := v.template
+
+	if len(failureDomains) > 0 {
+		if v.cpmsProviderSpec {
+			workspace = &machinev1beta1.Workspace{}
+			networkDevices = nil
+			template = ""
+		} else {
+			for _, vSphereFailureDomain := range failureDomains {
+				if vSphereFailureDomain.Name == v.failureDomainName {
+					workspace = &machinev1beta1.Workspace{
+						Server:     vSphereFailureDomain.Server,
+						Datacenter: vSphereFailureDomain.Topology.Datacenter,
+						Datastore:  vSphereFailureDomain.Topology.Datastore,
+						ResourcePool: fmt.Sprintf("/%s/hosts/%s/resources",
+							vSphereFailureDomain.Topology.Datacenter,
+							vSphereFailureDomain.Topology.ComputeCluster),
+					}
+					networkDevices = []machinev1beta1.NetworkDeviceSpec{
+						{
+							NetworkName: vSphereFailureDomain.Topology.Networks[0],
+						},
+					}
+					template = v.template
+				}
+			}
+		}
+	}
+
 	return &machinev1beta1.VSphereMachineProviderSpec{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "VSphereMachineProviderSpec",
@@ -54,14 +120,11 @@ func (v VSphereProviderSpecBuilder) Build() *machinev1beta1.VSphereMachineProvid
 			Name: "vsphere-cloud-credentials",
 		},
 		Network: machinev1beta1.NetworkSpec{
-			Devices: []machinev1beta1.NetworkDeviceSpec{
-				{
-					NetworkName: "test-segment-01",
-				},
-			},
+			Devices: networkDevices,
 		},
-		NumCPUs:  4,
-		Template: v.template,
+		Workspace: workspace,
+		NumCPUs:   4,
+		Template:  template,
 	}
 }
 
@@ -80,8 +143,35 @@ func (v VSphereProviderSpecBuilder) BuildRawExtension() *runtime.RawExtension {
 	}
 }
 
+// AsControlPlaneMachineSetProviderSpec the control plane machine set providerConfig is derived from the
+// infrastructure spec. when failure domains are used to populate the provider spec of descendant machines,
+// the cpms provider spec workspace, template, and network are left uninitialized to prevent ambiguity as
+// the provider spec is not used to populate the workspace, template, and network.
+func (v VSphereProviderSpecBuilder) AsControlPlaneMachineSetProviderSpec() VSphereProviderSpecBuilder {
+	v.cpmsProviderSpec = true
+	return v
+}
+
+// WithInfrastructure sets the template for the VSphere machine config builder.
+func (v VSphereProviderSpecBuilder) WithInfrastructure(infrastructure configv1.Infrastructure) VSphereProviderSpecBuilder {
+	v.infrastructure = &infrastructure
+	return v
+}
+
 // WithTemplate sets the template for the VSphere machine config builder.
 func (v VSphereProviderSpecBuilder) WithTemplate(template string) VSphereProviderSpecBuilder {
 	v.template = template
+	return v
+}
+
+// WithZone sets the zone for the VSphere machine config builder.
+func (v VSphereProviderSpecBuilder) WithZone(zone string) VSphereProviderSpecBuilder {
+	v.failureDomainName = zone
+	return v
+}
+
+// WithIPPool sets the ippool for the VSphere machine config builder.
+func (v VSphereProviderSpecBuilder) WithIPPool() VSphereProviderSpecBuilder {
+	v.ippool = true
 	return v
 }

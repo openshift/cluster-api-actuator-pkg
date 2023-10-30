@@ -161,6 +161,96 @@ func (i InfrastructureBuilder) AsOpenStack(name string) InfrastructureBuilder {
 	return i
 }
 
+// AsVSphere sets the Status for the infrastructure builder.
+func (i InfrastructureBuilder) AsVSphere(name string) InfrastructureBuilder {
+	i.spec = &configv1.InfrastructureSpec{
+		PlatformSpec: configv1.PlatformSpec{
+			Type:    configv1.VSpherePlatformType,
+			VSphere: &configv1.VSpherePlatformSpec{},
+		},
+	}
+	i.status = &configv1.InfrastructureStatus{
+		InfrastructureName:     name,
+		APIServerURL:           "https://api.test-cluster.test-domain:6443",
+		APIServerInternalURL:   "https://api-int.test-cluster.test-domain:6443",
+		EtcdDiscoveryDomain:    "",
+		ControlPlaneTopology:   configv1.HighlyAvailableTopologyMode,
+		InfrastructureTopology: configv1.HighlyAvailableTopologyMode,
+		PlatformStatus: &configv1.PlatformStatus{
+			Type: configv1.VSpherePlatformType,
+			VSphere: &configv1.VSpherePlatformStatus{
+				APIServerInternalIPs: []string{"10.0.0.5"},
+				IngressIPs:           []string{"10.0.0.7"},
+			},
+		},
+	}
+
+	return i
+}
+
+// AsVSphereWithFailureDomains returns a VSphere infrastructure resource with failure domains.
+// if failureDomains = nil, default failure domains will be applied to the resource which are
+// compatible with machinev1beta1resourcebuilder default failure domain names.
+func (i InfrastructureBuilder) AsVSphereWithFailureDomains(name string, failureDomains *[]configv1.VSpherePlatformFailureDomainSpec) InfrastructureBuilder {
+	infraBuilder := i.AsVSphere(name)
+	if failureDomains != nil {
+		infraBuilder.spec.PlatformSpec.VSphere.FailureDomains = *failureDomains
+	} else {
+		infraBuilder.spec.PlatformSpec.VSphere.FailureDomains = []configv1.VSpherePlatformFailureDomainSpec{
+			{
+				Name:   "us-central1-a",
+				Region: "us-central",
+				Zone:   "1-a",
+				Server: "vcenter.test.com",
+				Topology: configv1.VSpherePlatformTopology{
+					Datacenter:     "test-dc1",
+					ComputeCluster: "test-cluster-1",
+					Networks: []string{
+						"test-network-1",
+					},
+					Datastore:    "/test-dc1/datastore/test-datastore-1",
+					ResourcePool: "/test-dc1/hosts/test-cluster-1/resources",
+				},
+			},
+			{
+				Name:   "us-central1-b",
+				Region: "us-central",
+				Zone:   "1-b",
+				Server: "vcenter.test.com",
+				Topology: configv1.VSpherePlatformTopology{
+					Datacenter:     "test-dc2",
+					ComputeCluster: "test-cluster-2",
+					Networks: []string{
+						"test-network-2",
+					},
+					Datastore:    "/test-dc2/datastore/test-datastore-2",
+					ResourcePool: "/test-dc2/hosts/test-cluster-2/resources",
+				},
+			},
+			{
+				Name:   "us-central1-c",
+				Region: "us-central",
+				Zone:   "1-c",
+				Server: "vcenter.test.com",
+				Topology: configv1.VSpherePlatformTopology{
+					Datacenter:     "test-dc3",
+					ComputeCluster: "test-cluster-3",
+					Networks: []string{
+						"test-network-3",
+					},
+					Datastore:    "/test-dc3/datastore/test-datastore-3",
+					ResourcePool: "/test-dc3/hosts/test-cluster-3/resources",
+				},
+			},
+		}
+	}
+
+	i.spec = infraBuilder.spec
+	i.status = infraBuilder.status
+
+	return i
+}
+
 // WithGenerateName sets the generateName for the infrastructure builder.
 func (i InfrastructureBuilder) WithGenerateName(generateName string) InfrastructureBuilder {
 	i.generateName = generateName
