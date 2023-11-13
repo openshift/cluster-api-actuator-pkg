@@ -28,19 +28,21 @@ import (
 // OpenStackProviderSpec creates a new OpenStack machine config builder.
 func OpenStackProviderSpec() OpenStackProviderSpecBuilder {
 	return OpenStackProviderSpecBuilder{
-		flavor:           "m1.large",
-		availabilityZone: "",
-		rootVolume:       nil,
-		serverGroupName:  "master",
+		flavor:                 "m1.large",
+		availabilityZone:       "",
+		rootVolume:             nil,
+		serverGroupName:        "master",
+		additionalBlockDevices: nil,
 	}
 }
 
 // OpenStackProviderSpecBuilder is used to build a OpenStack machine config object.
 type OpenStackProviderSpecBuilder struct {
-	flavor           string
-	availabilityZone string
-	rootVolume       *machinev1alpha1.RootVolume
-	serverGroupName  string
+	flavor                 string
+	availabilityZone       string
+	rootVolume             *machinev1alpha1.RootVolume
+	serverGroupName        string
+	additionalBlockDevices []machinev1alpha1.AdditionalBlockDevice
 }
 
 // Build builds a new OpenStack machine config based on the configuration provided.
@@ -90,7 +92,8 @@ func (m OpenStackProviderSpecBuilder) Build() *machinev1alpha1.OpenstackProvider
 		UserDataSecret: &v1.SecretReference{
 			Name: "worker-user-data",
 		},
-		RootVolume: m.rootVolume,
+		RootVolume:             m.rootVolume,
+		AdditionalBlockDevices: m.additionalBlockDevices,
 	}
 }
 
@@ -130,5 +133,11 @@ func (m OpenStackProviderSpecBuilder) WithFlavor(flavor string) OpenStackProvide
 // WithServerGroupName sets the server group name for the OpenStack machine config builder.
 func (m OpenStackProviderSpecBuilder) WithServerGroupName(name string) OpenStackProviderSpecBuilder {
 	m.serverGroupName = name
+	return m
+}
+
+// WithAdditionalBlockDevices sets the additional block devices for the OpenStack machine config builder.
+func (m OpenStackProviderSpecBuilder) WithAdditionalBlockDevices(additionalBlockDevices []machinev1alpha1.AdditionalBlockDevice) OpenStackProviderSpecBuilder {
+	m.additionalBlockDevices = additionalBlockDevices
 	return m
 }
