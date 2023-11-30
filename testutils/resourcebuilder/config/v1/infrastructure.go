@@ -19,6 +19,7 @@ package v1
 import (
 	configv1 "github.com/openshift/api/config/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 )
 
 // Infrastructure creates a new infrastructure builder.
@@ -157,6 +158,100 @@ func (i InfrastructureBuilder) AsOpenStack(name string) InfrastructureBuilder {
 			},
 		},
 	}
+
+	return i
+}
+
+// AsNutanix sets the Status for the infrastructure builder.
+func (i InfrastructureBuilder) AsNutanix(name string) InfrastructureBuilder {
+	i.spec = &configv1.InfrastructureSpec{
+		PlatformSpec: configv1.PlatformSpec{
+			Type: configv1.NutanixPlatformType,
+			Nutanix: &configv1.NutanixPlatformSpec{
+				PrismCentral: configv1.NutanixPrismEndpoint{
+					Address: "https://pc0_address",
+					Port:    9440,
+				},
+				PrismElements: []configv1.NutanixPrismElementEndpoint{
+					{
+						Name: "pe0",
+						Endpoint: configv1.NutanixPrismEndpoint{
+							Address: "pe0-address",
+							Port:    9440,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	i.status = &configv1.InfrastructureStatus{
+		InfrastructureName:     name,
+		APIServerURL:           "https://api.test-cluster.test-domain:6443",
+		APIServerInternalURL:   "https://api-int.test-cluster.test-domain:6443",
+		EtcdDiscoveryDomain:    "",
+		ControlPlaneTopology:   configv1.HighlyAvailableTopologyMode,
+		InfrastructureTopology: configv1.HighlyAvailableTopologyMode,
+		PlatformStatus: &configv1.PlatformStatus{
+			Type: configv1.NutanixPlatformType,
+			Nutanix: &configv1.NutanixPlatformStatus{
+				APIServerInternalIPs: []string{"10.0.0.5"},
+				IngressIPs:           []string{"10.0.0.7"},
+			},
+		},
+	}
+
+	return i
+}
+
+// AsNutanixWithFailureDomains returns a Nutanix infrastructure resource with failure domains.
+// if failureDomains is nil, default failure domains will be applied to the resource which are
+// compatible with machinev1beta1resourcebuilder default failure domain names.
+func (i InfrastructureBuilder) AsNutanixWithFailureDomains(name string, failureDomains *[]configv1.NutanixFailureDomain) InfrastructureBuilder {
+	infraBuilder := i.AsNutanix(name)
+
+	if failureDomains != nil {
+		infraBuilder.spec.PlatformSpec.Nutanix.FailureDomains = *failureDomains
+	} else {
+		infraBuilder.spec.PlatformSpec.Nutanix.FailureDomains = []configv1.NutanixFailureDomain{
+			{
+				Name: "fd-pe0",
+				Cluster: configv1.NutanixResourceIdentifier{
+					Type: configv1.NutanixIdentifierName,
+					Name: ptr.To[string]("pe0"),
+				},
+				Subnets: []configv1.NutanixResourceIdentifier{{
+					Type: configv1.NutanixIdentifierName,
+					Name: ptr.To[string]("pe0-subnet"),
+				}},
+			},
+			{
+				Name: "fd-pe1",
+				Cluster: configv1.NutanixResourceIdentifier{
+					Type: configv1.NutanixIdentifierUUID,
+					UUID: ptr.To[string]("0005a0f3-8f43-a0f5-02b7-3cecef194315"),
+				},
+				Subnets: []configv1.NutanixResourceIdentifier{{
+					Type: configv1.NutanixIdentifierName,
+					Name: ptr.To[string]("pe1-subnet"),
+				}},
+			},
+			{
+				Name: "fd-pe2",
+				Cluster: configv1.NutanixResourceIdentifier{
+					Type: configv1.NutanixIdentifierName,
+					Name: ptr.To[string]("pe2"),
+				},
+				Subnets: []configv1.NutanixResourceIdentifier{{
+					Type: configv1.NutanixIdentifierUUID,
+					UUID: ptr.To[string]("a8938dc6-7659-6801-a688-e26020c68241"),
+				}},
+			},
+		}
+	}
+
+	i.spec = infraBuilder.spec
+	i.status = infraBuilder.status
 
 	return i
 }
