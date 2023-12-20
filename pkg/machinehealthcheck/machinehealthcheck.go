@@ -55,6 +55,17 @@ var _ = Describe("MachineHealthCheck", framework.LabelMachineHealthChecks, func(
 		machineSet, err = framework.CreateMachineSet(client, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "failed to create a new machineSet resource")
 
+		// Make sure to clean up the resources we created
+		DeferCleanup(func() {
+			By("Deleting the MachineHealthCheck resource")
+			Expect(client.Delete(context.Background(), machinehealthcheck)).To(Succeed(), "failed to delete MHC")
+
+			By("Deleting the new MachineSet")
+			Expect(client.Delete(context.Background(), machineSet)).To(Succeed(), "failed to delete machineSet")
+
+			framework.WaitForMachineSetsDeleted(ctx, client, machineSet)
+		})
+
 		framework.WaitForMachineSet(ctx, client, machineSet.GetName())
 	})
 
@@ -63,14 +74,6 @@ var _ = Describe("MachineHealthCheck", framework.LabelMachineHealthChecks, func(
 		if specReport.Failed() {
 			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed(), "failed to gather spec report")
 		}
-
-		By("Deleting the MachineHealthCheck resource")
-		Expect(client.Delete(context.Background(), machinehealthcheck)).To(Succeed(), "failed to delete MHC")
-
-		By("Deleting the new MachineSet")
-		Expect(client.Delete(context.Background(), machineSet)).To(Succeed(), "failed to delete machineSet")
-
-		framework.WaitForMachineSetsDeleted(ctx, client, machineSet)
 	})
 
 	// Machines required for test: 3

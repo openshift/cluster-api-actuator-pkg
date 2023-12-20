@@ -50,6 +50,14 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 		if platform != configv1.AWSPlatformType {
 			Skip(fmt.Sprintf("skipping AWS specific tests on %s", platform))
 		}
+
+		// Make sure to clean up the resources we created
+		DeferCleanup(func() {
+			Expect(framework.DeleteMachineSets(client, toDelete...)).To(Succeed())
+			toDelete = make([]*machinev1.MachineSet, 0, 3)
+
+			framework.WaitForMachineSetsDeleted(ctx, client, toDelete...)
+		})
 	})
 
 	AfterEach(func() {
@@ -57,11 +65,6 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 		if specReport.Failed() {
 			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
 		}
-
-		Expect(framework.DeleteMachineSets(client, toDelete...)).To(Succeed())
-		toDelete = make([]*machinev1.MachineSet, 0, 3)
-
-		framework.WaitForMachineSetsDeleted(ctx, client, toDelete...)
 	})
 
 	createMachineSet := func(metadataAuth string) (*machinev1.MachineSet, error) {

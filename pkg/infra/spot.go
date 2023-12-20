@@ -52,6 +52,28 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 	BeforeEach(func() {
 		delObjects = make(map[string]runtimeclient.Object)
 
+		// Make sure to clean up the resources we created
+		DeferCleanup(func() {
+			var machineSets []*machinev1.MachineSet
+
+			for _, obj := range delObjects {
+				if machineSet, ok := obj.(*machinev1.MachineSet); ok {
+					// Once we delete a MachineSet we should make sure that the
+					// all of its machines are deleted as well.
+					// Collect MachineSets to wait for.
+					machineSets = append(machineSets, machineSet)
+				}
+
+				Expect(deleteObject(client, obj)).To(Succeed(), "Should be able to cleanup test objects")
+			}
+
+			if len(machineSets) > 0 {
+				// Wait for all MachineSets and their Machines to be deleted.
+				By("Waiting for MachineSets to be deleted...")
+				framework.WaitForMachineSetsDeleted(ctx, client, machineSets...)
+			}
+		})
+
 		var err error
 
 		gatherer, err = framework.NewGatherer()
@@ -116,25 +138,6 @@ var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot
 		specReport := CurrentSpecReport()
 		if specReport.Failed() {
 			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed(), "StateGatherer should be able to gather resources")
-		}
-
-		var machineSets []*machinev1.MachineSet
-
-		for _, obj := range delObjects {
-			if machineSet, ok := obj.(*machinev1.MachineSet); ok {
-				// Once we delete a MachineSet we should make sure that the
-				// all of its machines are deleted as well.
-				// Collect MachineSets to wait for.
-				machineSets = append(machineSets, machineSet)
-			}
-
-			Expect(deleteObject(client, obj)).To(Succeed(), "Should be able to cleanup test objects")
-		}
-
-		if len(machineSets) > 0 {
-			// Wait for all MachineSets and their Machines to be deleted.
-			By("Waiting for MachineSets to be deleted...")
-			framework.WaitForMachineSetsDeleted(ctx, client, machineSets...)
 		}
 	})
 
