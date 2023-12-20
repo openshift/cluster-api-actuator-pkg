@@ -165,6 +165,17 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 		client, err = framework.LoadClient()
 		Expect(err).ToNot(HaveOccurred(), "Controller-runtime client should be able to be created")
 
+		// Reset the machineSet between each test
+		machineSet = nil
+
+		// Make sure to clean up the resources we created
+		DeferCleanup(func() {
+			if machineSet != nil {
+				By("Deleting the new MachineSet")
+				Expect(client.Delete(ctx, machineSet)).To(Succeed(), "MachineSet should be able to be deleted")
+				framework.WaitForMachineSetsDeleted(ctx, client, machineSet)
+			}
+		})
 	})
 
 	AfterEach(func() {
@@ -172,13 +183,6 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 		if specReport.Failed() {
 			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed(), "StateGatherer should be able to gather resources")
 		}
-
-		if machineSet != nil {
-			By("Deleting the new MachineSet")
-			Expect(client.Delete(ctx, machineSet)).To(Succeed(), "MachineSet should be able to be deleted")
-			framework.WaitForMachineSetsDeleted(ctx, client, machineSet)
-		}
-
 	})
 
 	When("machineset has one replica", func() {
