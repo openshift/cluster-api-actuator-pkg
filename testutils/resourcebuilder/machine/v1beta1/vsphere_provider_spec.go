@@ -42,6 +42,7 @@ type VSphereProviderSpecBuilder struct {
 	failureDomainName string
 	infrastructure    *configv1.Infrastructure
 	ippool            bool
+	tags              []string
 }
 
 // Build builds a new VSphere machine config based on the configuration provided.
@@ -122,6 +123,7 @@ func (v VSphereProviderSpecBuilder) Build() *machinev1beta1.VSphereMachineProvid
 		Network: machinev1beta1.NetworkSpec{
 			Devices: networkDevices,
 		},
+		TagIDs:    v.tags,
 		Workspace: workspace,
 		NumCPUs:   4,
 		Template:  template,
@@ -161,6 +163,12 @@ func (v VSphereProviderSpecBuilder) WithInfrastructure(infrastructure configv1.I
 // WithTemplate sets the template for the VSphere machine config builder.
 func (v VSphereProviderSpecBuilder) WithTemplate(template string) VSphereProviderSpecBuilder {
 	v.template = template
+	return v
+}
+
+// WithTags sets the tags for the VSphere machine config builder.
+func (v VSphereProviderSpecBuilder) WithTags(tags []string) VSphereProviderSpecBuilder {
+	v.tags = tags
 	return v
 }
 
