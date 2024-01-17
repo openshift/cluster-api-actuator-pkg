@@ -464,7 +464,7 @@ func getScaleClient() (scale.ScalesGetter, error) {
 		return nil, fmt.Errorf("error calling rest.HTTPClientFor %w", err)
 	}
 
-	mapper, err := apiutil.NewDiscoveryRESTMapper(cfg, httpClient)
+	mapper, err := apiutil.NewDynamicRESTMapper(cfg, httpClient)
 	if err != nil {
 		return nil, fmt.Errorf("error calling NewDiscoveryRESTMapper %w", err)
 	}
