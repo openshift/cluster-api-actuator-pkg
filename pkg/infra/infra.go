@@ -8,6 +8,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
@@ -165,6 +166,17 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 		client, err = framework.LoadClient()
 		Expect(err).ToNot(HaveOccurred(), "Controller-runtime client should be able to be created")
 
+		// Reset the machineSet between each test
+		machineSet = nil
+
+		// Make sure to clean up the resources we created
+		DeferCleanup(func() {
+			if machineSet != nil {
+				By("Deleting the new MachineSet")
+				Expect(client.Delete(ctx, machineSet)).To(Succeed(), "MachineSet should be able to be deleted")
+				framework.WaitForMachineSetsDeleted(ctx, client, machineSet)
+			}
+		})
 	})
 
 	AfterEach(func() {
@@ -172,13 +184,6 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 		if specReport.Failed() {
 			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed(), "StateGatherer should be able to gather resources")
 		}
-
-		if machineSet != nil {
-			By("Deleting the new MachineSet")
-			Expect(client.Delete(ctx, machineSet)).To(Succeed(), "MachineSet should be able to be deleted")
-			framework.WaitForMachineSetsDeleted(ctx, client, machineSet)
-		}
-
 	})
 
 	When("machineset has one replica", func() {
@@ -382,6 +387,19 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 	// Machines required for test: 0
 	// Reason: The machineSet creation is rejected by the webhook.
 	It("reject invalid machinesets", func() {
+		client, err := framework.LoadClient()
+		Expect(err).ToNot(HaveOccurred(), "Controller-runtime client should be able to be created")
+		// Only run on platforms that have webhooks
+		clusterInfra, err := framework.GetInfrastructure(ctx, client)
+		Expect(err).NotTo(HaveOccurred(), "Should be able to get Infrastructure")
+		platform := clusterInfra.Status.PlatformStatus.Type
+		switch platform {
+		case configv1.AWSPlatformType, configv1.AzurePlatformType, configv1.GCPPlatformType, configv1.VSpherePlatformType, configv1.PowerVSPlatformType, configv1.NutanixPlatformType:
+			// Do Nothing
+		default:
+			Skip(fmt.Sprintf("Platform %s does not have webhooks, skipping.", platform))
+		}
+
 		By("Creating invalid machineset")
 		invalidMachineSet := invalidMachinesetWithEmptyProviderConfig()
 		expectedAdmissionWebhookErr := "admission webhook \"default.machineset.machine.openshift.io\" denied the request: providerSpec.value: Required value: a value must be provided"
