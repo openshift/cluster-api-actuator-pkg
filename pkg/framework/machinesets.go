@@ -106,16 +106,15 @@ func buildMachineSetParamsFromMachineSet(ctx context.Context, client runtimeclie
 	Expect(err).NotTo(HaveOccurred(), "getting infrastructure global object should not error.")
 	Expect(clusterInfra.Status.InfrastructureName).ShouldNot(BeEmpty(), "infrastructure name was empty on Infrastructure.Status.")
 
-	uid, err := uuid.NewUUID()
-	Expect(err).NotTo(HaveOccurred(), "generating a new UUID should not fail.")
+	name := clusterInfra.Status.InfrastructureName + "-" + uuid.New().String()[0:5]
 
 	return MachineSetParams{
-		Name:         clusterInfra.Status.InfrastructureName,
+		Name:         name,
 		Replicas:     int32(replicas),
 		ProviderSpec: providerSpec,
 		Labels: map[string]string{
-			"e2e.openshift.io": uid.String(),
-			ClusterKey:         clusterName,
+			MachineSetKey: name,
+			ClusterKey:    clusterName,
 		},
 		Taints: []corev1.Taint{
 			{
@@ -144,9 +143,9 @@ func CreateMachineSet(c runtimeclient.Client, params MachineSetParams) (*machine
 			APIVersion: "machine.openshift.io/v1beta1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: params.Name,
-			Namespace:    MachineAPINamespace,
-			Labels:       params.Labels,
+			Name:      params.Name,
+			Namespace: MachineAPINamespace,
+			Labels:    params.Labels,
 		},
 		Spec: machinev1.MachineSetSpec{
 			Selector: metav1.LabelSelector{
