@@ -95,11 +95,7 @@ func (v VSphereProviderSpecBuilder) Build() *machinev1beta1.VSphereMachineProvid
 							vSphereFailureDomain.Topology.Datacenter,
 							vSphereFailureDomain.Topology.ComputeCluster),
 					}
-					networkDevices = []machinev1beta1.NetworkDeviceSpec{
-						{
-							NetworkName: vSphereFailureDomain.Topology.Networks[0],
-						},
-					}
+					networkDevices[0].NetworkName = vSphereFailureDomain.Topology.Networks[0]
 					template = v.template
 				}
 			}
