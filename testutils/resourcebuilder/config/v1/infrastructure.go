@@ -24,7 +24,9 @@ import (
 
 // Infrastructure creates a new infrastructure builder.
 func Infrastructure() InfrastructureBuilder {
-	return InfrastructureBuilder{}
+	return InfrastructureBuilder{
+		name: "cluster",
+	}
 }
 
 // InfrastructureBuilder is used to build out an infrastructure object.
@@ -299,12 +301,12 @@ func (i InfrastructureBuilder) AsVSphereWithFailureDomains(name string, failureD
 				Server: "vcenter.test.com",
 				Topology: configv1.VSpherePlatformTopology{
 					Datacenter:     "test-dc1",
-					ComputeCluster: "test-cluster-1",
+					ComputeCluster: "/test-dc1/host/test-cluster-1",
 					Networks: []string{
 						"test-network-1",
 					},
 					Datastore:    "/test-dc1/datastore/test-datastore-1",
-					ResourcePool: "/test-dc1/hosts/test-cluster-1/resources",
+					ResourcePool: "/test-dc1/host/test-cluster-1/Resources",
 				},
 			},
 			{
@@ -314,12 +316,12 @@ func (i InfrastructureBuilder) AsVSphereWithFailureDomains(name string, failureD
 				Server: "vcenter.test.com",
 				Topology: configv1.VSpherePlatformTopology{
 					Datacenter:     "test-dc2",
-					ComputeCluster: "test-cluster-2",
+					ComputeCluster: "/test-dc2/host/test-cluster-2",
 					Networks: []string{
 						"test-network-2",
 					},
 					Datastore:    "/test-dc2/datastore/test-datastore-2",
-					ResourcePool: "/test-dc2/hosts/test-cluster-2/resources",
+					ResourcePool: "/test-dc2/host/test-cluster-2/Resources",
 				},
 			},
 			{
@@ -329,12 +331,12 @@ func (i InfrastructureBuilder) AsVSphereWithFailureDomains(name string, failureD
 				Server: "vcenter.test.com",
 				Topology: configv1.VSpherePlatformTopology{
 					Datacenter:     "test-dc3",
-					ComputeCluster: "test-cluster-3",
+					ComputeCluster: "/test-dc3/host/test-cluster-3",
 					Networks: []string{
 						"test-network-3",
 					},
 					Datastore:    "/test-dc3/datastore/test-datastore-3",
-					ResourcePool: "/test-dc3/hosts/test-cluster-3/resources",
+					ResourcePool: "/test-dc3/host/test-cluster-3/Resources",
 				},
 			},
 		}
