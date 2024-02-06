@@ -506,7 +506,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			clusterAutoscaler.Spec.BalanceSimilarNodeGroups = ptr.To[bool](true)
 			// Ignore this label to make test nodes similar
 			clusterAutoscaler.Spec.BalancingIgnoredLabels = []string{
-				"e2e.openshift.io",
+				framework.MachineSetKey,
 			}
 			Expect(client.Create(ctx, clusterAutoscaler)).Should(Succeed(), "Failed to create ClusterAutoscaler")
 			cleanupObjects[clusterAutoscaler.GetName()] = clusterAutoscaler
@@ -557,11 +557,11 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			// ensure that no extra labels have been added.
 			// TODO it would be nice to check instance types as well, this will require adding some deserialization code for the machine specs.
 			By("Ensuring both MachineSets have the same .spec.template.spec.labels")
-			// Ignore e2e.openshift.io in the comparison to test BalancingIgnoredLabels feature
+			// Ignore machine.openshift.io/cluster-api-machineset in the comparison to test BalancingIgnoredLabels feature
 			labelsMachineSetA := transientMachineSets[0].Spec.Template.Spec.Labels
-			delete(labelsMachineSetA, "e2e.openshift.io")
+			delete(labelsMachineSetA, framework.MachineSetKey)
 			labelsMachineSetB := transientMachineSets[1].Spec.Template.Spec.Labels
-			delete(labelsMachineSetB, "e2e.openshift.io")
+			delete(labelsMachineSetB, framework.MachineSetKey)
 			Expect(labelsMachineSetA).To(Equal(labelsMachineSetB), "Failed to match MachineSet labels for balancing similar nodes")
 
 			By("Waiting for all Machines in MachineSets to enter Running phase")
