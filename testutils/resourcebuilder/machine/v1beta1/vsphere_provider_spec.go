@@ -31,7 +31,7 @@ import (
 // VSphereProviderSpec creates a new VSphere machine config builder.
 func VSphereProviderSpec() VSphereProviderSpecBuilder {
 	return VSphereProviderSpecBuilder{
-		template: "test-ln-xw89i22-c1627-rvtrn-rhcos",
+		template: "/datacenter/vm/test-ln-xw89i22-c1627-rvtrn-rhcos",
 	}
 }
 
@@ -91,12 +91,13 @@ func (v VSphereProviderSpecBuilder) Build() *machinev1beta1.VSphereMachineProvid
 						Server:     vSphereFailureDomain.Server,
 						Datacenter: vSphereFailureDomain.Topology.Datacenter,
 						Datastore:  vSphereFailureDomain.Topology.Datastore,
-						ResourcePool: fmt.Sprintf("/%s/hosts/%s/resources",
-							vSphereFailureDomain.Topology.Datacenter,
+						ResourcePool: fmt.Sprintf("%s/Resources",
 							vSphereFailureDomain.Topology.ComputeCluster),
 					}
 					networkDevices[0].NetworkName = vSphereFailureDomain.Topology.Networks[0]
 					template = v.template
+
+					break
 				}
 			}
 		}
