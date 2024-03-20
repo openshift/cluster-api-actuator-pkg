@@ -16,6 +16,8 @@ import (
 	"k8s.io/utils/ptr"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	annotationsutil "github.com/openshift/machine-api-operator/pkg/util/machineset"
+
 	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	caov1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1"
@@ -277,6 +279,24 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 				return *ms.Spec.Replicas == expectedReplicas
 			}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "MachineSet %s failed to scale out to %d replicas", machineSet.GetName(), expectedReplicas)
 
+			By("checking for the presence of the scale from zero annotations")
+			Eventually(func() (bool, error) {
+				//checking for the keys of the newly added upstream annotations from the CAO
+				ms, err := framework.GetMachineSet(context.TODO(), client, machineSet.GetName())
+				Expect(err).ToNot(HaveOccurred(), "Failed to get MachineSet %s", machineSet.GetName())
+
+				if ms.Annotations == nil {
+					return false, nil
+				} else {
+					Expect(ms.Annotations).To(HaveKey(annotationsutil.CpuKey))
+					Expect(ms.Annotations).To(HaveKey(annotationsutil.MemoryKey))
+					Expect(ms.Annotations).To(HaveKey(annotationsutil.GpuCountKey))
+					Expect(ms.Annotations).To(HaveKey(annotationsutil.GpuTypeKey))
+				}
+
+				return true, nil
+			}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "No scale from zero annotations found")
+
 			By("Waiting for the machineSet replicas to become nodes")
 			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
 
@@ -345,6 +365,27 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 					expectedScaledMachineSet = machineSet
 				}
 			}
+
+			By("checking for the presence of the scale from zero annotations")
+			Eventually(func() (bool, error) {
+				//checking for the keys of the newly added upstream annotations from the CAO
+				for _, machineSet := range machineSets {
+					ms, err := framework.GetMachineSet(context.TODO(), client, machineSet.GetName())
+					Expect(err).ToNot(HaveOccurred(), "Failed to get MachineSet %s", machineSet.GetName())
+
+					if ms.Annotations == nil {
+						return false, nil
+					}
+
+					Expect(ms.Annotations).To(HaveKey(annotationsutil.CpuKey))
+					Expect(ms.Annotations).To(HaveKey(annotationsutil.MemoryKey))
+					Expect(ms.Annotations).To(HaveKey(annotationsutil.GpuCountKey))
+					Expect(ms.Annotations).To(HaveKey(annotationsutil.GpuTypeKey))
+				}
+
+				return true, nil
+			}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "No scale from zero annotations found")
+
 			uniqueJobName := fmt.Sprintf("%s-scale-from-zero", workloadJobName)
 			By(fmt.Sprintf("Creating scale-out workload %s: jobs: %v, memory: %s", uniqueJobName,
 				expectedReplicas+1, workloadMemRequest.String()))
