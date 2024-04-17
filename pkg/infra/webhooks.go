@@ -70,6 +70,19 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 				return framework.IsValidatingWebhookConfigurationSynced(ctx, client)
 			}, framework.WaitShort).Should(BeTrue(), "ValidingWebhookConfiguration must be synced before running these tests")
 		})
+
+		// Make sure to clean up the resources we created
+		DeferCleanup(func() {
+			machineSets, err := framework.GetMachineSets(client, testSelector)
+			Expect(err).ToNot(HaveOccurred(), "Should be able to list test MachineSets")
+			Expect(framework.DeleteMachineSets(client, machineSets...)).To(Succeed(), "Should be able to delete test MachineSets")
+			framework.WaitForMachineSetsDeleted(ctx, client, machineSets...)
+
+			machines, err := framework.GetMachines(ctx, client, testSelector)
+			Expect(err).ToNot(HaveOccurred(), "Should be able to get test Machines")
+			Expect(framework.DeleteMachines(ctx, client, machines...)).To(Succeed(), "Should be able to delete test Machines")
+			framework.WaitForMachinesDeleted(client, machines...)
+		})
 	})
 
 	AfterEach(func() {
@@ -77,16 +90,6 @@ var _ = Describe("Webhooks", framework.LabelMachines, func() {
 		if specReport.Failed() {
 			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed(), "StateGatherer should be able to gather resources")
 		}
-
-		machineSets, err := framework.GetMachineSets(client, testSelector)
-		Expect(err).ToNot(HaveOccurred(), "Should be able to list test MachineSets")
-		Expect(framework.DeleteMachineSets(client, machineSets...)).To(Succeed(), "Should be able to delete test MachineSets")
-		framework.WaitForMachineSetsDeleted(ctx, client, machineSets...)
-
-		machines, err := framework.GetMachines(ctx, client, testSelector)
-		Expect(err).ToNot(HaveOccurred(), "Should be able to get test Machines")
-		Expect(framework.DeleteMachines(ctx, client, machines...)).To(Succeed(), "Should be able to delete test Machines")
-		framework.WaitForMachinesDeleted(client, machines...)
 	})
 
 	// Machines required for test: 1

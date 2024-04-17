@@ -58,6 +58,19 @@ var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 		// Create machine set
 		machineSet, err = framework.CreateMachineSet(client, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "MachineSet should be able to be created")
+
+		// Make sure to clean up the machineSet, if we create one.
+		DeferCleanup(func() {
+			By("Deleting the machineset")
+			cascadeDelete := metav1.DeletePropagationForeground
+			Expect(client.Delete(context.Background(), machineSet, &runtimeclient.DeleteOptions{
+				PropagationPolicy: &cascadeDelete,
+			})).To(Succeed(), "MachineSet should be able to be deleted")
+
+			By("Waiting for the MachineSet to be deleted...")
+			framework.WaitForMachineSetsDeleted(ctx, client, machineSet)
+		})
+
 		// Wait for machine to be running
 		framework.WaitForMachineSet(ctx, client, machineSet.GetName())
 
@@ -70,6 +83,15 @@ var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 				Operator: corev1.NodeSelectorOpExists,
 			})
 		Expect(client.Create(context.Background(), workload)).To(Succeed(), "Could not create workload job")
+
+		// Make sure to clean up the workload job, if we create one.
+		DeferCleanup(func() {
+			cascadeDelete := metav1.DeletePropagationForeground
+			By("Deleting workload job")
+			Expect(client.Delete(context.Background(), workload, &runtimeclient.DeleteOptions{
+				PropagationPolicy: &cascadeDelete,
+			})).To(Succeed(), "Workload job should be able to be deleted")
+		})
 
 		By("Waiting for job pod to start running on machine.")
 		Eventually(func() (bool, error) {
@@ -91,20 +113,6 @@ var _ = Describe("Lifecycle Hooks should", framework.LabelMachines, func() {
 		if specReport.Failed() {
 			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed(), "StateGatherer should be able to gather resources")
 		}
-
-		By("Deleting the machineset")
-		cascadeDelete := metav1.DeletePropagationForeground
-		Expect(client.Delete(context.Background(), machineSet, &runtimeclient.DeleteOptions{
-			PropagationPolicy: &cascadeDelete,
-		})).To(Succeed(), "MachineSet should be able to be deleted")
-
-		By("Waiting for the MachineSet to be deleted...")
-		framework.WaitForMachineSetsDeleted(ctx, client, machineSet)
-
-		By("Deleting workload job")
-		Expect(client.Delete(context.Background(), workload, &runtimeclient.DeleteOptions{
-			PropagationPolicy: &cascadeDelete,
-		})).To(Succeed(), "Workload job should be able to be deleted")
 	})
 
 	// Machines required for test: 1
