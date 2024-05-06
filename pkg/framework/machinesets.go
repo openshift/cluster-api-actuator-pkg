@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
@@ -367,6 +368,28 @@ func GetMachinesFromMachineSet(ctx context.Context, client runtimeclient.Client,
 	}
 
 	return machinesForSet, nil
+}
+
+// GetLatestMachineFromMachineSet returns the new created machine by a given machineSet.
+func GetLatestMachineFromMachineSet(ctx context.Context, client runtimeclient.Client, machineSet *machinev1.MachineSet) (*machinev1.Machine, error) {
+	machines, err := GetMachinesFromMachineSet(ctx, client, machineSet)
+	if err != nil {
+		return nil, fmt.Errorf("error getting machines: %w", err)
+	}
+
+	var machine *machinev1.Machine
+
+	newest := time.Date(2020, 0, 1, 12, 0, 0, 0, time.UTC)
+
+	for key := range machines {
+		time := machines[key].CreationTimestamp.Time
+		if time.After(newest) {
+			newest = time
+			machine = machines[key]
+		}
+	}
+
+	return machine, nil
 }
 
 // NewMachineSet returns a new MachineSet object.

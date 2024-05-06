@@ -26,6 +26,7 @@ import (
 
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
+	corev1resourcebuilder "github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/core/v1"
 )
 
 const (
@@ -875,6 +876,118 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 				machines, err := framework.GetMachinesFromMachineSet(ctx, client, transientMachineSet)
 				return len(machines) == 1, err
 			}, framework.WaitLong, pollingInterval).Should(BeTrue(), "Machines failed to scale down to 1 machine")
+		})
+	})
+
+	Context("use a ClusterAutoscaler that has priority expander option enabled", func() {
+		var clusterAutoscaler *caov1.ClusterAutoscaler
+
+		BeforeEach(func() {
+			gatherer, err = framework.NewGatherer()
+			Expect(err).ToNot(HaveOccurred(), "Failed to create gatherer")
+
+			By("Creating ClusterAutoscaler")
+			clusterAutoscaler = clusterAutoscalerResource(100)
+			clusterAutoscaler.Spec.Expanders = []caov1.ExpanderString{
+				caov1.PriorityExpander,
+			}
+			Expect(client.Create(ctx, clusterAutoscaler)).Should(Succeed(), "Failed to create ClusterAutoscaler")
+			cleanupObjects[clusterAutoscaler.GetName()] = clusterAutoscaler
+		})
+
+		AfterEach(func() {
+			specReport := CurrentSpecReport()
+			if specReport.Failed() {
+				Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed(), "Failed to gather spec report")
+			}
+
+			// explicitly delete the ClusterAutoscaler
+			// this is needed due to the autoscaler tests requiring singleton
+			// deployments of the ClusterAutoscaler.
+			By("Waiting for ClusterAutoscaler to delete.")
+			caName := clusterAutoscaler.GetName()
+			Expect(deleteObject(caName, cleanupObjects[caName])).Should(Succeed(), "Failed to delete ClusterAutoscaler")
+			delete(cleanupObjects, caName)
+			Eventually(func() (bool, error) {
+				_, err := framework.GetClusterAutoscaler(client, caName)
+				if apierrors.IsNotFound(err) {
+					return true, nil
+				}
+				// Return the error so that failures print additional errors
+				return false, err
+			}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "Failed to cleanup Cluster Autoscaler before timeout")
+		})
+
+		// Machines required for test: 4
+		// Reason: This test starts with 2 machinesets, each with 1 replica to avoid scaling from zero.
+		// Then it autoscales both machinesets to 2 replicas.
+		// Does not start with replicas=0 machineset to avoid scaling from 0.
+		// OCP-73446 - Cluster autoscaler support priority expander option
+		// author: zhsun@redhat.com
+		It("high priority machineset should be scaled up first [Slow]", func() {
+			By("Creating 2 MachineSets each with 1 replica")
+			var transientMachineSets [2]*machinev1.MachineSet
+			targetedNodeLabel := fmt.Sprintf("%v-priority-expander", autoscalerWorkerNodeRoleLabel)
+			for i := range transientMachineSets {
+				machineSetParams := framework.BuildMachineSetParams(ctx, client, 1)
+				machineSetParams.Labels[targetedNodeLabel] = ""
+				machineSet, err := framework.CreateMachineSet(client, machineSetParams)
+				Expect(err).ToNot(HaveOccurred(), "Failed to create MachineSet %d of %d", i, len(transientMachineSets))
+				cleanupObjects[machineSet.GetName()] = machineSet
+				transientMachineSets[i] = machineSet
+			}
+
+			By("Waiting for all Machines in MachineSets to enter Running phase")
+			framework.WaitForMachineSet(ctx, client, transientMachineSets[0].GetName())
+			framework.WaitForMachineSet(ctx, client, transientMachineSets[1].GetName())
+			maxMachineSetReplicas := int32(2)
+			for _, machineSet := range transientMachineSets {
+				By(fmt.Sprintf("Creating a MachineAutoscaler backed by MachineSet %s - min: 1, max: %d",
+					machineSet.GetName(), maxMachineSetReplicas))
+				asr := machineAutoscalerResource(machineSet, 1, maxMachineSetReplicas)
+				Expect(client.Create(ctx, asr)).Should(Succeed(), "Failed to create MachineAutoscaler with min 1/max %d replicas", maxMachineSetReplicas)
+				cleanupObjects[asr.GetName()] = asr
+			}
+
+			By("Create cluster-autoscaler-priority-expander")
+			priorities := fmt.Sprintf(`
+10:
+  - .*%s.*
+20:
+  - .*%s.*
+`, transientMachineSets[0].GetName(), transientMachineSets[1].GetName())
+			priorityConfigMap := corev1resourcebuilder.ConfigMap().WithName("cluster-autoscaler-priority-expander").WithNamespace(framework.MachineAPINamespace).WithData(map[string]string{"priorities": priorities}).Build()
+			Eventually(client.Create(ctx, priorityConfigMap)).Should(Succeed(), "Failed to create ConfigMap with priorities %s", priorities)
+			cleanupObjects[priorityConfigMap.GetName()] = priorityConfigMap
+
+			jobReplicas := int32(4)
+			uniqueJobName := fmt.Sprintf("%s-priority-expander", workloadJobName)
+			By(fmt.Sprintf("Creating scale-out workload %s: jobs: %v, memory: %s",
+				uniqueJobName, jobReplicas, workloadMemRequest.String()))
+			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, uniqueJobName, autoscalingTestLabel, "", corev1.NodeSelectorRequirement{
+				Key:      targetedNodeLabel,
+				Operator: corev1.NodeSelectorOpExists,
+			})
+			cleanupObjects[workload.GetName()] = workload
+			Expect(client.Create(ctx, workload)).Should(Succeed(), "Failed to create scale-out workload %s", uniqueJobName)
+
+			By("Check machinesets scale up to 2 machines")
+			expectedReplicas := int32(2)
+			Eventually(func() (*int32, error) {
+				ms, err := framework.GetMachineSet(ctx, client, transientMachineSets[0].GetName())
+				return ms.Spec.Replicas, err
+			}, framework.WaitMedium, pollingInterval).Should(HaveValue(Equal(expectedReplicas)), "MachineSet %s should match expected replicas", transientMachineSets[0].GetName())
+			Eventually(func() (*int32, error) {
+				ms1, err := framework.GetMachineSet(ctx, client, transientMachineSets[1].GetName())
+				return ms1.Spec.Replicas, err
+			}, framework.WaitMedium, pollingInterval).Should(HaveValue(Equal(expectedReplicas)), "MachineSet %s should match expected replicas", transientMachineSets[1].GetName())
+
+			By("Check high Priority machineset scale up first")
+			machineP10, err := framework.GetLatestMachineFromMachineSet(ctx, client, transientMachineSets[0])
+			Expect(err).ToNot(HaveOccurred(), "Failed to get the last provisioned machine %s", machineP10)
+			machineP20, err := framework.GetLatestMachineFromMachineSet(ctx, client, transientMachineSets[1])
+			Expect(err).ToNot(HaveOccurred(), "Failed to get the last provisioned machine %s", machineP20)
+			Expect(machineP20.CreationTimestamp.Time).To(BeTemporally("<", machineP10.CreationTimestamp.Time))
 		})
 	})
 })
