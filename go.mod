@@ -9,12 +9,12 @@ require (
 	github.com/onsi/gomega v1.30.0
 	github.com/openshift/api v0.0.0-20240124164020-e2ce40831f2e
 	github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20230830212214-7c11ddb9aedf
-	github.com/openshift/cluster-autoscaler-operator v0.0.1-0.20230424082009-f7f168cc5145
+	github.com/openshift/cluster-autoscaler-operator v0.0.1-0.20240509123215-40cadf8a4729
 	github.com/openshift/library-go v0.0.0-20240116081341-964bcb3f545c
-	github.com/openshift/machine-api-operator v0.2.1-0.20240304081613-99b3ec4b736d
-	k8s.io/api v0.29.0
-	k8s.io/apimachinery v0.29.0
-	k8s.io/client-go v0.29.0
+	github.com/openshift/machine-api-operator v0.2.1-0.20240426164250-ac84cecd1374
+	k8s.io/api v0.29.1
+	k8s.io/apimachinery v0.29.1
+	k8s.io/client-go v0.29.1
 	k8s.io/klog v1.0.0
 	k8s.io/utils v0.0.0-20240102154912-e7106e64919e
 	sigs.k8s.io/controller-runtime v0.17.0
@@ -224,11 +224,11 @@ require (
 	golang.org/x/exp v0.0.0-20240112132812-db7319d0e0e3 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20230307190834-24139beb5833 // indirect
 	golang.org/x/mod v0.14.0 // indirect
-	golang.org/x/net v0.20.0 // indirect
+	golang.org/x/net v0.24.0 // indirect
 	golang.org/x/oauth2 v0.16.0 // indirect
 	golang.org/x/sync v0.6.0 // indirect
-	golang.org/x/sys v0.16.0 // indirect
-	golang.org/x/term v0.16.0 // indirect
+	golang.org/x/sys v0.19.0 // indirect
+	golang.org/x/term v0.19.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	golang.org/x/tools v0.17.0 // indirect
@@ -240,11 +240,11 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.4.5 // indirect
-	k8s.io/apiextensions-apiserver v0.29.0 // indirect
+	k8s.io/apiextensions-apiserver v0.29.1 // indirect
 	k8s.io/cli-runtime v0.29.0 // indirect
-	k8s.io/component-base v0.29.0 // indirect
+	k8s.io/component-base v0.29.1 // indirect
 	k8s.io/klog/v2 v2.120.0 // indirect
-	k8s.io/kube-openapi v0.0.0-20240105020646-a37d4de58910 // indirect
+	k8s.io/kube-openapi v0.0.0-20240117194847-208609032b15 // indirect
 	k8s.io/kubectl v0.29.0 // indirect
 	mvdan.cc/gofumpt v0.5.0 // indirect
 	mvdan.cc/interfacer v0.0.0-20180901003855-c20040233aed // indirect
