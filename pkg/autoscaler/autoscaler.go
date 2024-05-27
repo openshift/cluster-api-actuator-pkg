@@ -253,6 +253,20 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 
 			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
 
+			Eventually(func() (map[string]string, error) {
+				//checking for the keys of the old scalefromzero annotations before creating a machineautoscaler
+				ms, err := framework.GetMachineSet(context.TODO(), client, machineSet.GetName())
+				if err != nil {
+					return nil, err
+				}
+
+				return ms.Annotations, nil
+			}, framework.WaitMedium, pollingInterval).Should(SatisfyAll(
+				HaveKey(annotationsutil.CpuKeyDeprecated),
+				HaveKey(annotationsutil.MemoryKeyDeprecated),
+				HaveKey(annotationsutil.GpuCountKeyDeprecated),
+			), "No scale from zero annotations found")
+
 			expectedReplicas := int32(2)
 			By(fmt.Sprintf("Creating a MachineAutoscaler backed by MachineSet %s/%s - min:%v, max:%v",
 				machineSet.GetNamespace(), machineSet.GetName(), 0, expectedReplicas))
@@ -295,7 +309,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 				}
 
 				return true, nil
-			}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "No scale from zero annotations found")
+			}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "New scale from zero annotations found")
 
 			By("Waiting for the machineSet replicas to become nodes")
 			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
@@ -365,26 +379,6 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 					expectedScaledMachineSet = machineSet
 				}
 			}
-
-			By("checking for the presence of the scale from zero annotations")
-			Eventually(func() (bool, error) {
-				//checking for the keys of the newly added upstream annotations from the CAO
-				for _, machineSet := range machineSets {
-					ms, err := framework.GetMachineSet(context.TODO(), client, machineSet.GetName())
-					Expect(err).ToNot(HaveOccurred(), "Failed to get MachineSet %s", machineSet.GetName())
-
-					if ms.Annotations == nil {
-						return false, nil
-					}
-
-					Expect(ms.Annotations).To(HaveKey(annotationsutil.CpuKey))
-					Expect(ms.Annotations).To(HaveKey(annotationsutil.MemoryKey))
-					Expect(ms.Annotations).To(HaveKey(annotationsutil.GpuCountKey))
-					Expect(ms.Annotations).To(HaveKey(annotationsutil.GpuTypeKey))
-				}
-
-				return true, nil
-			}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "No scale from zero annotations found")
 
 			uniqueJobName := fmt.Sprintf("%s-scale-from-zero", workloadJobName)
 			By(fmt.Sprintf("Creating scale-out workload %s: jobs: %v, memory: %s", uniqueJobName,
