@@ -1,6 +1,6 @@
 module github.com/openshift/cluster-api-actuator-pkg
 
-go 1.22
+go 1.22.0
 
 toolchain go1.22.4
 
@@ -9,7 +9,7 @@ require (
 	github.com/google/uuid v1.5.0
 	github.com/onsi/ginkgo/v2 v2.17.1
 	github.com/onsi/gomega v1.32.0
-	github.com/openshift/api v0.0.0-20240521141249-8af21b7ed3e3
+	github.com/openshift/api v0.0.0-20240530053948-b01900f1982a
 	github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20230830212214-7c11ddb9aedf
 	github.com/openshift/cluster-autoscaler-operator v0.0.1-0.20240509123215-40cadf8a4729
 	github.com/openshift/library-go v0.0.0-20240116081341-964bcb3f545c
