@@ -6,12 +6,16 @@ approvers:
 - RadekManak
 - damdo
 - elmiko
+- nrb
+- racheljpg
 reviewers:
 - JoelSpeed
 - RadekManak
 - damdo
 - elmiko
 - nrb
-- odvarkadaniel
 - racheljpg
-- vincepri
+- sub-mod
+- theobarberbany
+component: Cloud Compute
+subcomponent: Other Provider
