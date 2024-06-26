@@ -501,7 +501,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 					}
 
 					return true, nil
-				}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "Machine %s did not receive a deletion annotation", machine.Name)
+				}, framework.WaitLong, pollingInterval).Should(BeTrue(), "Machine %s has a deletion annotation and it should not", machine.Name)
 			}
 
 			for _, machine := range machines {
@@ -521,7 +521,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 					}
 
 					return true, nil
-				}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "Node %s did not receive a deletion candidate taint", machine.Status.NodeRef.Name)
+				}, framework.WaitLong, pollingInterval).Should(BeTrue(), "Node %s has a deletion candidate taint and it should not", machine.Status.NodeRef.Name)
 			}
 		})
 	})
