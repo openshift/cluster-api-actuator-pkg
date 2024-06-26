@@ -46,6 +46,8 @@ const (
 	Amd64           = "amd64"
 	ArchLabel       = "e2e.openshift.io/arch"
 	labelsKey       = "capacity.cluster-autoscaler.kubernetes.io/labels"
+	ReasonKey       = "machine.openshift.io/reason"
+	ReasonE2E       = "actuator-e2e"
 )
 
 var (
@@ -138,6 +140,8 @@ func BuildMachineSetParams(ctx context.Context, client runtimeclient.Client, rep
 
 // CreateMachineSet creates a new MachineSet resource.
 func CreateMachineSet(c runtimeclient.Client, params MachineSetParams) (*machinev1.MachineSet, error) {
+	labels := params.Labels
+	labels[ReasonKey] = ReasonE2E
 	ms := &machinev1.MachineSet{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "MachineSet",
@@ -146,7 +150,7 @@ func CreateMachineSet(c runtimeclient.Client, params MachineSetParams) (*machine
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      params.Name,
 			Namespace: MachineAPINamespace,
-			Labels:    params.Labels,
+			Labels:    labels,
 		},
 		Spec: machinev1.MachineSetSpec{
 			Selector: metav1.LabelSelector{
