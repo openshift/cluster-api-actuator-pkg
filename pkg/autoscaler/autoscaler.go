@@ -3,6 +3,7 @@ package autoscaler
 import (
 	"context"
 	"fmt"
+
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -721,13 +722,30 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 		})
 	})
 
-	Context("use a ClusterAutoscaler that has 8 maximum total nodes", framework.LabelPeriodic, func() {
+	Context("use a ClusterAutoscaler with maximum total nodes", framework.LabelPeriodic, func() {
 		var clusterAutoscaler *caov1.ClusterAutoscaler
-		caMaxNodesTotal := 8
+		var machinesNumBaseleline, caMaxNodesTotal int
 
 		BeforeEach(func() {
 			gatherer, err = framework.NewGatherer()
 			Expect(err).ToNot(HaveOccurred(), "Failed to create gatherer")
+
+			selector := metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      framework.ReasonKey,
+						Operator: metav1.LabelSelectorOpNotIn,
+						Values: []string{
+							framework.ReasonE2E,
+						},
+					},
+				},
+			}
+			machines, err := framework.GetMachines(ctx, client, &selector)
+			Expect(err).ToNot(HaveOccurred(), "Should be able to get machines")
+			machinesNumBaseleline = len(machines)
+			// Use a maximum of 2 additional nodes
+			caMaxNodesTotal = machinesNumBaseleline + 2
 
 			By("Creating ClusterAutoscaler")
 			clusterAutoscaler = clusterAutoscalerResource(caMaxNodesTotal)
@@ -764,7 +782,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 		// Does not start with replicas=0 machineset to avoid scaling from 0.
 		It("scales up and down while respecting MaxNodesTotal [Slow][Serial]", func() {
 			// This test requires to have exactly 6 machines in the cluster at the beginning and to run serially.
-			By("Ensuring there are 6 machines in the cluster")
+			By(fmt.Sprintf("Ensuring there are %d machines in the cluster", machinesNumBaseleline))
 			Eventually(func() (int, error) {
 				machines, err := framework.GetMachines(ctx, client)
 				if err != nil {
@@ -772,7 +790,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 				}
 
 				return len(machines), nil
-			}, framework.WaitLong, pollingInterval).Should(BeEquivalentTo(6), "Expected to have 6 machines in the cluster")
+			}, framework.WaitLong, pollingInterval).Should(BeEquivalentTo(machinesNumBaseleline), fmt.Sprintf("Expected to have %d machines in the cluster", machinesNumBaseleline))
 
 			By("Creating 1 MachineSet with 1 replica")
 			var transientMachineSet *machinev1.MachineSet
@@ -822,7 +840,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 			Eventually(func() (bool, error) {
 				nodes, err := framework.GetReadyAndSchedulableNodes(client)
 				return len(nodes) == caMaxNodesTotal, err
-			}, framework.WaitLong, pollingInterval).Should(BeTrue(), "Cluster failed to reach %d nodes", caMaxNodesTotal)
+			}, framework.WaitOverMedium, pollingInterval).Should(BeTrue(), "Cluster failed to reach %d nodes", caMaxNodesTotal)
 
 			// Wait for all nodes to become ready, we wait here to help ensure
 			// that the cluster has reached a steady state and no more machines
