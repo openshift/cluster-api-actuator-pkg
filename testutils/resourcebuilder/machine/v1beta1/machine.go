@@ -37,6 +37,7 @@ type MachineBuilder struct {
 	creationTimestamp   metav1.Time
 	deletionTimestamp   *metav1.Time
 	providerSpecBuilder resourcebuilder.RawExtensionBuilder
+	providerID          *string
 
 	// status fields
 	errorMessage *string
@@ -64,6 +65,10 @@ func (m MachineBuilder) Build() *machinev1beta1.Machine {
 
 	if m.providerSpecBuilder != nil {
 		machine.Spec.ProviderSpec.Value = m.providerSpecBuilder.BuildRawExtension()
+	}
+
+	if m.providerID != nil {
+		machine.Spec.ProviderID = m.providerID
 	}
 
 	m.WithLabel(machinev1beta1.MachineClusterIDLabel, resourcebuilder.TestClusterIDValue)
@@ -131,6 +136,12 @@ func (m MachineBuilder) WithName(name string) MachineBuilder {
 // WithNamespace sets the namespace for the machine builder.
 func (m MachineBuilder) WithNamespace(namespace string) MachineBuilder {
 	m.namespace = namespace
+	return m
+}
+
+// WithProviderID sets the providerID field for the machine builder.
+func (m MachineBuilder) WithProviderID(providerID string) MachineBuilder {
+	m.providerID = &providerID
 	return m
 }
 
