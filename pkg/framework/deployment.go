@@ -54,6 +54,7 @@ func UpdateDeployment(ctx context.Context, c client.Client, name, namespace stri
 			klog.Errorf("Error getting deployment: %v", err)
 			return false, nil
 		}
+
 		if err := c.Patch(ctx, d, client.MergeFrom(updated)); err != nil {
 			klog.Errorf("error patching deployment object %q: %v, retrying...", name, err)
 			return false, nil

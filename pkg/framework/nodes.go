@@ -193,6 +193,7 @@ func VerifyNodeDraining(ctx context.Context, client runtimeclient.Client, target
 			klog.Errorf("Error querying api machine %q object: %v, retrying...", targetMachine.Name, err)
 			return false, nil
 		}
+
 		if machine.Status.NodeRef == nil || machine.Status.NodeRef.Kind != "Node" {
 			klog.Errorf("Machine %q not linked to a node", machine.Name)
 			return false, nil
@@ -220,14 +221,11 @@ func VerifyNodeDraining(ctx context.Context, client runtimeclient.Client, target
 		}
 
 		podCounter := 0
+
 		for _, pod := range pods.Items {
-			if pod.Spec.NodeName != machine.Status.NodeRef.Name {
-				continue
+			if pod.Spec.NodeName == machine.Status.NodeRef.Name && pod.DeletionTimestamp.IsZero() {
+				podCounter++
 			}
-			if !pod.DeletionTimestamp.IsZero() {
-				continue
-			}
-			podCounter++
 		}
 
 		klog.Infof("[remaining %s] Have %v pods scheduled to node %q", remainingTime(endTime), podCounter, machine.Status.NodeRef.Name)
@@ -238,6 +236,7 @@ func VerifyNodeDraining(ctx context.Context, client runtimeclient.Client, target
 			Namespace: rc.Namespace,
 			Name:      rc.Name,
 		}
+
 		if err := client.Get(ctx, key, &rcObj); err != nil {
 			klog.Errorf("Error querying api RC %q object: %v, retrying...", rc.Name, err)
 			return false, nil
@@ -276,14 +275,17 @@ func WaitUntilAllRCPodsAreReady(ctx context.Context, client runtimeclient.Client
 			Namespace: rc.Namespace,
 			Name:      rc.Name,
 		}
+
 		if err := client.Get(ctx, key, &rcObj); err != nil {
 			klog.Errorf("Error querying api RC %q object: %v, retrying...", rc.Name, err)
 			return false, nil
 		}
+
 		if rcObj.Status.ReadyReplicas == 0 {
 			klog.Infof("[%s remaining] Waiting for at least one RC ready replica, ReadyReplicas: %v, Replicas: %v", remainingTime(endTime), rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
 			return false, nil
 		}
+
 		klog.Infof("[%s remaining] Waiting for RC ready replicas, ReadyReplicas: %v, Replicas: %v", remainingTime(endTime), rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
 
 		return rcObj.Status.Replicas == rcObj.Status.ReadyReplicas, nil
@@ -314,10 +316,10 @@ func WaitUntilNodeDoesNotExists(ctx context.Context, client runtimeclient.Client
 
 	return wait.PollUntilContextTimeout(ctx, RetryMedium, WaitLong, true, func(ctx context.Context) (bool, error) {
 		node := corev1.Node{}
-
 		key := types.NamespacedName{
 			Name: nodeName,
 		}
+
 		err := client.Get(ctx, key, &node)
 		if err == nil {
 			klog.Errorf("Node %q not yet deleted", nodeName)

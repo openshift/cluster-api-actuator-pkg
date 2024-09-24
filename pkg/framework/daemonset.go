@@ -53,6 +53,7 @@ func UpdateDaemonset(ctx context.Context, c client.Client, name, namespace strin
 			klog.Errorf("Error getting DaemonSet: %v", err)
 			return false, nil
 		}
+
 		if err := c.Patch(ctx, d, client.MergeFrom(updated)); err != nil {
 			klog.Errorf("error patching DaemonSet object %q: %v, retrying...", name, err)
 			return false, nil
