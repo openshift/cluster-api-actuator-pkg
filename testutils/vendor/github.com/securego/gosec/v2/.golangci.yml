@@ -2,13 +2,14 @@ linters:
   enable:
     - asciicheck
     - bodyclose
+    - copyloopvar
     - dogsled
     - durationcheck
     - errcheck
     - errorlint
-    - exportloopref
     - gci
     - ginkgolinter
+    - gochecknoinits
     - gofmt
     - gofumpt
     - goimports
@@ -17,7 +18,6 @@ linters:
     - govet
     - importas
     - ineffassign
-    - megacheck
     - misspell
     - nakedret
     - nolintlint
@@ -35,6 +35,15 @@ linters-settings:
       - standard
       - default
       - prefix(github.com/securego)
+  staticcheck:
+    checks:
+     - all
+     - '-SA1019'
+
+  revive:
+    rules:
+      - name: dot-imports
+        disabled: true
 
 run:
   timeout: 5m
