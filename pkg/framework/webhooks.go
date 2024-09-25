@@ -93,6 +93,7 @@ func UpdateMutatingWebhookConfiguration(ctx context.Context, c client.Client, up
 			klog.Errorf("Error getting MutatingWebhookConfiguration: %v", err)
 			return false, nil
 		}
+
 		if err := c.Patch(ctx, existing, client.MergeFrom(updated)); err != nil {
 			klog.Errorf("error patching MutatingWebhookConfiguration object %q: %v, retrying...", updated.Name, err)
 			return false, nil
@@ -110,6 +111,7 @@ func UpdateValidatingWebhookConfiguration(ctx context.Context, c client.Client, 
 			klog.Errorf("Error getting ValidatingWebhookConfiguration: %v", err)
 			return false, nil
 		}
+
 		if err := c.Patch(ctx, existing, client.MergeFrom(updated)); err != nil {
 			klog.Errorf("error patching ValidatingWebhookConfiguration object %q: %v, retrying...", updated.Name, err)
 			return false, nil

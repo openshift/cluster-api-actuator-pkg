@@ -56,6 +56,7 @@ func awsMetadataMockHandler() http.Handler {
 			rw.WriteHeader(http.StatusUnauthorized)
 			return
 		}
+
 		rw.WriteHeader(http.StatusOK)
 	})
 
@@ -67,6 +68,7 @@ func awsMetadataMockHandler() http.Handler {
 
 		rw.Header().Add(tokenTTLHeader, "21600")
 		rw.WriteHeader(http.StatusOK)
+
 		if _, err := rw.Write([]byte(authTokenValue)); err != nil {
 			log.Fatal(err)
 		}
@@ -113,6 +115,7 @@ func azureMetadataMockHandler() http.Handler {
 			},
 		}
 		data, err := json.Marshal(events)
+
 		if err != nil {
 			rw.WriteHeader(500)
 

@@ -593,15 +593,11 @@ func WaitForSpotMachineSet(ctx context.Context, c runtimeclient.Client, name str
 		if len(failed) > 0 {
 			// if there are failed machines, print them out before we exit
 			klog.Errorf("found %d Machines in failed phase: ", len(failed))
+
 			for _, m := range failed {
-				reason := "failureReason not present in Machine.status"
-				if m.Status.ErrorReason != nil {
-					reason = string(*m.Status.ErrorReason)
-				}
-				message := "failureMessage not present in Machine.status"
-				if m.Status.ErrorMessage != nil {
-					message = *m.Status.ErrorMessage
-				}
+				reason := ptr.Deref(m.Status.ErrorReason, "failureReason not present in Machine.status")
+				message := ptr.Deref(m.Status.ErrorMessage, "failureMessage not present in Machine.status")
+
 				klog.Errorf("Failed machine: %s, Reason: %s, Message: %s", m.Name, reason, message)
 			}
 
@@ -614,6 +610,7 @@ func WaitForSpotMachineSet(ctx context.Context, c runtimeclient.Client, name str
 			if err != nil {
 				return false, fmt.Errorf("error checking if machine %s has insufficient capacity: %w", m.Name, err)
 			}
+
 			if insufficientCapacityResult {
 				return false, ErrMachineNotProvisionedInsufficientCloudCapacity
 			}
@@ -698,7 +695,7 @@ func WaitForMachineSetsDeleted(ctx context.Context, c runtimeclient.Client, mach
 		// If it doesn't show there's no reason to run the longer check.
 		Eventually(func() error {
 			machineSet := &machinev1.MachineSet{}
-			err := c.Get(context.Background(), runtimeclient.ObjectKey{
+			err := c.Get(ctx, runtimeclient.ObjectKey{
 				Name:      ms.GetName(),
 				Namespace: ms.GetNamespace(),
 			}, machineSet)
