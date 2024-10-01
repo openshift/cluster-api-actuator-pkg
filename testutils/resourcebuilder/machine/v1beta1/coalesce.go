@@ -18,6 +18,8 @@ package v1beta1
 
 import (
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
+	"github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 func coalesceAWSResourceReference(v1 *machinev1beta1.AWSResourceReference, v2 machinev1beta1.AWSResourceReference) machinev1beta1.AWSResourceReference {
@@ -53,6 +55,38 @@ func coalesceBlockDevices(v1 *[]machinev1beta1.BlockDeviceMappingSpec, v2 []mach
 }
 
 func coalesceTags(v1 *[]machinev1beta1.TagSpecification, v2 []machinev1beta1.TagSpecification) []machinev1beta1.TagSpecification {
+	if v1 == nil {
+		return v2
+	}
+
+	return *v1
+}
+
+func coalesceMachineSpec(v1 *machinev1beta1.MachineSpec, v2 machinev1beta1.MachineSpec) machinev1beta1.MachineSpec {
+	if v1 == nil {
+		return v2
+	}
+
+	return *v1
+}
+
+func coalesceLifecycleHooks(v1 *machinev1beta1.LifecycleHooks, v2 machinev1beta1.LifecycleHooks) machinev1beta1.LifecycleHooks {
+	if v1 == nil {
+		return v2
+	}
+
+	return *v1
+}
+
+func coalesceProviderSpecValue(v1 *resourcebuilder.RawExtensionBuilder) *runtime.RawExtension {
+	if v1 == nil {
+		return nil
+	}
+
+	return (*v1).BuildRawExtension()
+}
+
+func coalesceMachineSpecObjectMeta(v1 *machinev1beta1.ObjectMeta, v2 machinev1beta1.ObjectMeta) machinev1beta1.ObjectMeta {
 	if v1 == nil {
 		return v2
 	}
