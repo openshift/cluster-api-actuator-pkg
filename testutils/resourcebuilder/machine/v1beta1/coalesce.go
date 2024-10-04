@@ -19,6 +19,7 @@ package v1beta1
 import (
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -70,14 +71,6 @@ func coalesceMachineSpec(v1 *machinev1beta1.MachineSpec, v2 machinev1beta1.Machi
 	return *v1
 }
 
-func coalesceLifecycleHooks(v1 *machinev1beta1.LifecycleHooks, v2 machinev1beta1.LifecycleHooks) machinev1beta1.LifecycleHooks {
-	if v1 == nil {
-		return v2
-	}
-
-	return *v1
-}
-
 func coalesceProviderSpecValue(v1 *resourcebuilder.RawExtensionBuilder) *runtime.RawExtension {
 	if v1 == nil {
 		return nil
@@ -86,7 +79,7 @@ func coalesceProviderSpecValue(v1 *resourcebuilder.RawExtensionBuilder) *runtime
 	return (*v1).BuildRawExtension()
 }
 
-func coalesceMachineSpecObjectMeta(v1 *machinev1beta1.ObjectMeta, v2 machinev1beta1.ObjectMeta) machinev1beta1.ObjectMeta {
+func coalesceMachineSetSpecSelector(v1 *metav1.LabelSelector, v2 metav1.LabelSelector) metav1.LabelSelector {
 	if v1 == nil {
 		return v2
 	}
