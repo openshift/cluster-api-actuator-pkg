@@ -179,9 +179,8 @@ var _ = Describe("Machine", func() {
 
 	Describe("WithNamespace", func() {
 		It("should return the custom value when specified", func() {
-			namespace := "test-namespace"
-			machine := Machine().WithNamespace(namespace).Build()
-			Expect(machine.Namespace).To(Equal(namespace))
+			machine := Machine().WithNamespace("ns-test-3").Build()
+			Expect(machine.Namespace).To(Equal("ns-test-3"))
 		})
 	})
 

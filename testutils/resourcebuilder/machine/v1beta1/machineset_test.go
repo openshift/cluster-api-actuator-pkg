@@ -251,9 +251,8 @@ var _ = Describe("MachineSet", func() {
 
 	Describe("WithNamespace", func() {
 		It("should return the custom value when specified", func() {
-			namespace := "test-namespace"
-			machineSet := MachineSet().WithNamespace(namespace).Build()
-			Expect(machineSet.Namespace).To(Equal(namespace))
+			machineSet := MachineSet().WithNamespace("ns-test-4").Build()
+			Expect(machineSet.Namespace).To(Equal("ns-test-4"))
 		})
 	})
 
