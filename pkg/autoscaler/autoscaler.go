@@ -487,8 +487,12 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 				return len(machines), nil
 			}, framework.WaitLong, pollingInterval).Should(BeEquivalentTo(expectedLength), "MachineSet %s failed to scale in to %d replicas", machineSet.GetName(), expectedLength)
 
+			By(fmt.Sprintf("Getting Machines for MachineSet %s to check for deletion metadata", machineSet.GetName()))
+			machines, err = framework.GetMachinesFromMachineSet(ctx, client, machineSet)
+			Expect(err).ToNot(HaveOccurred(), "Unable to get machines for machineset to check deletion metadata")
+
+			By(fmt.Sprintf("Checking Machines of MachineSet %s for deletion annotations", machineSet.GetName()))
 			for _, machine := range machines {
-				By(fmt.Sprintf("Checking Machine %s for %s annotation", machine.Name, machineDeleteAnnotationKey))
 				Eventually(func() (bool, error) {
 					m, err := framework.GetMachine(client, machine.Name)
 					if err != nil {
@@ -497,32 +501,44 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() 
 					if m.ObjectMeta.Annotations == nil {
 						return true, nil
 					}
-					if _, exists := m.ObjectMeta.Annotations[machineDeleteAnnotationKey]; exists {
-						return false, nil
-					}
+					_, exists := m.ObjectMeta.Annotations[machineDeleteAnnotationKey]
 
-					return true, nil
-				}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "Machine %s did not receive a deletion annotation", machine.Name)
+					return !exists, nil
+				}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "Machine %s has a deletion annotation and it should not", machine.Name)
 			}
 
+			By(fmt.Sprintf("Checking Nodes of MachineSet %s for deletion candidate taint", machineSet.GetName()))
 			for _, machine := range machines {
-				if machine.Status.NodeRef == nil {
-					continue
-				}
-				By(fmt.Sprintf("Checking Node %s for %s and %s taints", machine.Status.NodeRef.Name, deletionCandidateTaintKey, toBeDeletedTaintKey))
 				Eventually(func() (bool, error) {
 					n, err := framework.GetNodeForMachine(ctx, client, machine)
 					if err != nil {
 						return false, err
 					}
 					for _, t := range n.Spec.Taints {
-						if t.Key == deletionCandidateTaintKey || t.Key == toBeDeletedTaintKey {
+						if t.Key == deletionCandidateTaintKey {
 							return false, nil
 						}
 					}
 
 					return true, nil
-				}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "Node %s did not receive a deletion candidate taint", machine.Status.NodeRef.Name)
+				}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "Node %s has a deletion candidate taint and it should not", machine.Status.NodeRef.Name)
+			}
+
+			By(fmt.Sprintf("Checking Nodes of MachineSet %s for deletion taint", machineSet.GetName()))
+			for _, machine := range machines {
+				Eventually(func() (bool, error) {
+					n, err := framework.GetNodeForMachine(ctx, client, machine)
+					if err != nil {
+						return false, err
+					}
+					for _, t := range n.Spec.Taints {
+						if t.Key == toBeDeletedTaintKey {
+							return false, nil
+						}
+					}
+
+					return true, nil
+				}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "Node %s has a deletion taint and it should not", machine.Status.NodeRef.Name)
 			}
 		})
 	})
