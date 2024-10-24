@@ -184,6 +184,21 @@ var _ = Describe("Machine", func() {
 		})
 	})
 
+	Describe("WithOwnerReferences", func() {
+		It("should return the custom value when specified", func() {
+			ownerRefs := []metav1.OwnerReference{
+				{
+					APIVersion: "machine.openshift.io/v1beta1",
+					Kind:       "MachineSet",
+					Name:       "parent-ms",
+					UID:        "12345",
+				},
+			}
+			machine := Machine().WithOwnerReferences(ownerRefs).Build()
+			Expect(machine.OwnerReferences).To(Equal(ownerRefs))
+		})
+	})
+
 	Describe("WithProviderID", func() {
 		It("should return nil when not specified", func() {
 			machine := Machine().Build()
