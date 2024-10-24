@@ -256,6 +256,21 @@ var _ = Describe("MachineSet", func() {
 		})
 	})
 
+	Describe("WithOwnerReferences", func() {
+		It("should return the custom value when specified", func() {
+			ownerRefs := []metav1.OwnerReference{
+				{
+					APIVersion: "custom.a/v1beta1",
+					Kind:       "Custom",
+					Name:       "parent",
+					UID:        "12345",
+				},
+			}
+			machineSet := MachineSet().WithOwnerReferences(ownerRefs).Build()
+			Expect(machineSet.OwnerReferences).To(Equal(ownerRefs))
+		})
+	})
+
 	Describe("WithProviderSpec", func() {
 		It("should return the default value when not specified", func() {
 			machineSet := MachineSet().Build()
