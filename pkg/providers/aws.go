@@ -2,11 +2,16 @@ package providers
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -17,11 +22,47 @@ import (
 
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
+	"github.com/tidwall/gjson"
 )
 
 const (
 	amiIDMetadataEndpoint = "http://169.254.169.254/latest/meta-data/ami-id"
 )
+
+// createAWSClient create AWS client.
+func createAWSClient(oc *gatherer.CLI) *framework.AwsClient {
+	awscreds, err := oc.WithoutNamespace().Run("get").Args("secret/aws-creds", "-n", "kube-system", "-o", "json").Output()
+	if err != nil {
+		Skip("Unable to get AWS credentials secret, skipping the testing.")
+	}
+
+	accessKeyIDBase64, secureKeyBase64 := gjson.Get(awscreds, `data.aws_access_key_id`).String(), gjson.Get(awscreds, `data.aws_secret_access_key`).String()
+
+	accessKeyID, err := base64.StdEncoding.DecodeString(accessKeyIDBase64)
+	Expect(err).NotTo(HaveOccurred())
+	secureKey, err := base64.StdEncoding.DecodeString(secureKeyBase64)
+	Expect(err).NotTo(HaveOccurred())
+	clusterRegion, err := oc.WithoutNamespace().Run("get").Args("infrastructure", "cluster", "-o=jsonpath={.status.platformStatus.aws.region}").Output()
+	Expect(err).NotTo(HaveOccurred())
+
+	awsConfig := &aws.Config{
+		Region: aws.String(clusterRegion),
+		Credentials: credentials.NewStaticCredentials(
+			string(accessKeyID),
+			string(secureKey),
+			"",
+		),
+	}
+
+	sess, err := session.NewSession(awsConfig)
+	Expect(err).ToNot(HaveOccurred())
+
+	aClient := &framework.AwsClient{
+		Svc: ec2.New(sess),
+	}
+
+	return aClient
+}
 
 var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific, framework.LabelProviderAWS, func() {
 	var client runtimeclient.Client
@@ -153,5 +194,110 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 		machineSet, err := createMachineSet(machinev1.MetadataServiceAuthenticationOptional)
 		Expect(err).ToNot(HaveOccurred(), "Failed to create unauthorized request to metadata service")
 		assertIMDSavailability(machineSet, "HTTP_CODE:200")
+	})
+})
+
+var _ = Describe("CapacityReservationID", framework.LabelCloudProviderSpecific, framework.LabelProviderAWS, func() {
+	var client runtimeclient.Client
+	var gatherer *gatherer.StateGatherer
+	var ctx context.Context
+
+	toDelete := make([]*machinev1.MachineSet, 0, 3)
+
+	BeforeEach(func() {
+		var err error
+		client, err = framework.LoadClient()
+		Expect(err).ToNot(HaveOccurred(), "Failed to load client")
+
+		gatherer, err = framework.NewGatherer()
+		Expect(err).ToNot(HaveOccurred(), "Failed to load gatherer")
+
+		ctx = framework.GetContext()
+
+		platform, err := framework.GetPlatform(ctx, client)
+		Expect(err).ToNot(HaveOccurred(), "Failed to get platform")
+		if platform != configv1.AWSPlatformType {
+			Skip(fmt.Sprintf("skipping AWS specific tests on %s", platform))
+		}
+		// Make sure to clean up the resources we created
+		DeferCleanup(func() {
+			Expect(framework.DeleteMachineSets(client, toDelete...)).To(Succeed())
+			toDelete = make([]*machinev1.MachineSet, 0, 3)
+
+			framework.WaitForMachineSetsDeleted(ctx, client, toDelete...)
+		})
+	})
+
+	AfterEach(func() {
+		specReport := CurrentSpecReport()
+		if specReport.Failed() {
+			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
+		}
+	})
+
+	createMachineSetWithCapacityReservationID := func(capacityReservationId string) (*machinev1.MachineSet, error) {
+		var err error
+
+		By(fmt.Sprintf("Create machine with capacityReservationId %s", capacityReservationId))
+		machineSetParams := framework.BuildMachineSetParams(ctx, client, 1)
+		spec := machinev1.AWSMachineProviderConfig{}
+		Expect(json.Unmarshal(machineSetParams.ProviderSpec.Value.Raw, &spec)).To(Succeed())
+
+		spec.CapacityReservationID = capacityReservationId
+
+		machineSetParams.ProviderSpec.Value.Raw, err = json.Marshal(spec)
+		Expect(err).ToNot(HaveOccurred(), "Failed to get MachineSet parameters")
+
+		mc, err := framework.CreateMachineSet(client, machineSetParams)
+		if err != nil {
+			return nil, err
+		}
+		toDelete = append(toDelete, mc)
+		framework.WaitForMachineSet(ctx, client, mc.GetName())
+
+		return mc, nil
+	}
+
+	// Machines required for test: 0
+	// No machines are created, because the machineSet is rejected.
+	It("should not allow to create machineset with incorrect capacityReservationId", func() {
+		_, err := createMachineSetWithCapacityReservationID("fooobaar")
+		Expect(err).To(HaveOccurred(), "Expected error, shouldn't be able to create machineSet with incorrect capacityReservationId")
+		Expect(err.Error()).Should(ContainSubstring("invalid value for capacityReservationId: \"fooobaar\", it must start with 'cr-' and be exactly 20 characters long with 17 hexadecimal characters"))
+	})
+
+	// Machines required for test: 1
+	It("machine should get Running with active capacityReservationId", func() {
+		By("Get instanceType and availabilityZone from the first worker MachineSet")
+		workers, err := framework.GetWorkerMachineSets(ctx, client)
+		Expect(err).ToNot(HaveOccurred())
+		worker0 := workers[0]
+		var awsProviderConfig machinev1.AWSMachineProviderConfig
+		err = json.Unmarshal(worker0.Spec.Template.Spec.ProviderSpec.Value.Raw, &awsProviderConfig)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Access AWS to create CapacityReservation")
+		oc, _ := framework.NewCLI()
+		awsClient := createAWSClient(oc)
+		capacityReservationID, err := awsClient.CreateCapacityReservation(awsProviderConfig.InstanceType, "Linux/UNIX", awsProviderConfig.Placement.AvailabilityZone, 1)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(capacityReservationID).ToNot(Equal(""))
+
+		defer func() {
+			_, err := awsClient.CancelCapacityReservation(capacityReservationID)
+			Expect(err).ToNot(HaveOccurred())
+		}()
+
+		By("Create machineset with the capacityReservationID")
+		machineSet, err := createMachineSetWithCapacityReservationID(capacityReservationID)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Check the machine with the capacityReservationID")
+		machines, err := framework.GetMachinesFromMachineSet(ctx, client, machineSet)
+		Expect(err).ToNot(HaveOccurred())
+		//Assert the first machine contains the capacityReservationID because we only create one machine
+		err = json.Unmarshal(machines[0].Spec.ProviderSpec.Value.Raw, &awsProviderConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(awsProviderConfig.CapacityReservationID).Should(Equal(capacityReservationID))
 	})
 })
