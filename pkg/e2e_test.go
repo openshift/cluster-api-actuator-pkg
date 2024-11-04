@@ -1,4 +1,4 @@
-package e2e
+package pkg
 
 import (
 	"testing"
@@ -16,6 +16,7 @@ import (
 	caov1alpha1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis"
 
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/autoscaler"
+	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/capi"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/infra"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/machinehealthcheck"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/operators"
