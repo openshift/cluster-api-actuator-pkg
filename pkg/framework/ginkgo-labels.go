@@ -3,6 +3,7 @@ package framework
 import "github.com/onsi/ginkgo/v2"
 
 var (
+	LabelCAPI                  = ginkgo.Label("capi")
 	LabelDisruptive            = ginkgo.Label("disruptive")
 	LabelAutoscaler            = ginkgo.Label("autoscaler")
 	LabelOperators             = ginkgo.Label("operators")
