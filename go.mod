@@ -5,16 +5,17 @@ go 1.22.1
 toolchain go1.22.7
 
 require (
+	github.com/aws/aws-sdk-go v1.55.5
 	github.com/golangci/golangci-lint v1.61.0
 	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.20.2
 	github.com/onsi/gomega v1.34.2
 	github.com/openshift/api v0.0.0-20240924155631-232984653385
-	github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20240626103413-ddea9c7c0aca
+	github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20241112115249-e541d71175dd
 	github.com/openshift/cluster-autoscaler-operator v0.0.1-0.20240509123215-40cadf8a4729
-	github.com/openshift/cluster-capi-operator/e2e v0.0.0-20241106203946-d1a552850961
 	github.com/openshift/library-go v0.0.0-20240919205913-c96b82b3762b
 	github.com/openshift/machine-api-operator v0.2.1-0.20240924183942-9c3e4a04009a
+	github.com/tidwall/gjson v1.18.0
 	k8s.io/api v0.31.1
 	k8s.io/apimachinery v0.31.1
 	k8s.io/client-go v0.31.1
@@ -48,7 +49,6 @@ require (
 	github.com/alingse/asasalint v0.0.11 // indirect
 	github.com/ashanbrown/forbidigo v1.6.0 // indirect
 	github.com/ashanbrown/makezero v1.1.1 // indirect
-	github.com/aws/aws-sdk-go v1.55.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bkielbasa/cyclop v1.2.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
@@ -219,7 +219,6 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/tdakkota/asciicheck v0.2.0 // indirect
 	github.com/tetafro/godot v1.4.17 // indirect
-	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/timakin/bodyclose v0.0.0-20230421092635-574207250966 // indirect

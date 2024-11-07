@@ -282,3 +282,13 @@ func DeleteObjects(ctx context.Context, cl runtimeclient.Client, objs ...runtime
 		Expect(cl.Delete(ctx, o)).To(Succeed())
 	}
 }
+
+// SkipIfNotTechPreviewNoUpgrade skip test if a cluster is not a TechPreviewNoUpgrade cluster.
+func SkipIfNotTechPreviewNoUpgrade(oc *gatherer.CLI, cl runtimeclient.Client) {
+	featureSet, err := oc.WithoutNamespace().Run("get").Args("featuregate", "cluster", "-o=jsonpath={.spec.featureSet}").Output()
+	Expect(err).NotTo(HaveOccurred(), "Failed to get featureSet")
+
+	if featureSet != string(configv1.TechPreviewNoUpgrade) {
+		Skip("FeatureSet is not TechPreviewNoUpgradec, skip it!")
+	}
+}

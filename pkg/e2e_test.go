@@ -7,9 +7,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/klog"
-
 	osconfigv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/autoscaler"
@@ -20,6 +17,10 @@ import (
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/operators"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/providers"
 	caov1alpha1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/klog"
+	gcpv1 "sigs.k8s.io/cluster-api-provider-gcp/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
 func init() {
@@ -35,6 +36,14 @@ func init() {
 	}
 
 	if err := osconfigv1.AddToScheme(scheme.Scheme); err != nil {
+		klog.Fatal(err)
+	}
+
+	if err := clusterv1.AddToScheme(scheme.Scheme); err != nil {
+		klog.Fatal(err)
+	}
+
+	if err := gcpv1.AddToScheme(scheme.Scheme); err != nil {
 		klog.Fatal(err)
 	}
 }

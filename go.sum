@@ -275,6 +275,7 @@ github.com/jjti/go-spancheck v0.6.2 h1:iYtoxqPMzHUPp7St+5yA8+cONdyXD3ug6KK15n7Pk
 github.com/jjti/go-spancheck v0.6.2/go.mod h1:+X7lvIrR5ZdUTkxFYqzJ0abr8Sb5LOo80uOhWNqIrYA=
 github.com/jmespath/go-jmespath v0.4.0 h1:BEgLn5cpjn8UN1mAw4NjwDrS35OdebyEtFe+9YPoQUg=
 github.com/jmespath/go-jmespath v0.4.0/go.mod h1:T8mJZnbsbmF+m6zOOFylbeCJqk5+pHWvzYPziyZiYoo=
+github.com/jmespath/go-jmespath/internal/testify v1.5.1 h1:shLQSRRSCCPj3f2gpwzGwWFoC7ycTf1rcQZHOlsJ6N8=
 github.com/jmespath/go-jmespath/internal/testify v1.5.1/go.mod h1:L3OGu8Wl2/fWfCI6z80xFu9LTZmf1ZRjMHUOPmWr69U=
 github.com/josharian/intern v1.0.0 h1:vlS4z54oSdjm0bgjRigI+G1HpF+tI+9rE5LLzOg8HmY=
 github.com/josharian/intern v1.0.0/go.mod h1:5DoeVV0s6jJacbCEi61lwdGj/aVlrQvzHFFd8Hwg//Y=
@@ -381,12 +382,10 @@ github.com/openshift/api v0.0.0-20240924155631-232984653385 h1:P6O191HwBj0ahEfea
 github.com/openshift/api v0.0.0-20240924155631-232984653385/go.mod h1:OOh6Qopf21pSzqNVCB5gomomBXb8o5sGKZxG2KNpaXM=
 github.com/openshift/client-go v0.0.0-20240918182115-6a8ead8397fd h1:Gd0+bYdcfGIsDOJ8BwTJJjQeXoziyIsTwqp/s38rKyM=
 github.com/openshift/client-go v0.0.0-20240918182115-6a8ead8397fd/go.mod h1:EB7GeA/vpf9AHklMgnnT0+uG6l/3f8cChtCFbJFrk4g=
-github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20240626103413-ddea9c7c0aca h1:HFFzJznFQVudyVSpMa+hZwXZpc0ZvFCIpiMNFdf21g8=
-github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20240626103413-ddea9c7c0aca/go.mod h1:osVq9/R6qKHBQxDP4cYTvkgXVBKOMs1SOfPLFfn0m7A=
+github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20241112115249-e541d71175dd h1:drEJQPJXOH36XivQ2d1gMrRzZzY4rOwfU939lYU0lEQ=
+github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20241112115249-e541d71175dd/go.mod h1:Ns6d57JhMddy6w5c61HHWQ4jqF8Pvrv8mgs2gxg5jKU=
 github.com/openshift/cluster-autoscaler-operator v0.0.1-0.20240509123215-40cadf8a4729 h1:SNWwFZ+lMj5LGX99SRbQHafgxLcSOv5JCeBdY6OY/PE=
 github.com/openshift/cluster-autoscaler-operator v0.0.1-0.20240509123215-40cadf8a4729/go.mod h1:AJ4/7eaCOr6GtNSv3CvQVRVNlqUINm0Qm9IzatXx4dY=
-github.com/openshift/cluster-capi-operator/e2e v0.0.0-20241106203946-d1a552850961 h1:Q7rme+L+8QjMNnQRq1dbFrCNKgl/E/MOk6Dm3+FtzRI=
-github.com/openshift/cluster-capi-operator/e2e v0.0.0-20241106203946-d1a552850961/go.mod h1:S25WkbPcBU46gfjFnjKwMrpBBu2f9QiSPPN9jp6pdMk=
 github.com/openshift/cluster-control-plane-machine-set-operator v0.0.0-20240909043600-373ac49835bf h1:mfMmaD9+vZIZQq3MGXsS/AGHXekj4wIn3zc1Cs1EY8M=
 github.com/openshift/cluster-control-plane-machine-set-operator v0.0.0-20240909043600-373ac49835bf/go.mod h1:2fZsjZ3QSPkoMUc8QntXfeBb8AnvW+WIYwwQX8vmgvQ=
 github.com/openshift/library-go v0.0.0-20240919205913-c96b82b3762b h1:y2DduJug7UZqTu0QTkRPAu73nskuUbFA66fmgxVf/fI=

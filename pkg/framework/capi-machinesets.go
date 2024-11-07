@@ -6,6 +6,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	capiv1resourcebuilder "github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/cluster-api/core/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,13 +23,13 @@ type CAPIMachineSetParams struct {
 	infrastructureRef corev1.ObjectReference
 }
 
-// NewCAPIcapiMachineSetParams returns a new CAPIMachineSetParams object.
+// NewCAPIMachineSetParams returns a new CAPIMachineSetParams object.
 func NewCAPIMachineSetParams(msName, clusterName, failureDomain string, replicas int32, infrastructureRef corev1.ObjectReference) CAPIMachineSetParams {
-	Expect(msName).ToNot(BeEmpty())
-	Expect(clusterName).ToNot(BeEmpty())
-	Expect(infrastructureRef.APIVersion).ToNot(BeEmpty())
-	Expect(infrastructureRef.Kind).ToNot(BeEmpty())
-	Expect(infrastructureRef.Name).ToNot(BeEmpty())
+	Expect(msName).ToNot(BeEmpty(), "expected the capi msName to not be empty")
+	Expect(clusterName).ToNot(BeEmpty(), "expected the capi clusterName to not be empty")
+	Expect(infrastructureRef.APIVersion).ToNot(BeEmpty(), "expected the infrastructureRef APIVersion to not be empty")
+	Expect(infrastructureRef.Kind).ToNot(BeEmpty(), "expected the infrastructureRef Kind to not be empty")
+	Expect(infrastructureRef.Name).ToNot(BeEmpty(), "expected the infrastructureRef Name to not be empty")
 
 	return CAPIMachineSetParams{
 		msName:            msName,
@@ -42,50 +43,31 @@ func NewCAPIMachineSetParams(msName, clusterName, failureDomain string, replicas
 // CreateCAPIMachineSet creates a new MachineSet resource.
 func CreateCAPIMachineSet(ctx context.Context, cl client.Client, params CAPIMachineSetParams) (*clusterv1.MachineSet, error) {
 	By(fmt.Sprintf("Creating MachineSet %q", params.msName))
-
+	selector := metav1.LabelSelector{
+		MatchLabels: map[string]string{"machine.openshift.io/cluster-api-cluster": params.clusterName, "machine.openshift.io/cluster-api-machineset": params.msName},
+	}
 	userDataSecret := "worker-user-data"
-
-	ms := &clusterv1.MachineSet{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "MachineSet",
-			APIVersion: "machine.openshift.io/v1beta1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      params.msName,
-			Namespace: ClusterAPINamespace,
-		},
-		Spec: clusterv1.MachineSetSpec{
-			Replicas:    &params.replicas,
-			ClusterName: params.clusterName,
-			Selector: metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"machine.openshift.io/cluster-api-cluster":    params.clusterName,
-					"machine.openshift.io/cluster-api-machineset": params.msName,
-				},
-			},
-			Template: clusterv1.MachineTemplateSpec{
-				ObjectMeta: clusterv1.ObjectMeta{
-					Labels: map[string]string{
-						"machine.openshift.io/cluster-api-cluster":    params.clusterName,
-						"machine.openshift.io/cluster-api-machineset": params.msName,
-					},
-				},
-				Spec: clusterv1.MachineSpec{
-					Bootstrap: clusterv1.Bootstrap{
-						DataSecretName: &userDataSecret,
-					},
-					ClusterName:       params.clusterName,
-					InfrastructureRef: params.infrastructureRef,
-				},
+	template := clusterv1.MachineTemplateSpec{
+		ObjectMeta: clusterv1.ObjectMeta{
+			Labels: map[string]string{
+				"machine.openshift.io/cluster-api-cluster":    params.clusterName,
+				"machine.openshift.io/cluster-api-machineset": params.msName,
 			},
 		},
+		Spec: clusterv1.MachineSpec{
+			Bootstrap: clusterv1.Bootstrap{
+				DataSecretName: &userDataSecret,
+			},
+			ClusterName:       params.clusterName,
+			InfrastructureRef: params.infrastructureRef,
+			FailureDomain:     &params.failureDomain,
+		},
 	}
+	ms := capiv1resourcebuilder.MachineSet().WithName(params.msName).WithNamespace(ClusterAPINamespace).WithReplicas(params.replicas).WithClusterName(params.clusterName).WithSelector(selector).WithTemplate(template).WithLabels(map[string]string{"cluster.x-k8s.io/cluster-name": params.clusterName}).Build()
 
-	if params.failureDomain != "" {
-		ms.Spec.Template.Spec.FailureDomain = &params.failureDomain
-	}
-
-	Expect(cl.Create(ctx, ms)).To(Succeed())
+	Eventually(func() error {
+		return cl.Create(ctx, ms)
+	}, WaitLong, RetryShort).Should(Succeed(), "it should have been able to create a new CAPI MachineSet")
 
 	return ms, nil
 }
@@ -109,7 +91,7 @@ func WaitForCAPIMachineSetsDeleted(ctx context.Context, cl client.Client, machin
 			}, &clusterv1.MachineSet{})
 
 			return apierrors.IsNotFound(err) // MachineSet and Machines were deleted.
-		}, WaitLong, RetryMedium).Should(BeTrue())
+		}, WaitLong, RetryMedium).Should(BeTrue(), "it should have been able to delete all the CAPI MachineSets")
 	}
 }
 
@@ -117,18 +99,20 @@ func WaitForCAPIMachineSetsDeleted(ctx context.Context, cl client.Client, machin
 func DeleteCAPIMachineSets(ctx context.Context, cl client.Client, machineSets ...*clusterv1.MachineSet) {
 	for _, ms := range machineSets {
 		By(fmt.Sprintf("Deleting MachineSet %q", ms.GetName()))
-		Expect(cl.Delete(ctx, ms)).To(Succeed())
+		Eventually(func() error {
+			return cl.Delete(ctx, ms)
+		}, WaitLong, RetryShort).Should(Succeed(), "the CAPI MachineSets should have been deleted")
 	}
 }
 
-// WaitForCAPIMachineSet waits for the all Machines belonging to the named
+// WaitForCAPIMachinesRunning waits for the all Machines belonging to the named
 // MachineSet to enter the "Running" phase, and for all nodes belonging to those
 // Machines to be ready.
-func WaitForCAPIMachineSet(ctx context.Context, cl client.Client, name string) {
+func WaitForCAPIMachinesRunning(ctx context.Context, cl client.Client, name string) {
 	By(fmt.Sprintf("Waiting for MachineSet machines %q to enter Running phase", name))
 
 	machineSet, err := GetCAPIMachineSet(ctx, cl, name)
-	Expect(err).ToNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred(), "Failed to get capi machineset")
 
 	Eventually(func() error {
 		machines, err := GetCAPIMachinesFromMachineSet(ctx, cl, machineSet)
@@ -143,7 +127,7 @@ func WaitForCAPIMachineSet(ctx context.Context, cl client.Client, name string) {
 				name, len(machines), int(replicas))
 		}
 
-		running := FilterCAPIRunningMachines(machines)
+		running := FilterCAPIMachinesInPhase(machines, "Running")
 
 		// This could probably be smarter, but seems fine for now.
 		if len(running) != len(machines) {
@@ -163,7 +147,7 @@ func WaitForCAPIMachineSet(ctx context.Context, cl client.Client, name string) {
 		}
 
 		return nil
-	}, WaitOverLong, RetryMedium).Should(Succeed())
+	}, WaitOverLong, RetryMedium).Should(Succeed(), "all machines belonging to the MachineSet should be in Running phase")
 }
 
 // GetCAPIMachineSet gets a machineset by its name from the default machine API namespace.
@@ -171,7 +155,9 @@ func GetCAPIMachineSet(ctx context.Context, cl client.Client, name string) (*clu
 	machineSet := &clusterv1.MachineSet{}
 	key := client.ObjectKey{Namespace: ClusterAPINamespace, Name: name}
 
-	Expect(cl.Get(ctx, key, machineSet)).To(Succeed())
+	Eventually(func() error {
+		return cl.Get(ctx, key, machineSet)
+	}, WaitShort, RetryShort).Should(Succeed(), "it should be able to get a machineset by its name")
 
 	return machineSet, nil
 }

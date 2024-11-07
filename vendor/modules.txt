@@ -796,18 +796,16 @@ github.com/openshift/client-go/machine/clientset/versioned/typed/machine/v1beta1
 github.com/openshift/client-go/machine/informers/externalversions/internalinterfaces
 github.com/openshift/client-go/machine/informers/externalversions/machine/v1beta1
 github.com/openshift/client-go/machine/listers/machine/v1beta1
-# github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20240626103413-ddea9c7c0aca
-## explicit; go 1.21
+# github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20241112115249-e541d71175dd
+## explicit; go 1.22.1
 github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/apps/v1
+github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/cluster-api/core/v1beta1
 github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/core/v1
 # github.com/openshift/cluster-autoscaler-operator v0.0.1-0.20240509123215-40cadf8a4729
 ## explicit; go 1.21
 github.com/openshift/cluster-autoscaler-operator/pkg/apis
 github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1
 github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1beta1
-# github.com/openshift/cluster-capi-operator/e2e v0.0.0-20241106203946-d1a552850961
-## explicit; go 1.22.0
-github.com/openshift/cluster-capi-operator/e2e/framework
 # github.com/openshift/library-go v0.0.0-20240919205913-c96b82b3762b
 ## explicit; go 1.22.0
 github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers

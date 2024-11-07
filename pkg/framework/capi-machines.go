@@ -42,12 +42,12 @@ func GetCAPIMachines(ctx context.Context, cl client.Client, selectors ...*metav1
 	return machines, nil
 }
 
-// FilterCAPIRunningMachines returns a slice of only those Machines in the input that are in the "Running" phase.
-func FilterCAPIRunningMachines(machines []*clusterv1.Machine) []*clusterv1.Machine {
+// FilterCAPIMachinesInPhase returns a slice of only those Machines in the input that are in the selected phase.
+func FilterCAPIMachinesInPhase(machines []*clusterv1.Machine, machinePhase string) []*clusterv1.Machine {
 	var result []*clusterv1.Machine
 
 	for i, m := range machines {
-		if m.Status.Phase == string(clusterv1.MachinePhaseRunning) {
+		if m.Status.Phase == machinePhase {
 			result = append(result, machines[i])
 		}
 	}

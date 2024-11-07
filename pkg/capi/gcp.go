@@ -1,4 +1,4 @@
-package e2e
+package capi
 
 import (
 	"context"
@@ -8,56 +8,72 @@ import (
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
 	mapiv1 "github.com/openshift/api/machine/v1beta1"
-	"github.com/openshift/cluster-capi-operator/e2e/framework"
+	framework "github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gcpv1 "sigs.k8s.io/cluster-api-provider-gcp/api/v1beta1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/envtest/komega"
 	yaml "sigs.k8s.io/yaml"
 )
 
 const (
-	gcpMachineTemplateName = "gcp-machine-template"
 	infraAPIVersion        = "infrastructure.cluster.x-k8s.io/v1beta1"
+	gcpMachineTemplateName = "gcp-machine-template"
 )
 
 var (
-	cl          runtimeclient.Client
 	ctx         = context.Background()
 	clusterName string
+	cl          client.Client
 )
 
 var _ = Describe("Cluster API GCP MachineSet", Ordered, func() {
 	var gcpMachineTemplate *gcpv1.GCPMachineTemplate
 	var machineSet *clusterv1.MachineSet
 	var mapiMachineSpec *mapiv1.GCPMachineProviderSpec
+	var ctx context.Context
 	var platform configv1.PlatformType
+	var clusterName string
+	var err error
 
 	BeforeAll(func() {
+		cl, err = framework.LoadClient()
+		Expect(err).NotTo(HaveOccurred(), "Failed to create Kubernetes client for test")
+		komega.SetClient(cl)
+		ctx = framework.GetContext()
+		platform, err = framework.GetPlatform(ctx, cl)
+		Expect(err).ToNot(HaveOccurred(), "Failed to get platform")
 		if platform != configv1.GCPPlatformType {
 			Skip("Skipping GCP E2E tests")
 		}
-		framework.CreateCoreCluster(cl, clusterName, "GCPCluster")
+		oc, _ := framework.NewCLI()
+		framework.SkipIfNotTechPreviewNoUpgrade(oc, cl)
+
+		infra, err := framework.GetInfrastructure(ctx, cl)
+		Expect(err).NotTo(HaveOccurred(), "Failed to get cluster infrastructure object")
+		Expect(infra.Status.InfrastructureName).ShouldNot(BeEmpty(), "infrastructure name was empty on Infrastructure.Status.")
+		clusterName = infra.Status.InfrastructureName
+
+		framework.CreateCoreCluster(ctx, cl, clusterName, "GCPCluster")
 		mapiMachineSpec = getGCPMAPIProviderSpec(cl)
 	})
-
 	AfterEach(func() {
 		if platform != configv1.GCPPlatformType {
 			// Because AfterEach always runs, even when tests are skipped, we have to
 			// explicitly skip it here for other platforms.
 			Skip("Skipping GCP E2E tests")
 		}
-		framework.DeleteMachineSets(cl, machineSet)
-		framework.WaitForMachineSetsDeleted(cl, machineSet)
-		framework.DeleteObjects(cl, gcpMachineTemplate)
+		framework.DeleteCAPIMachineSets(ctx, cl, machineSet)
+		framework.WaitForCAPIMachineSetsDeleted(ctx, cl, machineSet)
+		framework.DeleteObjects(ctx, cl, gcpMachineTemplate)
 	})
 
 	It("should be able to run a machine", func() {
 		gcpMachineTemplate = createGCPMachineTemplate(cl, mapiMachineSpec)
-
-		machineSet = framework.CreateMachineSet(cl, framework.NewMachineSetParams(
+		machineSet, _ = framework.CreateCAPIMachineSet(ctx, cl, framework.NewCAPIMachineSetParams(
 			"gcp-machineset",
 			clusterName,
 			mapiMachineSpec.Zone,
@@ -68,14 +84,14 @@ var _ = Describe("Cluster API GCP MachineSet", Ordered, func() {
 				Name:       gcpMachineTemplateName,
 			},
 		))
-
-		framework.WaitForMachineSet(cl, machineSet.Name)
+		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
+		framework.WaitForCAPIMachinesRunning(framework.GetContext(), cl, machineSet.Name)
 	})
 })
 
-func getGCPMAPIProviderSpec(cl runtimeclient.Client) *mapiv1.GCPMachineProviderSpec {
+func getGCPMAPIProviderSpec(cl client.Client) *mapiv1.GCPMachineProviderSpec {
 	machineSetList := &mapiv1.MachineSetList{}
-	Expect(cl.List(ctx, machineSetList, runtimeclient.InNamespace(framework.MAPINamespace))).To(Succeed())
+	Expect(cl.List(ctx, machineSetList, client.InNamespace(framework.MachineAPINamespace))).To(Succeed())
 
 	Expect(machineSetList.Items).ToNot(HaveLen(0))
 	machineSet := machineSetList.Items[0]
@@ -87,7 +103,7 @@ func getGCPMAPIProviderSpec(cl runtimeclient.Client) *mapiv1.GCPMachineProviderS
 	return providerSpec
 }
 
-func createGCPMachineTemplate(cl runtimeclient.Client, mapiProviderSpec *mapiv1.GCPMachineProviderSpec) *gcpv1.GCPMachineTemplate {
+func createGCPMachineTemplate(cl client.Client, mapiProviderSpec *mapiv1.GCPMachineProviderSpec) *gcpv1.GCPMachineTemplate {
 	By("Creating GCP machine template")
 
 	Expect(mapiProviderSpec).ToNot(BeNil())
@@ -135,7 +151,7 @@ func createGCPMachineTemplate(cl runtimeclient.Client, mapiProviderSpec *mapiv1.
 	gcpMachineTemplate := &gcpv1.GCPMachineTemplate{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gcpMachineTemplateName,
-			Namespace: framework.CAPINamespace,
+			Namespace: framework.ClusterAPINamespace,
 		},
 		Spec: gcpv1.GCPMachineTemplateSpec{
 			Template: gcpv1.GCPMachineTemplateResource{
