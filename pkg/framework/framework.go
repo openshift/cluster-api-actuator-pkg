@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
 	cov1helpers "github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -28,6 +30,7 @@ const (
 	ClusterKey              = "machine.openshift.io/cluster-api-cluster"
 	MachineSetKey           = "machine.openshift.io/cluster-api-machineset"
 	MachineAPINamespace     = "openshift-machine-api"
+	ClusterAPINamespace     = "openshift-cluster-api"
 	GlobalInfrastuctureName = "cluster"
 	WorkerNodeRoleLabel     = "node-role.kubernetes.io/worker"
 	RetryShort              = 1 * time.Second
@@ -270,4 +273,12 @@ func NewGatherer() (*gatherer.StateGatherer, error) {
 	}
 
 	return gatherer.NewStateGatherer(context.Background(), cli, time.Now()), nil
+}
+
+// DeleteObjects deletes the objects in the given list.
+func DeleteObjects(ctx context.Context, cl runtimeclient.Client, objs ...runtimeclient.Object) {
+	for _, o := range objs {
+		By(fmt.Sprintf("Deleting %s/%s", o.GetObjectKind().GroupVersionKind().Kind, o.GetName()))
+		Expect(cl.Delete(ctx, o)).To(Succeed())
+	}
 }
