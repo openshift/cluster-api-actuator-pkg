@@ -12,14 +12,14 @@ import (
 
 	osconfigv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
-	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
-	caov1alpha1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis"
-
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/autoscaler"
+	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/capi"
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/infra"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/machinehealthcheck"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/operators"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/providers"
+	caov1alpha1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis"
 )
 
 func init() {
