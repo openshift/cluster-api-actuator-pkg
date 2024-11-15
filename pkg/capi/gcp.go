@@ -71,22 +71,34 @@ var _ = Describe("Cluster API GCP MachineSet", Ordered, func() {
 		framework.DeleteObjects(ctx, cl, gcpMachineTemplate)
 	})
 
-	It("should be able to run a machine", func() {
-		gcpMachineTemplate = createGCPMachineTemplate(cl, mapiMachineSpec)
-		machineSet, _ = framework.CreateCAPIMachineSet(ctx, cl, framework.NewCAPIMachineSetParams(
-			"gcp-machineset",
-			clusterName,
-			mapiMachineSpec.Zone,
-			1,
-			corev1.ObjectReference{
-				Kind:       "GCPMachineTemplate",
-				APIVersion: infraAPIVersion,
-				Name:       gcpMachineTemplateName,
-			},
-		))
-		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
-		framework.WaitForCAPIMachinesRunning(framework.GetContext(), cl, machineSet.Name)
-	})
+	diskTypes := map[string]gcpv1.DiskType{
+		"pd-standard": gcpv1.PdStandardDiskType,
+		"pd-ssd":      gcpv1.PdSsdDiskType,
+		//	"local-ssd":   gcpv1.LocalSsdDiskType,//boot disk cannot be local disk hence commenting it
+		"pd-balanced": gcpv1.PdBalancedDiskType,
+	}
+
+	for diskTypeName := range diskTypes {
+		It(fmt.Sprintf("should be able to run a machine with disk type: %s", diskTypeName), func() {
+			mapiProviderSpec := getGCPMAPIProviderSpec(cl)
+			Expect(mapiProviderSpec).ToNot(BeNil())
+			mapiProviderSpec.Disks[0].Type = diskTypeName
+			gcpMachineTemplate = createGCPMachineTemplate(cl, mapiProviderSpec)
+			machineSet, _ = framework.CreateCAPIMachineSet(ctx, cl, framework.NewCAPIMachineSetParams(
+				"gcp-machineset",
+				clusterName,
+				mapiMachineSpec.Zone,
+				1,
+				corev1.ObjectReference{
+					Kind:       "GCPMachineTemplate",
+					APIVersion: infraAPIVersion,
+					Name:       gcpMachineTemplateName,
+				},
+			))
+			Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
+			framework.WaitForCAPIMachinesRunning(framework.GetContext(), cl, machineSet.Name)
+		})
+	}
 })
 
 func getGCPMAPIProviderSpec(cl client.Client) *mapiv1.GCPMachineProviderSpec {
@@ -128,8 +140,10 @@ func createGCPMachineTemplate(cl client.Client, mapiProviderSpec *mapiv1.GCPMach
 		rootDeviceType = gcpv1.PdStandardDiskType
 	case "pd-ssd":
 		rootDeviceType = gcpv1.PdSsdDiskType
-	case "local-ssd":
-		rootDeviceType = gcpv1.LocalSsdDiskType
+	/*case "local-ssd":
+	rootDeviceType = gcpv1.LocalSsdDiskType*/
+	case "pd-balanced":
+		rootDeviceType = gcpv1.PdBalancedDiskType
 	}
 
 	ipForwardingDisabled := gcpv1.IPForwardingDisabled
