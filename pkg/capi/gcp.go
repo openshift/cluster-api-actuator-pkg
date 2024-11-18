@@ -99,6 +99,54 @@ var _ = Describe("Cluster API GCP MachineSet", Ordered, func() {
 			framework.WaitForCAPIMachinesRunning(framework.GetContext(), cl, machineSet.Name)
 		})
 	}
+
+	// Test case for Shielded VM configuration
+	DescribeTable("should configure Shielded VM options correctly",
+		func(enableSecureBoot mapiv1.SecureBootPolicy, enableVtpm mapiv1.VirtualizedTrustedPlatformModulePolicy, enableIntegrityMonitoring mapiv1.IntegrityMonitoringPolicy) {
+			mapiProviderSpec := getGCPMAPIProviderSpec(cl)
+			Expect(mapiProviderSpec).ToNot(BeNil())
+
+			// Setting Shielded VM configuration
+			mapiProviderSpec.ShieldedInstanceConfig = mapiv1.GCPShieldedInstanceConfig{
+				SecureBoot:                       enableSecureBoot,
+				VirtualizedTrustedPlatformModule: enableVtpm,
+				IntegrityMonitoring:              enableIntegrityMonitoring,
+			}
+			gcpMachineTemplate = createGCPMachineTemplate(cl, mapiProviderSpec)
+			machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, framework.NewCAPIMachineSetParams(
+				"gcp-machineset-shieldedvm",
+				clusterName,
+				mapiMachineSpec.Zone,
+				1,
+				corev1.ObjectReference{
+					Kind:       "GCPMachineTemplate",
+					APIVersion: infraAPIVersion,
+					Name:       gcpMachineTemplateName,
+				},
+			))
+			Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset with Shielded VM config")
+
+			framework.WaitForCAPIMachinesRunning(framework.GetContext(), cl, machineSet.Name)
+
+			By("Verifying the Shielded VM configuration on the created GCP MachineTemplate")
+			createdTemplate := &gcpv1.GCPMachineTemplate{}
+			Expect(cl.Get(ctx, client.ObjectKey{
+				Namespace: framework.ClusterAPINamespace,
+				Name:      gcpMachineTemplateName,
+			}, createdTemplate)).To(Succeed())
+			Expect(createdTemplate.Spec.Template.Spec.ShieldedInstanceConfig).ToNot(BeNil())
+			Expect(fmt.Sprintf("%v", createdTemplate.Spec.Template.Spec.ShieldedInstanceConfig.SecureBoot)).To(Equal(fmt.Sprintf("%v", enableSecureBoot)))
+			Expect(fmt.Sprintf("%v", createdTemplate.Spec.Template.Spec.ShieldedInstanceConfig.VirtualizedTrustedPlatformModule)).To(Equal(fmt.Sprintf("%v", enableVtpm)))
+			Expect(fmt.Sprintf("%v", createdTemplate.Spec.Template.Spec.ShieldedInstanceConfig.IntegrityMonitoring)).To(Equal(fmt.Sprintf("%v", enableIntegrityMonitoring)))
+		},
+		Entry("all Shielded VM options enabled", mapiv1.SecureBootPolicyEnabled, mapiv1.VirtualizedTrustedPlatformModulePolicyEnabled, mapiv1.IntegrityMonitoringPolicyEnabled),
+		Entry("only SecureBoot enabled", mapiv1.SecureBootPolicyEnabled, mapiv1.VirtualizedTrustedPlatformModulePolicyDisabled, mapiv1.IntegrityMonitoringPolicyDisabled),
+		Entry("only Vtpm enabled", mapiv1.SecureBootPolicyDisabled, mapiv1.VirtualizedTrustedPlatformModulePolicyEnabled, mapiv1.IntegrityMonitoringPolicyDisabled),
+		Entry("only IntegrityMonitoring enabled", mapiv1.SecureBootPolicyDisabled, mapiv1.VirtualizedTrustedPlatformModulePolicyDisabled, mapiv1.IntegrityMonitoringPolicyEnabled),
+		Entry("SecureBoot and Vtpm enabled", mapiv1.SecureBootPolicyEnabled, mapiv1.VirtualizedTrustedPlatformModulePolicyEnabled, mapiv1.IntegrityMonitoringPolicyDisabled),
+		Entry("SecureBoot and IntegrityMonitoring enabled", mapiv1.SecureBootPolicyEnabled, mapiv1.VirtualizedTrustedPlatformModulePolicyDisabled, mapiv1.IntegrityMonitoringPolicyEnabled),
+		Entry("all Shielded VM options disabled", mapiv1.SecureBootPolicyDisabled, mapiv1.VirtualizedTrustedPlatformModulePolicyDisabled, mapiv1.IntegrityMonitoringPolicyDisabled),
+	)
 })
 
 func getGCPMAPIProviderSpec(cl client.Client) *mapiv1.GCPMachineProviderSpec {
@@ -147,6 +195,7 @@ func createGCPMachineTemplate(cl client.Client, mapiProviderSpec *mapiv1.GCPMach
 	}
 
 	ipForwardingDisabled := gcpv1.IPForwardingDisabled
+
 	gcpMachineSpec := gcpv1.GCPMachineSpec{
 		RootDeviceType: &rootDeviceType,
 		RootDeviceSize: mapiProviderSpec.Disks[0].SizeGB,
@@ -156,6 +205,12 @@ func createGCPMachineTemplate(cl client.Client, mapiProviderSpec *mapiv1.GCPMach
 		ServiceAccount: &gcpv1.ServiceAccount{
 			Email:  mapiProviderSpec.ServiceAccounts[0].Email,
 			Scopes: mapiProviderSpec.ServiceAccounts[0].Scopes,
+		},
+		// Shielded VM Configuration
+		ShieldedInstanceConfig: &gcpv1.GCPShieldedInstanceConfig{
+			SecureBoot:                       gcpv1.SecureBootPolicy(mapiProviderSpec.ShieldedInstanceConfig.SecureBoot),
+			VirtualizedTrustedPlatformModule: gcpv1.VirtualizedTrustedPlatformModulePolicy(mapiProviderSpec.ShieldedInstanceConfig.VirtualizedTrustedPlatformModule),
+			IntegrityMonitoring:              gcpv1.IntegrityMonitoringPolicy(mapiProviderSpec.ShieldedInstanceConfig.IntegrityMonitoring),
 		},
 		AdditionalNetworkTags: mapiProviderSpec.Tags,
 		AdditionalLabels:      gcpv1.Labels{fmt.Sprintf("kubernetes-io-cluster-%s", clusterName): "owned"},
