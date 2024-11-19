@@ -82,6 +82,8 @@ var _ = Describe("Cluster API GCP MachineSet", Ordered, func() {
 		It(fmt.Sprintf("should be able to run a machine with disk type: %s", diskTypeName), func() {
 			mapiProviderSpec := getGCPMAPIProviderSpec(cl)
 			Expect(mapiProviderSpec).ToNot(BeNil())
+			mapiProviderSpec.OnHostMaintenance = "Migrate"
+			mapiProviderSpec.ConfidentialCompute = "Disabled"
 			mapiProviderSpec.Disks[0].Type = diskTypeName
 			gcpMachineTemplate = createGCPMachineTemplate(cl, mapiProviderSpec)
 			machineSet, _ = framework.CreateCAPIMachineSet(ctx, cl, framework.NewCAPIMachineSetParams(
@@ -105,7 +107,8 @@ var _ = Describe("Cluster API GCP MachineSet", Ordered, func() {
 		func(enableSecureBoot mapiv1.SecureBootPolicy, enableVtpm mapiv1.VirtualizedTrustedPlatformModulePolicy, enableIntegrityMonitoring mapiv1.IntegrityMonitoringPolicy) {
 			mapiProviderSpec := getGCPMAPIProviderSpec(cl)
 			Expect(mapiProviderSpec).ToNot(BeNil())
-
+			mapiProviderSpec.OnHostMaintenance = "Migrate"
+			mapiProviderSpec.ConfidentialCompute = "Disabled"
 			// Setting Shielded VM configuration
 			mapiProviderSpec.ShieldedInstanceConfig = mapiv1.GCPShieldedInstanceConfig{
 				SecureBoot:                       enableSecureBoot,
@@ -146,6 +149,49 @@ var _ = Describe("Cluster API GCP MachineSet", Ordered, func() {
 		Entry("SecureBoot and Vtpm enabled", mapiv1.SecureBootPolicyEnabled, mapiv1.VirtualizedTrustedPlatformModulePolicyEnabled, mapiv1.IntegrityMonitoringPolicyDisabled),
 		Entry("SecureBoot and IntegrityMonitoring enabled", mapiv1.SecureBootPolicyEnabled, mapiv1.VirtualizedTrustedPlatformModulePolicyDisabled, mapiv1.IntegrityMonitoringPolicyEnabled),
 		Entry("all Shielded VM options disabled", mapiv1.SecureBootPolicyDisabled, mapiv1.VirtualizedTrustedPlatformModulePolicyDisabled, mapiv1.IntegrityMonitoringPolicyDisabled),
+	)
+	// Confidential VM Configurations Test
+	DescribeTable("should configure Confidential VM correctly",
+		func(confidentialCompute mapiv1.ConfidentialComputePolicy) {
+			mapiProviderSpec := getGCPMAPIProviderSpec(cl)
+			Expect(mapiProviderSpec).ToNot(BeNil())
+
+			// Set the Confidential Compute configuration
+			mapiProviderSpec.ConfidentialCompute = confidentialCompute
+			if confidentialCompute == mapiv1.ConfidentialComputePolicyEnabled {
+				mapiProviderSpec.OnHostMaintenance = mapiv1.GCPHostMaintenanceType(gcpv1.HostMaintenancePolicyTerminate)
+				mapiProviderSpec.MachineType = "n2d-standard-4"
+			}
+
+			By("Creating a GCP MachineTemplate for Confidential VM")
+			gcpMachineTemplate = createGCPMachineTemplate(cl, mapiProviderSpec)
+
+			By("Creating a MachineSet for Confidential VM")
+			machineSet, err := framework.CreateCAPIMachineSet(framework.GetContext(), cl, framework.NewCAPIMachineSetParams(
+				"gcp-machineset-confidential",
+				clusterName,
+				mapiProviderSpec.Zone,
+				1,
+				corev1.ObjectReference{
+					Kind:       "GCPMachineTemplate",
+					APIVersion: infraAPIVersion,
+					Name:       gcpMachineTemplateName,
+				},
+			))
+			Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI MachineSet with Confidential VM configuration")
+
+			framework.WaitForCAPIMachinesRunning(framework.GetContext(), cl, machineSet.Name)
+
+			By("Verifying the Confidential VM configuration on the created GCP MachineTemplate")
+			createdTemplate := &gcpv1.GCPMachineTemplate{}
+			Expect(cl.Get(framework.GetContext(), client.ObjectKey{
+				Namespace: framework.ClusterAPINamespace,
+				Name:      gcpMachineTemplateName,
+			}, createdTemplate)).To(Succeed())
+			Expect(fmt.Sprintf("%v", createdTemplate.Spec.Template.Spec.ConfidentialCompute)).To(Equal(fmt.Sprintf("%v", confidentialCompute)))
+		},
+		Entry("Confidential Compute enabled", mapiv1.ConfidentialComputePolicyEnabled),
+		Entry("Confidential Compute disabled", mapiv1.ConfidentialComputePolicyDisabled),
 	)
 })
 
@@ -197,11 +243,12 @@ func createGCPMachineTemplate(cl client.Client, mapiProviderSpec *mapiv1.GCPMach
 	ipForwardingDisabled := gcpv1.IPForwardingDisabled
 
 	gcpMachineSpec := gcpv1.GCPMachineSpec{
-		RootDeviceType: &rootDeviceType,
-		RootDeviceSize: mapiProviderSpec.Disks[0].SizeGB,
-		InstanceType:   mapiProviderSpec.MachineType,
-		Image:          &mapiProviderSpec.Disks[0].Image,
-		Subnet:         &mapiProviderSpec.NetworkInterfaces[0].Subnetwork,
+		RootDeviceType:    &rootDeviceType,
+		RootDeviceSize:    mapiProviderSpec.Disks[0].SizeGB,
+		InstanceType:      mapiProviderSpec.MachineType,
+		OnHostMaintenance: (*gcpv1.HostMaintenancePolicy)(&mapiProviderSpec.OnHostMaintenance),
+		Image:             &mapiProviderSpec.Disks[0].Image,
+		Subnet:            &mapiProviderSpec.NetworkInterfaces[0].Subnetwork,
 		ServiceAccount: &gcpv1.ServiceAccount{
 			Email:  mapiProviderSpec.ServiceAccounts[0].Email,
 			Scopes: mapiProviderSpec.ServiceAccounts[0].Scopes,
@@ -212,6 +259,9 @@ func createGCPMachineTemplate(cl client.Client, mapiProviderSpec *mapiv1.GCPMach
 			VirtualizedTrustedPlatformModule: gcpv1.VirtualizedTrustedPlatformModulePolicy(mapiProviderSpec.ShieldedInstanceConfig.VirtualizedTrustedPlatformModule),
 			IntegrityMonitoring:              gcpv1.IntegrityMonitoringPolicy(mapiProviderSpec.ShieldedInstanceConfig.IntegrityMonitoring),
 		},
+
+		// Confidential VM Configuration
+		ConfidentialCompute:   (*gcpv1.ConfidentialComputePolicy)(&mapiProviderSpec.ConfidentialCompute),
 		AdditionalNetworkTags: mapiProviderSpec.Tags,
 		AdditionalLabels:      gcpv1.Labels{fmt.Sprintf("kubernetes-io-cluster-%s", clusterName): "owned"},
 		IPForwarding:          &ipForwardingDisabled,
