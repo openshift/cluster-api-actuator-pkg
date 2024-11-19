@@ -38,6 +38,8 @@ const (
 	PdSsdDiskType DiskType = "pd-ssd"
 	// LocalSsdDiskType defines the name for the local ssd disk.
 	LocalSsdDiskType DiskType = "local-ssd"
+	// PdBalancedDisktype defines the name for the Pd Balanced disk.
+	PdBalancedDiskType DiskType = "pd-balanced"
 )
 
 // AttachedDiskSpec degined GCP machine disk.
