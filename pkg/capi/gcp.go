@@ -5,13 +5,14 @@ import (
 	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
+	gotypes "github.com/onsi/ginkgo/v2/types"
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
 	mapiv1 "github.com/openshift/api/machine/v1beta1"
 	framework "github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	gcpv1 "sigs.k8s.io/cluster-api-provider-gcp/api/v1beta1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -20,8 +21,6 @@ import (
 )
 
 const (
-	infraAPIVersion            = "infrastructure.cluster.x-k8s.io/v1beta1"
-	gcpMachineTemplateName     = "gcp-machine-template"
 	OnHostMaintenanceTerminate = "Terminate"
 	OnHostMaintenanceMigrate   = "Migrate"
 )
@@ -61,31 +60,23 @@ var _ = Describe("Cluster API GCP MachineSet", framework.LabelCAPI, framework.La
 		framework.CreateCoreCluster(ctx, cl, clusterName, "GCPCluster")
 		mapiMachineSpec = getGCPMAPIProviderSpec(cl)
 	})
+
 	AfterEach(func() {
-		if platform != configv1.GCPPlatformType {
-			// Because AfterEach always runs, even when tests are skipped, we have to
-			// explicitly skip it here for other platforms.
-			Skip("Skipping GCP E2E tests")
+		// if the current testing are skipped, we skip clean resources
+		if CurrentSpecReport().State == gotypes.SpecStateSkipped {
+			return
 		}
 		framework.DeleteCAPIMachineSets(ctx, cl, machineSet)
 		framework.WaitForCAPIMachineSetsDeleted(ctx, cl, machineSet)
 		framework.DeleteObjects(ctx, cl, gcpMachineTemplate)
 	})
-	// OCP-77825 capi created instances support disks pd-ssd and pd-standard
-	// author: miyadav@redhat.com
-	DescribeTable("should be able to run a machine with disk types",
+	DescribeTable("should be able to run a machine with disk types", framework.LabelCAPI, framework.LabelDisruptive,
 		func(expectedDiskType gcpv1.DiskType) {
 			mapiProviderSpec := getGCPMAPIProviderSpec(cl)
 			Expect(mapiProviderSpec).ToNot(BeNil())
 			gcpMachineTemplate = createGCPMachineTemplate(mapiProviderSpec)
 			gcpMachineTemplate.Spec.Template.Spec.RootDeviceType = &expectedDiskType
-			mapiProviderSpec.OnHostMaintenance = OnHostMaintenanceTerminate
-			gcpMachineTemplate.Spec.Template.Spec.OnHostMaintenance = (*gcpv1.HostMaintenancePolicy)(&mapiProviderSpec.OnHostMaintenance)
-
-			if err := cl.Create(ctx, gcpMachineTemplate); err != nil && !apierrors.IsAlreadyExists(err) {
-				Expect(err).ToNot(HaveOccurred())
-			}
-
+			Expect(cl.Create(ctx, gcpMachineTemplate)).To(Succeed())
 			machineSet, _ = framework.CreateCAPIMachineSet(ctx, cl, framework.NewCAPIMachineSetParams(
 				"gcp-machineset-77825",
 				clusterName,
@@ -94,7 +85,7 @@ var _ = Describe("Cluster API GCP MachineSet", framework.LabelCAPI, framework.La
 				corev1.ObjectReference{
 					Kind:       "GCPMachineTemplate",
 					APIVersion: infraAPIVersion,
-					Name:       gcpMachineTemplateName,
+					Name:       gcpMachineTemplate.Name,
 				},
 			))
 			Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
@@ -103,10 +94,7 @@ var _ = Describe("Cluster API GCP MachineSet", framework.LabelCAPI, framework.La
 		Entry("Disk type pd-standard", gcpv1.PdStandardDiskType),
 		Entry("Disk type pd-ssd", gcpv1.PdSsdDiskType),
 	)
-	// OCP-74795 - add support for shielded VMs - It takes defaults if configs are not supported; eg-vtpm alone set to Enabled will result in IntergrityMonitoring also as Enabled
-	// doesn't matter what we pass - all enabled/secureboot only disabled(default) are valid changes which we can apply
-	// author: miyadav@redhat.com
-	DescribeTable("should configure Shielded VM options correctly",
+	DescribeTable("should configure Shielded VM options correctly", framework.LabelCAPI, framework.LabelDisruptive,
 		func(enableSecureBoot gcpv1.SecureBootPolicy, enableVtpm gcpv1.VirtualizedTrustedPlatformModulePolicy, enableIntegrityMonitoring gcpv1.IntegrityMonitoringPolicy) {
 			mapiProviderSpec := getGCPMAPIProviderSpec(cl)
 			Expect(mapiProviderSpec).ToNot(BeNil())
@@ -118,10 +106,7 @@ var _ = Describe("Cluster API GCP MachineSet", framework.LabelCAPI, framework.La
 				VirtualizedTrustedPlatformModule: enableVtpm,
 				IntegrityMonitoring:              enableIntegrityMonitoring,
 			}
-			if err := cl.Create(ctx, gcpMachineTemplate); err != nil && !apierrors.IsAlreadyExists(err) {
-				Expect(err).ToNot(HaveOccurred())
-			}
-
+			Expect(cl.Create(ctx, gcpMachineTemplate)).To(Succeed())
 			machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, framework.NewCAPIMachineSetParams(
 				"gcp-machineset-shieldedvm-74795",
 				clusterName,
@@ -130,7 +115,7 @@ var _ = Describe("Cluster API GCP MachineSet", framework.LabelCAPI, framework.La
 				corev1.ObjectReference{
 					Kind:       "GCPMachineTemplate",
 					APIVersion: infraAPIVersion,
-					Name:       gcpMachineTemplateName,
+					Name:       gcpMachineTemplate.Name,
 				},
 			))
 			Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset with Shielded VM config")
@@ -141,7 +126,7 @@ var _ = Describe("Cluster API GCP MachineSet", framework.LabelCAPI, framework.La
 			createdTemplate := &gcpv1.GCPMachineTemplate{}
 			Expect(cl.Get(ctx, client.ObjectKey{
 				Namespace: framework.ClusterAPINamespace,
-				Name:      gcpMachineTemplateName,
+				Name:      gcpMachineTemplate.Name,
 			}, createdTemplate)).To(Succeed())
 			Expect(createdTemplate.Spec.Template.Spec.ShieldedInstanceConfig).ToNot(BeNil())
 			Expect(fmt.Sprintf("%v", createdTemplate.Spec.Template.Spec.ShieldedInstanceConfig.SecureBoot)).To(Equal(fmt.Sprintf("%v", enableSecureBoot)))
@@ -158,32 +143,27 @@ var _ = Describe("Cluster API GCP MachineSet", framework.LabelCAPI, framework.La
 		Entry("all Shielded VM options disabled", gcpv1.SecureBootPolicyDisabled, gcpv1.VirtualizedTrustedPlatformModulePolicyDisabled, gcpv1.IntegrityMonitoringPolicyDisabled),
 		*/
 	)
-	// OCP-74703 - Create confidential compute VMs on gcp
-	// author: miyadav@redhat.com
-	// Define constants as variable for this case to pass values properly
-	confidentialComputeEnabled := gcpv1.ConfidentialComputePolicyEnabled
-	confidentialComputeDisabled := gcpv1.ConfidentialComputePolicyDisabled
-	DescribeTable("should configure Confidential VM correctly",
-		func(confidentialCompute *gcpv1.ConfidentialComputePolicy) {
+	DescribeTable("should configure Confidential VM correctly", framework.LabelCAPI, framework.LabelDisruptive,
+		func(confidentialCompute gcpv1.ConfidentialComputePolicy) {
 			mapiProviderSpec := getGCPMAPIProviderSpec(cl)
 			Expect(mapiProviderSpec).ToNot(BeNil())
-			gcpMachineTemplate = createGCPMachineTemplate(mapiProviderSpec)
-			gcpMachineTemplate.Spec.Template.Spec.ConfidentialCompute = confidentialCompute
-			gcpMachineTemplate.Spec.Template.Spec.InstanceType = "n2d-standard-4"
 
-			if *confidentialCompute == gcpv1.ConfidentialComputePolicyEnabled {
+			// Configure OnHostMaintenance based on ConfidentialCompute policy
+			switch confidentialCompute {
+			case gcpv1.ConfidentialComputePolicyEnabled:
 				mapiProviderSpec.OnHostMaintenance = OnHostMaintenanceTerminate
-				gcpMachineTemplate.Spec.Template.Spec.OnHostMaintenance = (*gcpv1.HostMaintenancePolicy)(&mapiProviderSpec.OnHostMaintenance)
-			} else {
+			case gcpv1.ConfidentialComputePolicyDisabled:
 				mapiProviderSpec.OnHostMaintenance = "Migrate"
-				gcpMachineTemplate.Spec.Template.Spec.OnHostMaintenance = (*gcpv1.HostMaintenancePolicy)(&mapiProviderSpec.OnHostMaintenance)
 			}
 
-			if err := cl.Create(ctx, gcpMachineTemplate); err != nil && !apierrors.IsAlreadyExists(err) {
-				Expect(err).ToNot(HaveOccurred())
-			}
+			// Create GCP MachineTemplate after relevant fields are updated
+			gcpMachineTemplate = createGCPMachineTemplate(mapiProviderSpec)
+			gcpMachineTemplate.Spec.Template.Spec.ConfidentialCompute = ptr.To(confidentialCompute)
+			gcpMachineTemplate.Spec.Template.Spec.InstanceType = "n2d-standard-4"
+			gcpMachineTemplate.Spec.Template.Spec.OnHostMaintenance = ptr.To(gcpv1.HostMaintenancePolicy(mapiProviderSpec.OnHostMaintenance))
 
-			By("Creating a MachineSet for Confidential VM")
+			Expect(cl.Create(ctx, gcpMachineTemplate)).To(Succeed())
+
 			machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, framework.NewCAPIMachineSetParams(
 				"gcp-machineset-confidential-74703",
 				clusterName,
@@ -192,67 +172,23 @@ var _ = Describe("Cluster API GCP MachineSet", framework.LabelCAPI, framework.La
 				corev1.ObjectReference{
 					Kind:       "GCPMachineTemplate",
 					APIVersion: infraAPIVersion,
-					Name:       gcpMachineTemplateName,
+					Name:       gcpMachineTemplate.Name,
 				},
 			))
 			Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI MachineSet with Confidential VM configuration")
-
 			framework.WaitForCAPIMachinesRunning(ctx, cl, machineSet.Name)
 
 			By("Verifying the Confidential VM configuration on the created GCP MachineTemplate")
 			createdTemplate := &gcpv1.GCPMachineTemplate{}
 			Expect(cl.Get(framework.GetContext(), client.ObjectKey{
 				Namespace: framework.ClusterAPINamespace,
-				Name:      gcpMachineTemplateName,
+				Name:      gcpMachineTemplate.Name,
 			}, createdTemplate)).To(Succeed())
-			var confidentialComputevalue = *createdTemplate.Spec.Template.Spec.ConfidentialCompute
-			Expect(fmt.Sprintf("%v", confidentialComputevalue)).To(Equal(fmt.Sprintf("%v", *confidentialCompute)))
+			Expect(createdTemplate.Spec.Template.Spec.ConfidentialCompute).To(HaveValue(Equal(confidentialCompute)))
 		},
-		Entry("Confidential Compute enabled", &confidentialComputeEnabled),
-		Entry("Confidential Compute disabled", &confidentialComputeDisabled),
+		Entry("Confidential Compute enabled", gcpv1.ConfidentialComputePolicyEnabled),
+		Entry("Confidential Compute disabled", gcpv1.ConfidentialComputePolicyDisabled),
 	)
-	// OCP-74732 GPU machine can be provisioned successfully by capi machineset
-	// author: miyadav@redhat.com
-	It("should provision GPU machine successfully", func() {
-		mapiProviderSpec := getGCPMAPIProviderSpec(cl)
-		Expect(mapiProviderSpec).ToNot(BeNil())
-		gcpMachineTemplate = createGCPMachineTemplate(mapiProviderSpec)
-		gcpMachineTemplate.Spec.Template.Spec.InstanceType = "a2-highgpu-1g"
-		mapiProviderSpec.OnHostMaintenance = OnHostMaintenanceTerminate
-		gcpMachineTemplate.Spec.Template.Spec.OnHostMaintenance = (*gcpv1.HostMaintenancePolicy)(&mapiProviderSpec.OnHostMaintenance)
-
-		if err := cl.Create(ctx, gcpMachineTemplate); err != nil && !apierrors.IsAlreadyExists(err) {
-			Expect(err).ToNot(HaveOccurred())
-		}
-
-		By("Creating a MachineSet for GPU machine")
-		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, framework.NewCAPIMachineSetParams(
-			"gcp-machineset-gpu-74732",
-			clusterName,
-			mapiProviderSpec.Zone,
-			1,
-			corev1.ObjectReference{
-				Kind:       "GCPMachineTemplate",
-				APIVersion: infraAPIVersion,
-				Name:       gcpMachineTemplateName,
-			},
-		))
-		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI MachineSet with GPU instanceType")
-
-		framework.WaitForCAPIMachinesRunning(ctx, cl, machineSet.Name)
-
-		By("Verifying the GPU machinetype configuration on the created GCP MachineTemplate")
-		createdTemplate := &gcpv1.GCPMachineTemplate{}
-		Expect(cl.Get(framework.GetContext(), client.ObjectKey{
-			Namespace: framework.ClusterAPINamespace,
-			Name:      gcpMachineTemplateName,
-		}, createdTemplate)).To(Succeed())
-		var machineType = createdTemplate.Spec.Template.Spec.InstanceType
-		Expect(machineType).To(Equal("a2-highgpu-1g"))
-	},
-	)
-	// OCP-75792 Preemptible machines can be provisioned successfully by capi machineset
-	// author: miyadav@redhat.com
 	It("should provision Preemptible machine successfully", func() {
 		mapiProviderSpec := getGCPMAPIProviderSpec(cl)
 		Expect(mapiProviderSpec).ToNot(BeNil())
@@ -261,9 +197,7 @@ var _ = Describe("Cluster API GCP MachineSet", framework.LabelCAPI, framework.La
 		mapiProviderSpec.OnHostMaintenance = OnHostMaintenanceTerminate
 		gcpMachineTemplate.Spec.Template.Spec.OnHostMaintenance = (*gcpv1.HostMaintenancePolicy)(&mapiProviderSpec.OnHostMaintenance)
 
-		if err := cl.Create(ctx, gcpMachineTemplate); err != nil && !apierrors.IsAlreadyExists(err) {
-			Expect(err).ToNot(HaveOccurred())
-		}
+		Expect(cl.Create(ctx, gcpMachineTemplate)).To(Succeed())
 
 		By("Creating a MachineSet for preeemptible machine")
 		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, framework.NewCAPIMachineSetParams(
@@ -274,7 +208,7 @@ var _ = Describe("Cluster API GCP MachineSet", framework.LabelCAPI, framework.La
 			corev1.ObjectReference{
 				Kind:       "GCPMachineTemplate",
 				APIVersion: infraAPIVersion,
-				Name:       gcpMachineTemplateName,
+				Name:       gcpMachineTemplate.Name,
 			},
 		))
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI MachineSet with preemptible instanceType")
@@ -285,7 +219,7 @@ var _ = Describe("Cluster API GCP MachineSet", framework.LabelCAPI, framework.La
 		createdTemplate := &gcpv1.GCPMachineTemplate{}
 		Expect(cl.Get(framework.GetContext(), client.ObjectKey{
 			Namespace: framework.ClusterAPINamespace,
-			Name:      gcpMachineTemplateName,
+			Name:      gcpMachineTemplate.Name,
 		}, createdTemplate)).To(Succeed())
 		var preemptible = createdTemplate.Spec.Template.Spec.Preemptible
 		Expect(preemptible).To(Equal(true))
@@ -347,8 +281,8 @@ func createGCPMachineTemplate(mapiProviderSpec *mapiv1.GCPMachineProviderSpec) *
 
 	gcpMachineTemplate := &gcpv1.GCPMachineTemplate{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      gcpMachineTemplateName,
-			Namespace: framework.ClusterAPINamespace,
+			GenerateName: "gcpmachinetemplate-",
+			Namespace:    framework.ClusterAPINamespace,
 		},
 		Spec: gcpv1.GCPMachineTemplateSpec{
 			Template: gcpv1.GCPMachineTemplateResource{

@@ -54,6 +54,7 @@ func init() {
 	if err := awsv1.AddToScheme(scheme.Scheme); err != nil {
 		klog.Fatal(err)
 	}
+
 	if err := gcpv1.AddToScheme(scheme.Scheme); err != nil {
 		klog.Fatal(err)
 	}
