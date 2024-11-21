@@ -40,6 +40,19 @@ func NewCAPIMachineSetParams(msName, clusterName, failureDomain string, replicas
 	}
 }
 
+// UpdateCAPIMachineSetName returns CAPIMachineSetParams object with the updated machineset name.
+func UpdateCAPIMachineSetName(msName string, params CAPIMachineSetParams) CAPIMachineSetParams {
+	Expect(msName).ToNot(BeEmpty(), "expected the capi msName to not be empty")
+
+	return CAPIMachineSetParams{
+		msName:            msName,
+		clusterName:       params.clusterName,
+		replicas:          params.replicas,
+		infrastructureRef: params.infrastructureRef,
+		failureDomain:     params.failureDomain,
+	}
+}
+
 // CreateCAPIMachineSet creates a new MachineSet resource.
 func CreateCAPIMachineSet(ctx context.Context, cl client.Client, params CAPIMachineSetParams) (*clusterv1.MachineSet, error) {
 	By(fmt.Sprintf("Creating MachineSet %q", params.msName))
