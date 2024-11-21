@@ -11,7 +11,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.20.2
 	github.com/onsi/gomega v1.34.2
 	github.com/openshift/api v0.0.0-20240924155631-232984653385
-	github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20241112115249-e541d71175dd
+	github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20241119145735-af0b63d8343b
 	github.com/openshift/cluster-autoscaler-operator v0.0.1-0.20240509123215-40cadf8a4729
 	github.com/openshift/library-go v0.0.0-20240919205913-c96b82b3762b
 	github.com/openshift/machine-api-operator v0.2.1-0.20240924183942-9c3e4a04009a
@@ -22,6 +22,7 @@ require (
 	k8s.io/klog v1.0.0
 	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
 	sigs.k8s.io/cluster-api v1.8.4
+	sigs.k8s.io/cluster-api-provider-aws/v2 v2.6.1
 	sigs.k8s.io/cluster-api-provider-azure v1.17.1
 	sigs.k8s.io/controller-runtime v0.19.0
 	sigs.k8s.io/yaml v1.4.0
@@ -125,7 +126,7 @@ require (
 	github.com/gostaticanalysis/comment v1.4.2 // indirect
 	github.com/gostaticanalysis/forcetypeassert v0.1.0 // indirect
 	github.com/gostaticanalysis/nilerr v0.1.1 // indirect
-	github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7 // indirect
+	github.com/gregjones/httpcache v0.0.0-20190212212710-3befbb6ad0cc // indirect
 	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/hexops/gotextdiff v1.0.3 // indirect
