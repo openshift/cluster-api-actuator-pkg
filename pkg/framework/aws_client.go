@@ -4,7 +4,10 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/kms"
 	"k8s.io/klog"
 	"k8s.io/utils/ptr"
 )
@@ -12,6 +15,45 @@ import (
 // AwsClient struct.
 type AwsClient struct {
 	Svc *ec2.EC2
+}
+
+// Init the aws client.
+func NewAwsClient(accessKeyID []byte, secureKey []byte, clusterRegion string) *AwsClient {
+	awsSession := newAwsSession(accessKeyID, secureKey, clusterRegion)
+	aClient := &AwsClient{
+		Svc: ec2.New(awsSession),
+	}
+
+	return aClient
+}
+
+// AwsKmsClient struct.
+type AwsKmsClient struct {
+	kmssvc *kms.KMS
+}
+
+// Init the aws kms client.
+func NewAwsKmsClient(accessKeyID []byte, secureKey []byte, clusterRegion string) *AwsKmsClient {
+	awsSession := newAwsSession(accessKeyID, secureKey, clusterRegion)
+	kmsClient := &AwsKmsClient{
+		kmssvc: kms.New(awsSession),
+	}
+
+	return kmsClient
+}
+
+// Create aws backend session connection.
+func newAwsSession(accessKeyID []byte, secureKey []byte, clusterRegion string) *session.Session {
+	awsConfig := &aws.Config{
+		Region: aws.String(clusterRegion),
+		Credentials: credentials.NewStaticCredentials(
+			string(accessKeyID),
+			string(secureKey),
+			"",
+		),
+	}
+
+	return session.Must(session.NewSession(awsConfig))
 }
 
 // CreateCapacityReservation Create CapacityReservation.
@@ -44,4 +86,60 @@ func (a *AwsClient) CancelCapacityReservation(capacityReservationID string) (boo
 	result, err := a.Svc.CancelCapacityReservation(input)
 
 	return ptr.Deref(result.Return, false), err
+}
+
+// CreatePlacementGroup Create a PlacementGroup.
+func (a *AwsClient) CreatePlacementGroup(groupName string, strategy string, partitionCount ...int64) (string, error) {
+	var input *ec2.CreatePlacementGroupInput
+	if len(partitionCount) > 0 {
+		input = &ec2.CreatePlacementGroupInput{
+			GroupName:      aws.String(groupName),
+			PartitionCount: aws.Int64(partitionCount[0]),
+			Strategy:       aws.String(strategy),
+		}
+	} else {
+		input = &ec2.CreatePlacementGroupInput{
+			GroupName: aws.String(groupName),
+			Strategy:  aws.String(strategy),
+		}
+	}
+
+	result, err := a.Svc.CreatePlacementGroup(input)
+
+	if err != nil {
+		return "", fmt.Errorf("error creating placement group: %w", err)
+	}
+
+	placementGroupID := ptr.Deref(result.PlacementGroup.GroupId, "")
+	klog.Infof("The created placementGroupID is %s", placementGroupID)
+
+	return placementGroupID, nil
+}
+
+// DeletePlacementGroup Delete a PlacementGroup.
+func (a *AwsClient) DeletePlacementGroup(groupName string) (string, error) {
+	input := &ec2.DeletePlacementGroupInput{
+		GroupName: aws.String(groupName),
+	}
+	result, err := a.Svc.DeletePlacementGroup(input)
+
+	if err != nil {
+		return "", fmt.Errorf("could not delete placement group: %w", err)
+	}
+
+	return result.String(), nil
+}
+
+// Describes aws customer managed kms key info.
+func (akms *AwsKmsClient) DescribeKeyByID(kmsKeyID string) (string, error) {
+	input := &kms.DescribeKeyInput{
+		KeyId: aws.String(kmsKeyID),
+	}
+	result, err := akms.kmssvc.DescribeKey(input)
+
+	if err != nil {
+		return "", fmt.Errorf("could not get the key: %w", err)
+	}
+
+	return result.String(), nil
 }

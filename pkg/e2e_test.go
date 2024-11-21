@@ -14,6 +14,7 @@ import (
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	caov1alpha1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis"
+	awsv1 "sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2"
 	azurev1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 
@@ -46,6 +47,10 @@ func init() {
 	}
 
 	if err := azurev1.AddToScheme(scheme.Scheme); err != nil {
+		klog.Fatal(err)
+	}
+
+	if err := awsv1.AddToScheme(scheme.Scheme); err != nil {
 		klog.Fatal(err)
 	}
 }
