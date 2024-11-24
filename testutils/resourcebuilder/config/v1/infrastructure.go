@@ -348,6 +348,29 @@ func (i InfrastructureBuilder) AsVSphereWithFailureDomains(name string, failureD
 	return i
 }
 
+// AsPowerVS sets the Status for the infrastructure builder.
+func (i InfrastructureBuilder) AsPowerVS(name string) InfrastructureBuilder {
+	i.spec = &configv1.InfrastructureSpec{
+		PlatformSpec: configv1.PlatformSpec{
+			Type:    configv1.PowerVSPlatformType,
+			PowerVS: &configv1.PowerVSPlatformSpec{},
+		},
+	}
+	i.status = &configv1.InfrastructureStatus{
+		InfrastructureName: name,
+		PlatformStatus: &configv1.PlatformStatus{
+			Type:    configv1.PowerVSPlatformType,
+			PowerVS: &configv1.PowerVSPlatformStatus{},
+		},
+		APIServerURL:           "https://api.test-cluster.test-domain:6443",
+		APIServerInternalURL:   "https://api-int.test-cluster.test-domain:6443",
+		ControlPlaneTopology:   configv1.HighlyAvailableTopologyMode,
+		InfrastructureTopology: configv1.HighlyAvailableTopologyMode,
+	}
+
+	return i
+}
+
 // WithGenerateName sets the generateName for the infrastructure builder.
 func (i InfrastructureBuilder) WithGenerateName(generateName string) InfrastructureBuilder {
 	i.generateName = generateName
