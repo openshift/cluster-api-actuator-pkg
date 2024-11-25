@@ -22,6 +22,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const testPrefix = "test-"
+
 func TestV1Beta1(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "cluster-api infrastructure v1beta2 Suite")

@@ -56,9 +56,8 @@ var _ = Describe("AWSMachineTemplate", func() {
 
 	Describe("WithGenerateName", func() {
 		It("should return the custom value when specified", func() {
-			generateName := "test-"
-			awsMachineTemplate := AWSMachineTemplate().WithGenerateName(generateName).Build()
-			Expect(awsMachineTemplate.GenerateName).To(Equal(generateName))
+			awsMachineTemplate := AWSMachineTemplate().WithGenerateName(testPrefix).Build()
+			Expect(awsMachineTemplate.GenerateName).To(Equal(testPrefix))
 		})
 	})
 

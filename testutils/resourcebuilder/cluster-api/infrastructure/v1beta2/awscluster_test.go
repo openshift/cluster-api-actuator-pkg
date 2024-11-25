@@ -63,9 +63,8 @@ var _ = Describe("AWSCluster", func() {
 
 	Describe("WithGenerateName", func() {
 		It("should return the custom value when specified", func() {
-			generateName := "test-"
-			awsCluster := AWSCluster().WithGenerateName(generateName).Build()
-			Expect(awsCluster.GenerateName).To(Equal(generateName))
+			awsCluster := AWSCluster().WithGenerateName(testPrefix).Build()
+			Expect(awsCluster.GenerateName).To(Equal(testPrefix))
 		})
 	})
 
