@@ -95,14 +95,6 @@ var _ = Describe("IBMPowerVSCluster", func() {
 
 	// Spec fields.
 
-	Describe("WithNetwork", func() {
-		network := capibmv1.IBMPowerVSResourceReference{Name: ptr.To("network-name")}
-		It("should return the custom value when specified", func() {
-			powerVSCluster := PowerVSCluster().WithNetwork(network).Build()
-			Expect(powerVSCluster.Spec.Network).To(Equal(network))
-		})
-	})
-
 	Describe("WithControlPlaneEndpoint", func() {
 		endpoint := clusterv1.APIEndpoint{Host: "example.com", Port: 6443}
 		It("should return the custom value when specified", func() {
@@ -111,19 +103,19 @@ var _ = Describe("IBMPowerVSCluster", func() {
 		})
 	})
 
-	Describe("WithZone", func() {
-		zone := ptr.To("test-zone")
+	Describe("WithLoadBalancer", func() {
+		loadBalancers := []capibmv1.VPCLoadBalancerSpec{{Name: "loadBalancer"}}
 		It("should return the custom value when specified", func() {
-			powerVSCluster := PowerVSCluster().WithZone(zone).Build()
-			Expect(powerVSCluster.Spec.Zone).To(Equal(zone))
+			powerVSCluster := PowerVSCluster().WithLoadBalancer(loadBalancers).Build()
+			Expect(powerVSCluster.Spec.LoadBalancers).To(Equal(loadBalancers))
 		})
 	})
 
-	Describe("WithServiceInstance", func() {
-		serviceInstance := &capibmv1.IBMPowerVSResourceReference{Name: ptr.To("service-instance")}
+	Describe("WithNetwork", func() {
+		network := capibmv1.IBMPowerVSResourceReference{Name: ptr.To("network-name")}
 		It("should return the custom value when specified", func() {
-			powerVSCluster := PowerVSCluster().WithServiceInstance(serviceInstance).Build()
-			Expect(powerVSCluster.Spec.ServiceInstance).To(Equal(serviceInstance))
+			powerVSCluster := PowerVSCluster().WithNetwork(network).Build()
+			Expect(powerVSCluster.Spec.Network).To(Equal(network))
 		})
 	})
 
@@ -135,11 +127,19 @@ var _ = Describe("IBMPowerVSCluster", func() {
 		})
 	})
 
-	Describe("WithLoadBalancer", func() {
-		loadBalancers := []capibmv1.VPCLoadBalancerSpec{{Name: "loadBalancer"}}
+	Describe("WithServiceInstance", func() {
+		serviceInstance := &capibmv1.IBMPowerVSResourceReference{Name: ptr.To("service-instance")}
 		It("should return the custom value when specified", func() {
-			powerVSCluster := PowerVSCluster().WithLoadBalancer(loadBalancers).Build()
-			Expect(powerVSCluster.Spec.LoadBalancers).To(Equal(loadBalancers))
+			powerVSCluster := PowerVSCluster().WithServiceInstance(serviceInstance).Build()
+			Expect(powerVSCluster.Spec.ServiceInstance).To(Equal(serviceInstance))
+		})
+	})
+
+	Describe("WithZone", func() {
+		zone := ptr.To("test-zone")
+		It("should return the custom value when specified", func() {
+			powerVSCluster := PowerVSCluster().WithZone(zone).Build()
+			Expect(powerVSCluster.Spec.Zone).To(Equal(zone))
 		})
 	})
 

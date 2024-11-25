@@ -39,25 +39,25 @@ type PowerVSMachineBuilder struct {
 	namespace   string
 
 	// Spec fields.
-	serviceInstance *capibmv1.IBMPowerVSResourceReference
-	sshKey          string
 	image           *capibmv1.IBMPowerVSResourceReference
 	imageRef        *corev1.LocalObjectReference
-	systemType      string
-	processorType   capibmv1.PowerVSProcessorType
-	processors      intstr.IntOrString
 	memoryGiB       int32
 	network         capibmv1.IBMPowerVSResourceReference
+	processors      intstr.IntOrString
+	processorType   capibmv1.PowerVSProcessorType
 	providerID      *string
+	serviceInstance *capibmv1.IBMPowerVSResourceReference
+	sshKey          string
+	systemType      string
 
 	// Status fields.
-	instanceID     string
-	ready          bool
 	addresses      []corev1.NodeAddress
-	instanceState  capibmv1.PowerVSInstanceState
+	conditions     clusterv1.Conditions
 	failureMessage *string
 	failureReason  *errors.MachineStatusError
-	conditions     clusterv1.Conditions
+	instanceID     string
+	instanceState  capibmv1.PowerVSInstanceState
+	ready          bool
 }
 
 func (p PowerVSMachineBuilder) Build() *capibmv1.IBMPowerVSMachine {
@@ -124,18 +124,6 @@ func (p PowerVSMachineBuilder) WithNamespace(namespace string) PowerVSMachineBui
 
 // Spec fields.
 
-// WithServiceInstance sets the serviceInstance for the PowerVSMachine builder.
-func (p PowerVSMachineBuilder) WithServiceInstance(serviceInstance *capibmv1.IBMPowerVSResourceReference) PowerVSMachineBuilder {
-	p.serviceInstance = serviceInstance
-	return p
-}
-
-// WithSSHKey sets the sshKey for the PowerVSMachine builder.
-func (p PowerVSMachineBuilder) WithSSHKey(sshKey string) PowerVSMachineBuilder {
-	p.sshKey = sshKey
-	return p
-}
-
 // WithImage sets the image for the PowerVSMachine builder.
 func (p PowerVSMachineBuilder) WithImage(image *capibmv1.IBMPowerVSResourceReference) PowerVSMachineBuilder {
 	p.image = image
@@ -145,24 +133,6 @@ func (p PowerVSMachineBuilder) WithImage(image *capibmv1.IBMPowerVSResourceRefer
 // WithImageRef sets the imageRef for the PowerVSMachine builder.
 func (p PowerVSMachineBuilder) WithImageRef(imageRef *corev1.LocalObjectReference) PowerVSMachineBuilder {
 	p.imageRef = imageRef
-	return p
-}
-
-// WithSystemType sets the systemType for the PowerVSMachine builder.
-func (p PowerVSMachineBuilder) WithSystemType(systemType string) PowerVSMachineBuilder {
-	p.systemType = systemType
-	return p
-}
-
-// WithProcessorType sets the processorType for the PowerVSMachine builder.
-func (p PowerVSMachineBuilder) WithProcessorType(processorType capibmv1.PowerVSProcessorType) PowerVSMachineBuilder {
-	p.processorType = processorType
-	return p
-}
-
-// WithProcessors sets the processors for the PowerVSMachine builder.
-func (p PowerVSMachineBuilder) WithProcessors(processors intstr.IntOrString) PowerVSMachineBuilder {
-	p.processors = processors
 	return p
 }
 
@@ -178,25 +148,43 @@ func (p PowerVSMachineBuilder) WithNetwork(network capibmv1.IBMPowerVSResourceRe
 	return p
 }
 
+// WithProcessors sets the processors for the PowerVSMachine builder.
+func (p PowerVSMachineBuilder) WithProcessors(processors intstr.IntOrString) PowerVSMachineBuilder {
+	p.processors = processors
+	return p
+}
+
+// WithProcessorType sets the processorType for the PowerVSMachine builder.
+func (p PowerVSMachineBuilder) WithProcessorType(processorType capibmv1.PowerVSProcessorType) PowerVSMachineBuilder {
+	p.processorType = processorType
+	return p
+}
+
 // WithProviderID sets the providerID for the PowerVSMachine builder.
 func (p PowerVSMachineBuilder) WithProviderID(providerID *string) PowerVSMachineBuilder {
 	p.providerID = providerID
 	return p
 }
 
+// WithServiceInstance sets the serviceInstance for the PowerVSMachine builder.
+func (p PowerVSMachineBuilder) WithServiceInstance(serviceInstance *capibmv1.IBMPowerVSResourceReference) PowerVSMachineBuilder {
+	p.serviceInstance = serviceInstance
+	return p
+}
+
+// WithSSHKey sets the sshKey for the PowerVSMachine builder.
+func (p PowerVSMachineBuilder) WithSSHKey(sshKey string) PowerVSMachineBuilder {
+	p.sshKey = sshKey
+	return p
+}
+
+// WithSystemType sets the systemType for the PowerVSMachine builder.
+func (p PowerVSMachineBuilder) WithSystemType(systemType string) PowerVSMachineBuilder {
+	p.systemType = systemType
+	return p
+}
+
 // Status fields.
-
-// WithInstanceID sets the instanceID for the PowerVSMachine builder.
-func (p PowerVSMachineBuilder) WithInstanceID(instanceID string) PowerVSMachineBuilder {
-	p.instanceID = instanceID
-	return p
-}
-
-// WithReady sets the ready for the PowerVSMachine builder.
-func (p PowerVSMachineBuilder) WithReady(ready bool) PowerVSMachineBuilder {
-	p.ready = ready
-	return p
-}
 
 // WithAddresses sets the addresses for the PowerVSMachine builder.
 func (p PowerVSMachineBuilder) WithAddresses(addresses []corev1.NodeAddress) PowerVSMachineBuilder {
@@ -204,9 +192,9 @@ func (p PowerVSMachineBuilder) WithAddresses(addresses []corev1.NodeAddress) Pow
 	return p
 }
 
-// WithInstanceState sets the instanceState for the PowerVSMachine builder.
-func (p PowerVSMachineBuilder) WithInstanceState(instanceState capibmv1.PowerVSInstanceState) PowerVSMachineBuilder {
-	p.instanceState = instanceState
+// WithConditions sets the conditions for the PowerVSMachine builder.
+func (p PowerVSMachineBuilder) WithConditions(conditions clusterv1.Conditions) PowerVSMachineBuilder {
+	p.conditions = conditions
 	return p
 }
 
@@ -222,8 +210,20 @@ func (p PowerVSMachineBuilder) WithFailureReason(failureReason *errors.MachineSt
 	return p
 }
 
-// WithConditions sets the conditions for the PowerVSMachine builder.
-func (p PowerVSMachineBuilder) WithConditions(conditions clusterv1.Conditions) PowerVSMachineBuilder {
-	p.conditions = conditions
+// WithInstanceID sets the instanceID for the PowerVSMachine builder.
+func (p PowerVSMachineBuilder) WithInstanceID(instanceID string) PowerVSMachineBuilder {
+	p.instanceID = instanceID
+	return p
+}
+
+// WithInstanceState sets the instanceState for the PowerVSMachine builder.
+func (p PowerVSMachineBuilder) WithInstanceState(instanceState capibmv1.PowerVSInstanceState) PowerVSMachineBuilder {
+	p.instanceState = instanceState
+	return p
+}
+
+// WithReady sets the ready for the PowerVSMachine builder.
+func (p PowerVSMachineBuilder) WithReady(ready bool) PowerVSMachineBuilder {
+	p.ready = ready
 	return p
 }

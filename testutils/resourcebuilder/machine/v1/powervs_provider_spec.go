@@ -28,16 +28,18 @@ import (
 )
 
 var (
-	defaultUserDataSecretName          = "powervs-user-data-12345678"
 	defaultCredentialsSecretName       = "powervs-cloud-credentials"
 	defaultKeyPairName                 = "powervs-key-12345678"
-	defaultSystemType                  = "s922"
-	defaultProcessorType               = machinev1.PowerVSProcessorTypeShared
-	defaultProcessors                  = intstr.FromString("1")
 	defaultMemory                int32 = 32
-	defaultServiceInstance             = machinev1.PowerVSResource{
-		Type: machinev1.PowerVSResourceTypeID,
-		ID:   ptr.To("default-serviceInstanceID"),
+	defaultProcessors                  = intstr.FromString("1")
+	defaultProcessorType               = machinev1.PowerVSProcessorTypeShared
+	defaultSystemType                  = "s922"
+	defaultUserDataSecretName          = "powervs-user-data-12345678"
+	defaultLoadBalancer                = []machinev1.LoadBalancerReference{
+		{
+			Name: "default-lbName",
+			Type: machinev1.ApplicationLoadBalancerType,
+		},
 	}
 	defaultImage = machinev1.PowerVSResource{
 		Type: machinev1.PowerVSResourceTypeID,
@@ -47,27 +49,25 @@ var (
 		Type: machinev1.PowerVSResourceTypeID,
 		ID:   ptr.To("default-networkID"),
 	}
-	defaultLoadBalancer = []machinev1.LoadBalancerReference{
-		{
-			Name: "default-lbName",
-			Type: machinev1.ApplicationLoadBalancerType,
-		},
+	defaultServiceInstance = machinev1.PowerVSResource{
+		Type: machinev1.PowerVSResourceTypeID,
+		ID:   ptr.To("default-serviceInstanceID"),
 	}
 )
 
 // PowerVSMachineProviderConfigBuilder is used to build a PowerVSMachineProviderConfig.
 type PowerVSMachineProviderConfigBuilder struct {
-	userDataSecret    **machinev1.PowerVSSecretReference
 	credentialsSecret **machinev1.PowerVSSecretReference
-	keyPairName       *string
-	systemType        *string
-	processorType     *machinev1.PowerVSProcessorType
-	processors        *intstr.IntOrString
-	memoryGIB         *int32
-	serviceInstance   *machinev1.PowerVSResource
-	network           *machinev1.PowerVSResource
 	image             *machinev1.PowerVSResource
+	keyPairName       *string
 	loadBalancers     *[]machinev1.LoadBalancerReference
+	memoryGIB         *int32
+	network           *machinev1.PowerVSResource
+	processors        *intstr.IntOrString
+	processorType     *machinev1.PowerVSProcessorType
+	serviceInstance   *machinev1.PowerVSResource
+	systemType        *string
+	userDataSecret    **machinev1.PowerVSSecretReference
 }
 
 // PowerVSProviderSpec creates a new PowerVS machine config builder.
@@ -82,17 +82,17 @@ func (p PowerVSMachineProviderConfigBuilder) Build() machinev1.PowerVSMachinePro
 			Kind:       "PowerVSMachineProviderConfig",
 			APIVersion: machinev1.GroupVersion.String(),
 		},
-		UserDataSecret:    resourcebuilder.Coalesce(p.userDataSecret, &machinev1.PowerVSSecretReference{Name: defaultUserDataSecretName}),
 		CredentialsSecret: resourcebuilder.Coalesce(p.credentialsSecret, &machinev1.PowerVSSecretReference{Name: defaultCredentialsSecretName}),
-		ServiceInstance:   resourcebuilder.Coalesce(p.serviceInstance, defaultServiceInstance),
 		Image:             resourcebuilder.Coalesce(p.image, defaultImage),
-		Network:           resourcebuilder.Coalesce(p.network, defaultNetwork),
 		KeyPairName:       resourcebuilder.Coalesce(p.keyPairName, defaultKeyPairName),
-		SystemType:        resourcebuilder.Coalesce(p.systemType, defaultSystemType),
-		ProcessorType:     resourcebuilder.Coalesce(p.processorType, defaultProcessorType),
-		Processors:        resourcebuilder.Coalesce(p.processors, defaultProcessors),
-		MemoryGiB:         resourcebuilder.Coalesce(p.memoryGIB, defaultMemory),
 		LoadBalancers:     coalesceLoadBalancers(p.loadBalancers, defaultLoadBalancer),
+		MemoryGiB:         resourcebuilder.Coalesce(p.memoryGIB, defaultMemory),
+		Network:           resourcebuilder.Coalesce(p.network, defaultNetwork),
+		Processors:        resourcebuilder.Coalesce(p.processors, defaultProcessors),
+		ProcessorType:     resourcebuilder.Coalesce(p.processorType, defaultProcessorType),
+		ServiceInstance:   resourcebuilder.Coalesce(p.serviceInstance, defaultServiceInstance),
+		SystemType:        resourcebuilder.Coalesce(p.systemType, defaultSystemType),
+		UserDataSecret:    resourcebuilder.Coalesce(p.userDataSecret, &machinev1.PowerVSSecretReference{Name: defaultUserDataSecretName}),
 	}
 }
 
@@ -111,21 +111,9 @@ func (p PowerVSMachineProviderConfigBuilder) BuildRawExtension() *runtime.RawExt
 	}
 }
 
-// WithUserDataSecret sets the userDataSecret for the PowerVS machine config builder.
-func (p PowerVSMachineProviderConfigBuilder) WithUserDataSecret(userDataSecret *machinev1.PowerVSSecretReference) PowerVSMachineProviderConfigBuilder {
-	p.userDataSecret = &userDataSecret
-	return p
-}
-
 // WithCredentialSecret sets the credentialsSecret for the PowerVS machine config builder.
 func (p PowerVSMachineProviderConfigBuilder) WithCredentialSecret(credentialSecret *machinev1.PowerVSSecretReference) PowerVSMachineProviderConfigBuilder {
 	p.credentialsSecret = &credentialSecret
-	return p
-}
-
-// WithServiceInstance sets the serviceInstance for the PowerVS machine config builder.
-func (p PowerVSMachineProviderConfigBuilder) WithServiceInstance(serviceInstance machinev1.PowerVSResource) PowerVSMachineProviderConfigBuilder {
-	p.serviceInstance = &serviceInstance
 	return p
 }
 
@@ -135,33 +123,15 @@ func (p PowerVSMachineProviderConfigBuilder) WithImage(image machinev1.PowerVSRe
 	return p
 }
 
-// WithNetwork sets the serviceInstance for the PowerVS machine config builder.
-func (p PowerVSMachineProviderConfigBuilder) WithNetwork(network machinev1.PowerVSResource) PowerVSMachineProviderConfigBuilder {
-	p.network = &network
-	return p
-}
-
 // WithKeyPairName sets the keyPairName for the PowerVS machine config builder.
 func (p PowerVSMachineProviderConfigBuilder) WithKeyPairName(keyPairName string) PowerVSMachineProviderConfigBuilder {
 	p.keyPairName = &keyPairName
 	return p
 }
 
-// WithSystemType sets the systemType for the PowerVS machine config builder.
-func (p PowerVSMachineProviderConfigBuilder) WithSystemType(systemType string) PowerVSMachineProviderConfigBuilder {
-	p.systemType = &systemType
-	return p
-}
-
-// WithProcessorType sets the processorType for the PowerVS machine config builder.
-func (p PowerVSMachineProviderConfigBuilder) WithProcessorType(processorType machinev1.PowerVSProcessorType) PowerVSMachineProviderConfigBuilder {
-	p.processorType = &processorType
-	return p
-}
-
-// WithProcessors sets the processors for the PowerVS machine config builder.
-func (p PowerVSMachineProviderConfigBuilder) WithProcessors(processors intstr.IntOrString) PowerVSMachineProviderConfigBuilder {
-	p.processors = &processors
+// WithLoadBalancers sets the processorType for the PowerVS machine config builder.
+func (p PowerVSMachineProviderConfigBuilder) WithLoadBalancers(loadBalancers []machinev1.LoadBalancerReference) PowerVSMachineProviderConfigBuilder {
+	p.loadBalancers = &loadBalancers
 	return p
 }
 
@@ -171,9 +141,39 @@ func (p PowerVSMachineProviderConfigBuilder) WithMemoryGIB(memoryGIB int32) Powe
 	return p
 }
 
-// WithLoadBalancers sets the processorType for the PowerVS machine config builder.
-func (p PowerVSMachineProviderConfigBuilder) WithLoadBalancers(loadBalancers []machinev1.LoadBalancerReference) PowerVSMachineProviderConfigBuilder {
-	p.loadBalancers = &loadBalancers
+// WithNetwork sets the serviceInstance for the PowerVS machine config builder.
+func (p PowerVSMachineProviderConfigBuilder) WithNetwork(network machinev1.PowerVSResource) PowerVSMachineProviderConfigBuilder {
+	p.network = &network
+	return p
+}
+
+// WithProcessors sets the processors for the PowerVS machine config builder.
+func (p PowerVSMachineProviderConfigBuilder) WithProcessors(processors intstr.IntOrString) PowerVSMachineProviderConfigBuilder {
+	p.processors = &processors
+	return p
+}
+
+// WithProcessorType sets the processorType for the PowerVS machine config builder.
+func (p PowerVSMachineProviderConfigBuilder) WithProcessorType(processorType machinev1.PowerVSProcessorType) PowerVSMachineProviderConfigBuilder {
+	p.processorType = &processorType
+	return p
+}
+
+// WithServiceInstance sets the serviceInstance for the PowerVS machine config builder.
+func (p PowerVSMachineProviderConfigBuilder) WithServiceInstance(serviceInstance machinev1.PowerVSResource) PowerVSMachineProviderConfigBuilder {
+	p.serviceInstance = &serviceInstance
+	return p
+}
+
+// WithSystemType sets the systemType for the PowerVS machine config builder.
+func (p PowerVSMachineProviderConfigBuilder) WithSystemType(systemType string) PowerVSMachineProviderConfigBuilder {
+	p.systemType = &systemType
+	return p
+}
+
+// WithUserDataSecret sets the userDataSecret for the PowerVS machine config builder.
+func (p PowerVSMachineProviderConfigBuilder) WithUserDataSecret(userDataSecret *machinev1.PowerVSSecretReference) PowerVSMachineProviderConfigBuilder {
+	p.userDataSecret = &userDataSecret
 	return p
 }
 

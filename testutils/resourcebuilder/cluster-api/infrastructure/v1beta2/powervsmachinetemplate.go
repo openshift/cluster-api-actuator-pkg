@@ -40,16 +40,16 @@ type PowerVSMachineTemplateBuilder struct {
 	namespace         string
 
 	// Spec fields.
-	serviceInstance *capibmv1.IBMPowerVSResourceReference
-	sshKey          string
 	image           *capibmv1.IBMPowerVSResourceReference
 	imageRef        *corev1.LocalObjectReference
-	systemType      string
-	processorType   capibmv1.PowerVSProcessorType
-	processors      intstr.IntOrString
 	memoryGiB       int32
 	network         capibmv1.IBMPowerVSResourceReference
+	processors      intstr.IntOrString
+	processorType   capibmv1.PowerVSProcessorType
 	providerID      *string
+	serviceInstance *capibmv1.IBMPowerVSResourceReference
+	sshKey          string
+	systemType      string
 
 	// Status fields.
 	capacity corev1.ResourceList
@@ -139,18 +139,6 @@ func (p PowerVSMachineTemplateBuilder) WithNamespace(namespace string) PowerVSMa
 
 // Spec fields.
 
-// WithServiceInstance sets the serviceInstance for the PowerVSMachineTemplate builder.
-func (p PowerVSMachineTemplateBuilder) WithServiceInstance(serviceInstance *capibmv1.IBMPowerVSResourceReference) PowerVSMachineTemplateBuilder {
-	p.serviceInstance = serviceInstance
-	return p
-}
-
-// WithSSHKey sets the sshKey for the PowerVSMachineTemplate builder.
-func (p PowerVSMachineTemplateBuilder) WithSSHKey(sshKey string) PowerVSMachineTemplateBuilder {
-	p.sshKey = sshKey
-	return p
-}
-
 // WithImage sets the image for the PowerVSMachineTemplate builder.
 func (p PowerVSMachineTemplateBuilder) WithImage(image *capibmv1.IBMPowerVSResourceReference) PowerVSMachineTemplateBuilder {
 	p.image = image
@@ -160,24 +148,6 @@ func (p PowerVSMachineTemplateBuilder) WithImage(image *capibmv1.IBMPowerVSResou
 // WithImageRef sets the imageRef for the PowerVSMachineTemplate builder.
 func (p PowerVSMachineTemplateBuilder) WithImageRef(imageRef *corev1.LocalObjectReference) PowerVSMachineTemplateBuilder {
 	p.imageRef = imageRef
-	return p
-}
-
-// WithSystemType sets the systemType for the PowerVSMachineTemplate builder.
-func (p PowerVSMachineTemplateBuilder) WithSystemType(systemType string) PowerVSMachineTemplateBuilder {
-	p.systemType = systemType
-	return p
-}
-
-// WithProcessorType sets the processorType for the PowerVSMachineTemplate builder.
-func (p PowerVSMachineTemplateBuilder) WithProcessorType(processorType capibmv1.PowerVSProcessorType) PowerVSMachineTemplateBuilder {
-	p.processorType = processorType
-	return p
-}
-
-// WithProcessors sets the processors for the PowerVSMachineTemplate builder.
-func (p PowerVSMachineTemplateBuilder) WithProcessors(processors intstr.IntOrString) PowerVSMachineTemplateBuilder {
-	p.processors = processors
 	return p
 }
 
@@ -193,9 +163,39 @@ func (p PowerVSMachineTemplateBuilder) WithNetwork(network capibmv1.IBMPowerVSRe
 	return p
 }
 
+// WithProcessors sets the processors for the PowerVSMachineTemplate builder.
+func (p PowerVSMachineTemplateBuilder) WithProcessors(processors intstr.IntOrString) PowerVSMachineTemplateBuilder {
+	p.processors = processors
+	return p
+}
+
+// WithProcessorType sets the processorType for the PowerVSMachineTemplate builder.
+func (p PowerVSMachineTemplateBuilder) WithProcessorType(processorType capibmv1.PowerVSProcessorType) PowerVSMachineTemplateBuilder {
+	p.processorType = processorType
+	return p
+}
+
 // WithProviderID sets the providerID for the PowerVSMachineTemplate builder.
 func (p PowerVSMachineTemplateBuilder) WithProviderID(providerID *string) PowerVSMachineTemplateBuilder {
 	p.providerID = providerID
+	return p
+}
+
+// WithServiceInstance sets the serviceInstance for the PowerVSMachineTemplate builder.
+func (p PowerVSMachineTemplateBuilder) WithServiceInstance(serviceInstance *capibmv1.IBMPowerVSResourceReference) PowerVSMachineTemplateBuilder {
+	p.serviceInstance = serviceInstance
+	return p
+}
+
+// WithSSHKey sets the sshKey for the PowerVSMachineTemplate builder.
+func (p PowerVSMachineTemplateBuilder) WithSSHKey(sshKey string) PowerVSMachineTemplateBuilder {
+	p.sshKey = sshKey
+	return p
+}
+
+// WithSystemType sets the systemType for the PowerVSMachineTemplate builder.
+func (p PowerVSMachineTemplateBuilder) WithSystemType(systemType string) PowerVSMachineTemplateBuilder {
+	p.systemType = systemType
 	return p
 }
 

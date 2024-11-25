@@ -39,12 +39,12 @@ type PowerVSClusterBuilder struct {
 	namespace         string
 
 	// Spec fields.
-	network              capibmv1.IBMPowerVSResourceReference
 	controlPlaneEndpoint clusterv1.APIEndpoint
-	zone                 *string
-	serviceInstance      *capibmv1.IBMPowerVSResourceReference
-	resourceGroup        *capibmv1.IBMPowerVSResourceReference
 	loadBalancers        []capibmv1.VPCLoadBalancerSpec
+	network              capibmv1.IBMPowerVSResourceReference
+	resourceGroup        *capibmv1.IBMPowerVSResourceReference
+	serviceInstance      *capibmv1.IBMPowerVSResourceReference
+	zone                 *string
 
 	// Status fields.
 	conditions clusterv1.Conditions
@@ -128,27 +128,21 @@ func (p PowerVSClusterBuilder) WithNamespace(namespace string) PowerVSClusterBui
 
 // Spec fields.
 
-// WithNetwork sets the network for the IBMPowerVSCluster builder.
-func (p PowerVSClusterBuilder) WithNetwork(network capibmv1.IBMPowerVSResourceReference) PowerVSClusterBuilder {
-	p.network = network
-	return p
-}
-
 // WithControlPlaneEndpoint sets the controlPlaneEndpoint for the IBMPowerVSCluster builder.
 func (p PowerVSClusterBuilder) WithControlPlaneEndpoint(endpoint clusterv1.APIEndpoint) PowerVSClusterBuilder {
 	p.controlPlaneEndpoint = endpoint
 	return p
 }
 
-// WithZone sets the zone for the IBMPowerVSCluster builder.
-func (p PowerVSClusterBuilder) WithZone(zone *string) PowerVSClusterBuilder {
-	p.zone = zone
+// WithLoadBalancer sets the loadBalancers for the IBMPowerVSCluster builder.
+func (p PowerVSClusterBuilder) WithLoadBalancer(loadBalancers []capibmv1.VPCLoadBalancerSpec) PowerVSClusterBuilder {
+	p.loadBalancers = loadBalancers
 	return p
 }
 
-// WithServiceInstance sets the serviceInstance for the IBMPowerVSCluster builder.
-func (p PowerVSClusterBuilder) WithServiceInstance(serviceInstance *capibmv1.IBMPowerVSResourceReference) PowerVSClusterBuilder {
-	p.serviceInstance = serviceInstance
+// WithNetwork sets the network for the IBMPowerVSCluster builder.
+func (p PowerVSClusterBuilder) WithNetwork(network capibmv1.IBMPowerVSResourceReference) PowerVSClusterBuilder {
+	p.network = network
 	return p
 }
 
@@ -158,9 +152,15 @@ func (p PowerVSClusterBuilder) WithResourceGroup(resourceGroup *capibmv1.IBMPowe
 	return p
 }
 
-// WithLoadBalancer sets the loadBalancers for the IBMPowerVSCluster builder.
-func (p PowerVSClusterBuilder) WithLoadBalancer(loadBalancers []capibmv1.VPCLoadBalancerSpec) PowerVSClusterBuilder {
-	p.loadBalancers = loadBalancers
+// WithServiceInstance sets the serviceInstance for the IBMPowerVSCluster builder.
+func (p PowerVSClusterBuilder) WithServiceInstance(serviceInstance *capibmv1.IBMPowerVSResourceReference) PowerVSClusterBuilder {
+	p.serviceInstance = serviceInstance
+	return p
+}
+
+// WithZone sets the zone for the IBMPowerVSCluster builder.
+func (p PowerVSClusterBuilder) WithZone(zone *string) PowerVSClusterBuilder {
+	p.zone = zone
 	return p
 }
 
