@@ -24,7 +24,7 @@ var (
 
 var _ = Describe(
 	"Machine API operator deployment should",
-	framework.LabelDisruptive, framework.LabelOperators, framework.LabelMachines,
+	framework.LabelMAPI,
 	Serial,
 	func() {
 		var gatherer *gatherer.StateGatherer
@@ -42,7 +42,7 @@ var _ = Describe(
 			}
 		})
 
-		It("be available", func() {
+		It("be available", framework.LabelLEVEL0, func() {
 			ctx := framework.GetContext()
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred(), "Failed to load client")
@@ -50,7 +50,7 @@ var _ = Describe(
 				fmt.Sprintf("Failed to wait for %s Deployment to become available", maoDeployment))
 		})
 
-		It("reconcile controllers deployment", func() {
+		It("reconcile controllers deployment", framework.LabelDisruptive, func() {
 			ctx := framework.GetContext()
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred(), "Failed to load client")
@@ -75,7 +75,7 @@ var _ = Describe(
 				fmt.Sprintf("Failed verifying %s Deployment spec has been reconciled", maoManagedDeployment))
 		})
 
-		It("maintains deployment spec", func() {
+		It("maintains deployment spec", framework.LabelDisruptive, func() {
 			ctx := framework.GetContext()
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred(), "Failed to load client")
@@ -217,7 +217,7 @@ var _ = Describe(
 			}
 		})
 
-		It("maintains spec after validating webhook configuration change and preserve caBundle", func() {
+		It("maintains spec after validating webhook configuration change and preserve caBundle", framework.LabelDisruptive, func() {
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred(), "Failed to load client")
 
@@ -251,8 +251,8 @@ var _ = Describe(
 	})
 
 var _ = Describe(
-	"Machine API cluster operator status should", framework.LabelOperators, framework.LabelMachines, func() {
-		It("be available", func() {
+	"Machine API cluster operator status should", framework.LabelMAPI, func() {
+		It("be available", framework.LabelLEVEL0, func() {
 			ctx := framework.GetContext()
 
 			client, err := framework.LoadClient()
@@ -265,7 +265,7 @@ var _ = Describe(
 
 var _ = Describe(
 	"When cluster-wide proxy is configured, Machine API cluster operator should ",
-	framework.LabelDisruptive, framework.LabelOperators, framework.LabelPeriodic, framework.LabelMachines,
+	framework.LabelDisruptive, framework.LabelPeriodic, framework.LabelMAPI,
 	Serial,
 	func() {
 		var gatherer *gatherer.StateGatherer
