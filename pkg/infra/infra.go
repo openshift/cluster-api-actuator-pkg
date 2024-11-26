@@ -146,7 +146,7 @@ func deleteObjects(client runtimeclient.Client, delObjects map[string]runtimecli
 	return nil
 }
 
-var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
+var _ = Describe("Managed cluster should", framework.LabelMAPI, func() {
 	var client runtimeclient.Client
 	var ctx context.Context
 	var machineSet *machinev1.MachineSet
@@ -181,7 +181,7 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 
 	})
 
-	When("machineset has one replica", func() {
+	When("machineset has one replica", framework.LabelDisruptive, func() {
 		BeforeEach(func() {
 			var err error
 			machineSetParams = framework.BuildMachineSetParams(ctx, client, 1)
@@ -261,7 +261,7 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 
 	})
 
-	When("machineset has 2 replicas", func() {
+	When("machineset has 2 replicas", framework.LabelDisruptive, func() {
 		BeforeEach(func() {
 			var err error
 			machineSetParams = framework.BuildMachineSetParams(ctx, client, 2)
@@ -275,7 +275,7 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 
 		// Machines required for test: 2
 		// Reason: We want to test that all machines get replaced when we delete them.
-		It("recover from deleted worker machines", func() {
+		It("recover from deleted worker machines", framework.LabelLEVEL0, func() {
 			selector := machineSet.Spec.Selector
 			machines, err := framework.GetMachines(ctx, client, &selector)
 			Expect(err).ToNot(HaveOccurred(), "Listing Machines should succeed")
@@ -290,7 +290,7 @@ var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
 
 		// Machines required for test: 4
 		// Reason: MachineSet scales 2->0 and MachineSet2 scales 0->2. Changing to scaling 1->0 and 0->1 might not test this thoroughly.
-		It("grow and decrease when scaling different machineSets simultaneously", framework.LabelPeriodic, func() {
+		It("grow and decrease when scaling different machineSets simultaneously", framework.LabelPeriodic, framework.LabelLEVEL0, func() {
 			By("Creating a second MachineSet") // Machineset 1 can start with 1 replica
 			machineSetParams := framework.BuildMachineSetParams(ctx, client, 0)
 			machineSet2, err := framework.CreateMachineSet(client, machineSetParams)
