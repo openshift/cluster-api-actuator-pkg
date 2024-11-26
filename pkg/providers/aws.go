@@ -64,7 +64,7 @@ func createAWSClient(oc *gatherer.CLI) *framework.AwsClient {
 	return aClient
 }
 
-var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific, framework.LabelProviderAWS, func() {
+var _ = Describe("MetadataServiceOptions", framework.LabelDisruptive, framework.LabelMAPI, func() {
 	var client runtimeclient.Client
 	var clientset *kubernetes.Clientset
 
@@ -197,7 +197,7 @@ var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific,
 	})
 })
 
-var _ = Describe("CapacityReservationID", framework.LabelCloudProviderSpecific, framework.LabelProviderAWS, func() {
+var _ = Describe("CapacityReservationID", framework.LabelDisruptive, framework.LabelMAPI, func() {
 	var client runtimeclient.Client
 	var gatherer *gatherer.StateGatherer
 	var ctx context.Context
