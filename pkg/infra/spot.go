@@ -38,7 +38,7 @@ const (
 	spotMachineSetMaxProvisioningRetryCount = 3
 )
 
-var _ = Describe("Running on Spot", framework.LabelMachines, framework.LabelSpot, func() {
+var _ = Describe("Running on Spot", framework.LabelMAPI, framework.LabelDisruptive, func() {
 	var ctx = context.Background()
 
 	var client runtimeclient.Client
