@@ -267,7 +267,9 @@ var _ = Describe("CapacityReservationID", framework.LabelCloudProviderSpecific, 
 	})
 
 	// Machines required for test: 1
-	It("machine should get Running with active capacityReservationId", func() {
+	// This is marked as pending until we resolve the fact that we cannot dynamically create capacity reservations.
+	// See https://redhat-internal.slack.com/archives/CBUT43E94/p1732621241891359
+	PIt("machine should get Running with active capacityReservationId", func() {
 		By("Get instanceType and availabilityZone from the first worker MachineSet")
 		workers, err := framework.GetWorkerMachineSets(ctx, client)
 		Expect(err).ToNot(HaveOccurred())
