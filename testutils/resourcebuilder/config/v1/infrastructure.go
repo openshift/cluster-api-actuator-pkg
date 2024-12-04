@@ -377,6 +377,17 @@ func (i InfrastructureBuilder) WithGenerateName(generateName string) Infrastruct
 	return i
 }
 
+// WithInfrastructureName sets the infrastructureName in the status for the infrastructure builder.
+func (i InfrastructureBuilder) WithInfrastructureName(infraName string) InfrastructureBuilder {
+	if i.status == nil {
+		i.status = &configv1.InfrastructureStatus{}
+	}
+
+	i.status.InfrastructureName = infraName
+
+	return i
+}
+
 // WithLabel sets the labels for the infrastructure builder.
 func (i InfrastructureBuilder) WithLabel(key, value string) InfrastructureBuilder {
 	if i.labels == nil {
@@ -403,5 +414,22 @@ func (i InfrastructureBuilder) WithName(name string) InfrastructureBuilder {
 // WithNamespace sets the namespace for the infrastructure builder.
 func (i InfrastructureBuilder) WithNamespace(namespace string) InfrastructureBuilder {
 	i.namespace = namespace
+	return i
+}
+
+// WithPlatformStatus sets the platformStatus for the infrastructure builder.
+func (i InfrastructureBuilder) WithPlatformStatus(ps configv1.PlatformStatus) InfrastructureBuilder {
+	if i.status == nil {
+		i.status = &configv1.InfrastructureStatus{}
+	}
+
+	i.status.PlatformStatus = &ps
+
+	return i
+}
+
+// WithStatus sets the status for the infrastructure builder.
+func (i InfrastructureBuilder) WithStatus(status configv1.InfrastructureStatus) InfrastructureBuilder {
+	i.status = &status
 	return i
 }
