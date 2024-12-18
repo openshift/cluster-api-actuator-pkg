@@ -110,7 +110,7 @@ func machineAutoscalerResource(targetMachineSet *machinev1.MachineSet, minReplic
 	}
 }
 
-var _ = Describe("Autoscaler should", framework.LabelAutoscaler, Serial, func() {
+var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.LabelDisruptive, Serial, func() {
 
 	var workloadMemRequest resource.Quantity
 	var client runtimeclient.Client
