@@ -287,7 +287,7 @@ var _ = Describe(
 
 		// Machines required for test: 1
 		// Reason: Tests that machine creation is possible behind a proxy.
-		It("create machines when configured behind a proxy", func() {
+		It("create machines when configured behind a proxy", framework.LabelDevOnly, func() {
 			By("creating a machineset")
 			machineSet, err := framework.CreateMachineSet(client, framework.BuildMachineSetParams(ctx, client, 1))
 			Expect(err).ToNot(HaveOccurred(), "Failed to create MachineSet")
