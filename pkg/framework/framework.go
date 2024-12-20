@@ -2,6 +2,7 @@ package framework
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
@@ -12,6 +13,7 @@ import (
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
 	cov1helpers "github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
+	"github.com/tidwall/gjson"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -291,4 +293,23 @@ func SkipIfNotTechPreviewNoUpgrade(oc *gatherer.CLI, cl runtimeclient.Client) {
 	if featureSet != string(configv1.TechPreviewNoUpgrade) {
 		Skip("FeatureSet is not TechPreviewNoUpgradec, skip it!")
 	}
+}
+
+// GetCredentialsFromCluster get credentials from cluster.
+func GetCredentialsFromCluster(oc *gatherer.CLI) ([]byte, []byte, string) {
+	awscreds, err := oc.WithoutNamespace().Run("get").Args("secret/aws-creds", "-n", "kube-system", "-o", "json").Output()
+	if err != nil {
+		Skip("Unable to get AWS credentials secret, skipping the testing.")
+	}
+
+	accessKeyIDBase64, secureKeyBase64 := gjson.Get(awscreds, `data.aws_access_key_id`).String(), gjson.Get(awscreds, `data.aws_secret_access_key`).String()
+
+	accessKeyID, err := base64.StdEncoding.DecodeString(accessKeyIDBase64)
+	Expect(err).NotTo(HaveOccurred(), "Failed to decode accessKeyID")
+	secureKey, err := base64.StdEncoding.DecodeString(secureKeyBase64)
+	Expect(err).NotTo(HaveOccurred(), "Failed to decode secureKey")
+	clusterRegion, err := oc.WithoutNamespace().Run("get").Args("infrastructure", "cluster", "-o=jsonpath={.status.platformStatus.aws.region}").Output()
+	Expect(err).NotTo(HaveOccurred(), "Failed to get clusterRegion")
+
+	return accessKeyID, secureKey, clusterRegion
 }

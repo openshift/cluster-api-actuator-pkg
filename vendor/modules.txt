@@ -150,6 +150,7 @@ github.com/aws/aws-sdk-go/private/protocol/rest
 github.com/aws/aws-sdk-go/private/protocol/restjson
 github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil
 github.com/aws/aws-sdk-go/service/ec2
+github.com/aws/aws-sdk-go/service/kms
 github.com/aws/aws-sdk-go/service/sso
 github.com/aws/aws-sdk-go/service/sso/ssoiface
 github.com/aws/aws-sdk-go/service/ssooidc
@@ -571,7 +572,7 @@ github.com/gostaticanalysis/forcetypeassert
 # github.com/gostaticanalysis/nilerr v0.1.1
 ## explicit; go 1.15
 github.com/gostaticanalysis/nilerr
-# github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7
+# github.com/gregjones/httpcache v0.0.0-20190212212710-3befbb6ad0cc
 ## explicit
 github.com/gregjones/httpcache
 # github.com/hashicorp/go-version v1.7.0
@@ -824,10 +825,11 @@ github.com/openshift/client-go/machine/clientset/versioned/typed/machine/v1beta1
 github.com/openshift/client-go/machine/informers/externalversions/internalinterfaces
 github.com/openshift/client-go/machine/informers/externalversions/machine/v1beta1
 github.com/openshift/client-go/machine/listers/machine/v1beta1
-# github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20241112115249-e541d71175dd
+# github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20241119145735-af0b63d8343b
 ## explicit; go 1.22.1
 github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/apps/v1
 github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/cluster-api/core/v1beta1
+github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/cluster-api/infrastructure/v1beta2
 github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/core/v1
 # github.com/openshift/cluster-autoscaler-operator v0.0.1-0.20240509123215-40cadf8a4729
 ## explicit; go 1.21
@@ -2016,6 +2018,10 @@ sigs.k8s.io/cluster-api/util/conditions
 sigs.k8s.io/cluster-api/util/contract
 sigs.k8s.io/cluster-api/util/labels/format
 sigs.k8s.io/cluster-api/util/topology
+# sigs.k8s.io/cluster-api-provider-aws/v2 v2.6.1
+## explicit; go 1.21
+sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2
+sigs.k8s.io/cluster-api-provider-aws/v2/feature
 # sigs.k8s.io/cluster-api-provider-azure v1.17.1
 ## explicit; go 1.22.0
 sigs.k8s.io/cluster-api-provider-azure/api/v1beta1
