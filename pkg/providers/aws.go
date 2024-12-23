@@ -2,16 +2,11 @@ package providers
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/ec2"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -22,47 +17,11 @@ import (
 
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
-	"github.com/tidwall/gjson"
 )
 
 const (
 	amiIDMetadataEndpoint = "http://169.254.169.254/latest/meta-data/ami-id"
 )
-
-// createAWSClient create AWS client.
-func createAWSClient(oc *gatherer.CLI) *framework.AwsClient {
-	awscreds, err := oc.WithoutNamespace().Run("get").Args("secret/aws-creds", "-n", "kube-system", "-o", "json").Output()
-	if err != nil {
-		Skip("Unable to get AWS credentials secret, skipping the testing.")
-	}
-
-	accessKeyIDBase64, secureKeyBase64 := gjson.Get(awscreds, `data.aws_access_key_id`).String(), gjson.Get(awscreds, `data.aws_secret_access_key`).String()
-
-	accessKeyID, err := base64.StdEncoding.DecodeString(accessKeyIDBase64)
-	Expect(err).NotTo(HaveOccurred())
-	secureKey, err := base64.StdEncoding.DecodeString(secureKeyBase64)
-	Expect(err).NotTo(HaveOccurred())
-	clusterRegion, err := oc.WithoutNamespace().Run("get").Args("infrastructure", "cluster", "-o=jsonpath={.status.platformStatus.aws.region}").Output()
-	Expect(err).NotTo(HaveOccurred())
-
-	awsConfig := &aws.Config{
-		Region: aws.String(clusterRegion),
-		Credentials: credentials.NewStaticCredentials(
-			string(accessKeyID),
-			string(secureKey),
-			"",
-		),
-	}
-
-	sess, err := session.NewSession(awsConfig)
-	Expect(err).ToNot(HaveOccurred())
-
-	aClient := &framework.AwsClient{
-		Svc: ec2.New(sess),
-	}
-
-	return aClient
-}
 
 var _ = Describe("MetadataServiceOptions", framework.LabelDisruptive, framework.LabelMAPI, func() {
 	var client runtimeclient.Client
@@ -267,9 +226,7 @@ var _ = Describe("CapacityReservationID", framework.LabelDisruptive, framework.L
 	})
 
 	// Machines required for test: 1
-	// This is marked as pending until we resolve the fact that we cannot dynamically create capacity reservations.
-	// See https://redhat-internal.slack.com/archives/CBUT43E94/p1732621241891359
-	PIt("machine should get Running with active capacityReservationId", func() {
+	It("machine should get Running with active capacityReservationId", framework.LabelQEOnly, func() {
 		By("Get instanceType and availabilityZone from the first worker MachineSet")
 		workers, err := framework.GetWorkerMachineSets(ctx, client)
 		Expect(err).ToNot(HaveOccurred())
@@ -280,7 +237,7 @@ var _ = Describe("CapacityReservationID", framework.LabelDisruptive, framework.L
 
 		By("Access AWS to create CapacityReservation")
 		oc, _ := framework.NewCLI()
-		awsClient := createAWSClient(oc)
+		awsClient := framework.NewAwsClient(framework.GetCredentialsFromCluster(oc))
 		capacityReservationID, err := awsClient.CreateCapacityReservation(awsProviderConfig.InstanceType, "Linux/UNIX", awsProviderConfig.Placement.AvailabilityZone, 1)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(capacityReservationID).ToNot(Equal(""))

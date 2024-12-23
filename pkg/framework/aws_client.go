@@ -2,6 +2,7 @@ package framework
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -14,14 +15,14 @@ import (
 
 // AwsClient struct.
 type AwsClient struct {
-	Svc *ec2.EC2
+	svc *ec2.EC2
 }
 
 // Init the aws client.
 func NewAwsClient(accessKeyID []byte, secureKey []byte, clusterRegion string) *AwsClient {
 	awsSession := newAwsSession(accessKeyID, secureKey, clusterRegion)
 	aClient := &AwsClient{
-		Svc: ec2.New(awsSession),
+		svc: ec2.New(awsSession),
 	}
 
 	return aClient
@@ -64,9 +65,10 @@ func (a *AwsClient) CreateCapacityReservation(instanceType string, instancePlatf
 		AvailabilityZone:      aws.String(availabilityZone),
 		InstanceCount:         aws.Int64(instanceCount),
 		InstanceMatchCriteria: aws.String("targeted"),
-		EndDateType:           aws.String("unlimited"),
+		EndDateType:           aws.String("limited"),
+		EndDate:               timePtr(time.Now().Add(35 * time.Minute)),
 	}
-	result, err := a.Svc.CreateCapacityReservation(input)
+	result, err := a.svc.CreateCapacityReservation(input)
 
 	if err != nil {
 		return "", fmt.Errorf("error creating capacity reservation: %w", err)
@@ -83,7 +85,7 @@ func (a *AwsClient) CancelCapacityReservation(capacityReservationID string) (boo
 	input := &ec2.CancelCapacityReservationInput{
 		CapacityReservationId: aws.String(capacityReservationID),
 	}
-	result, err := a.Svc.CancelCapacityReservation(input)
+	result, err := a.svc.CancelCapacityReservation(input)
 
 	return ptr.Deref(result.Return, false), err
 }
@@ -104,7 +106,7 @@ func (a *AwsClient) CreatePlacementGroup(groupName string, strategy string, part
 		}
 	}
 
-	result, err := a.Svc.CreatePlacementGroup(input)
+	result, err := a.svc.CreatePlacementGroup(input)
 
 	if err != nil {
 		return "", fmt.Errorf("error creating placement group: %w", err)
@@ -121,7 +123,7 @@ func (a *AwsClient) DeletePlacementGroup(groupName string) (string, error) {
 	input := &ec2.DeletePlacementGroupInput{
 		GroupName: aws.String(groupName),
 	}
-	result, err := a.Svc.DeletePlacementGroup(input)
+	result, err := a.svc.DeletePlacementGroup(input)
 
 	if err != nil {
 		return "", fmt.Errorf("could not delete placement group: %w", err)
@@ -142,4 +144,8 @@ func (akms *AwsKmsClient) DescribeKeyByID(kmsKeyID string) (string, error) {
 	}
 
 	return result.String(), nil
+}
+
+func timePtr(t time.Time) *time.Time {
+	return &t
 }
