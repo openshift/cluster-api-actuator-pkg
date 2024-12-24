@@ -23,7 +23,7 @@ const (
 	amiIDMetadataEndpoint = "http://169.254.169.254/latest/meta-data/ami-id"
 )
 
-var _ = Describe("MetadataServiceOptions", framework.LabelCloudProviderSpecific, framework.LabelProviderAWS, func() {
+var _ = Describe("MetadataServiceOptions", framework.LabelDisruptive, framework.LabelMAPI, func() {
 	var client runtimeclient.Client
 	var clientset *kubernetes.Clientset
 
