@@ -24,7 +24,7 @@ var (
 
 var _ = Describe(
 	"Machine API operator deployment should",
-	framework.LabelDisruptive, framework.LabelOperators, framework.LabelMachines,
+	framework.LabelMAPI,
 	Serial,
 	func() {
 		var gatherer *gatherer.StateGatherer
@@ -42,13 +42,13 @@ var _ = Describe(
 			}
 		})
 
-		It("be available", func() {
+		It("be available", framework.LabelLEVEL0, func() {
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(framework.IsDeploymentAvailable(client, maoDeployment, framework.MachineAPINamespace)).To(BeTrue())
 		})
 
-		It("reconcile controllers deployment", func() {
+		It("reconcile controllers deployment", framework.LabelDisruptive, func() {
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred())
 
@@ -68,7 +68,7 @@ var _ = Describe(
 			Expect(framework.IsDeploymentSynced(client, initialDeployment, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
 		})
 
-		It("maintains deployment spec", func() {
+		It("maintains deployment spec", framework.LabelDisruptive, func() {
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred())
 
@@ -187,7 +187,7 @@ var _ = Describe(
 			}
 		})
 
-		It("maintains spec after validating webhook configuration change and preserve caBundle", func() {
+		It("maintains spec after validating webhook configuration change and preserve caBundle", framework.LabelDisruptive, func() {
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred())
 
@@ -216,8 +216,8 @@ var _ = Describe(
 	})
 
 var _ = Describe(
-	"Machine API cluster operator status should", framework.LabelOperators, framework.LabelMachines, func() {
-		It("be available", func() {
+	"Machine API cluster operator status should", framework.LabelMAPI, func() {
+		It("be available", framework.LabelLEVEL0, func() {
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(framework.WaitForStatusAvailableShort(client, "machine-api")).To(BeTrue())
@@ -226,7 +226,7 @@ var _ = Describe(
 
 var _ = Describe(
 	"When cluster-wide proxy is configured, Machine API cluster operator should ",
-	framework.LabelDisruptive, framework.LabelOperators, framework.LabelPeriodic, framework.LabelMachines,
+	framework.LabelDisruptive, framework.LabelPeriodic, framework.LabelMAPI,
 	Serial,
 	func() {
 		var gatherer *gatherer.StateGatherer
