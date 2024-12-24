@@ -146,6 +146,31 @@ func (akms *AwsKmsClient) DescribeKeyByID(kmsKeyID string) (string, error) {
 	return result.String(), nil
 }
 
+// CreateKey create a key.
+func (akms *AwsKmsClient) CreateKey(description string) (string, error) {
+	createRes, err := akms.kmssvc.CreateKey(&kms.CreateKeyInput{
+		Description: aws.String(description),
+	})
+	if err != nil {
+		klog.Infof("Error creating key %s", err.Error())
+		return "", err
+	}
+
+	klog.Infof("key created: %s", *createRes.KeyMetadata.Arn)
+
+	return *createRes.KeyMetadata.Arn, nil
+}
+
+// DeleteKey delete a key.
+func (akms *AwsKmsClient) DeleteKey(key string) error {
+	_, err := akms.kmssvc.ScheduleKeyDeletion(&kms.ScheduleKeyDeletionInput{
+		KeyId:               aws.String(key),
+		PendingWindowInDays: aws.Int64(7),
+	})
+
+	return err
+}
+
 func timePtr(t time.Time) *time.Time {
 	return &t
 }
