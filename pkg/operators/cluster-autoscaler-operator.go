@@ -8,19 +8,25 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	caov1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1"
 	caov1beta1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 )
 
-var _ = Describe("Cluster autoscaler operator should", framework.LabelOperators, framework.LabelAutoscaler, func() {
+var _ = Describe("Cluster autoscaler operator should", framework.LabelAutoscaler, func() {
 	var client runtimeclient.Client
+	var gatherer *gatherer.StateGatherer
 
 	BeforeEach(func() {
 		var err error
+
+		gatherer, err = framework.NewGatherer()
+		Expect(err).ToNot(HaveOccurred())
 
 		client, err = framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred())
@@ -31,7 +37,7 @@ var _ = Describe("Cluster autoscaler operator should", framework.LabelOperators,
 
 	AfterEach(func() {
 		specReport := CurrentSpecReport()
-		if specReport.Failed() == true {
+		if specReport.Failed() {
 			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
 		}
 	})
@@ -48,8 +54,7 @@ var _ = Describe("Cluster autoscaler operator should", framework.LabelOperators,
 			},
 		}
 
-		err := client.Create(context.TODO(), invalidCA)
-		Expect(err).To(HaveOccurred())
+		Expect(client.Create(context.TODO(), invalidCA)).ToNot(Succeed())
 	})
 
 	It("reject invalid MachineAutoscaler resources early via webhook", func() {
@@ -74,13 +79,11 @@ var _ = Describe("Cluster autoscaler operator should", framework.LabelOperators,
 			},
 		}
 
-		err := client.Create(context.TODO(), invalidMA)
-		Expect(err).To(HaveOccurred())
+		Expect(client.Create(context.TODO(), invalidMA)).ToNot(Succeed())
 	})
 })
 
-var _ = Describe("Cluster autoscaler operator deployment should", framework.LabelOperators, framework.LabelAutoscaler, func() {
-
+var _ = Describe("Cluster autoscaler operator deployment should", framework.LabelAutoscaler, framework.LabelLEVEL0, func() {
 	It("be available", func() {
 		var err error
 		client, err := framework.LoadClient()
@@ -89,7 +92,7 @@ var _ = Describe("Cluster autoscaler operator deployment should", framework.Labe
 	})
 })
 
-var _ = Describe("Cluster autoscaler cluster operator status should", framework.LabelOperators, framework.LabelAutoscaler, func() {
+var _ = Describe("Cluster autoscaler cluster operator status should", framework.LabelAutoscaler, framework.LabelLEVEL0, func() {
 	It("be available", func() {
 		var err error
 		client, err := framework.LoadClient()

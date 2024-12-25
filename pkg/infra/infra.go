@@ -9,9 +9,9 @@ import (
 	. "github.com/onsi/gomega"
 
 	machinev1 "github.com/openshift/api/machine/v1beta1"
-	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -19,6 +19,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/klog"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 )
 
 var nodeDrainLabels = map[string]string{
@@ -28,6 +31,7 @@ var nodeDrainLabels = map[string]string{
 
 func replicationControllerWorkload(namespace string) *corev1.ReplicationController {
 	var replicas int32 = 20
+
 	return &corev1.ReplicationController{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "pdb-workload",
@@ -74,6 +78,7 @@ func replicationControllerWorkload(namespace string) *corev1.ReplicationControll
 
 func podDisruptionBudget(namespace string) *policyv1.PodDisruptionBudget {
 	maxUnavailable := intstr.FromInt(1)
+
 	return &policyv1.PodDisruptionBudget{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "nginx-pdb",
@@ -92,6 +97,7 @@ func podDisruptionBudget(namespace string) *policyv1.PodDisruptionBudget {
 
 func invalidMachinesetWithEmptyProviderConfig() *machinev1.MachineSet {
 	var oneReplicas int32 = 1
+
 	return &machinev1.MachineSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "invalid-machineset",
@@ -122,6 +128,7 @@ func invalidMachinesetWithEmptyProviderConfig() *machinev1.MachineSet {
 
 func deleteObject(client runtimeclient.Client, obj runtimeclient.Object) error {
 	cascadeDelete := metav1.DeletePropagationForeground
+
 	return client.Delete(context.TODO(), obj, &runtimeclient.DeleteOptions{
 		PropagationPolicy: &cascadeDelete,
 	})
@@ -135,210 +142,247 @@ func deleteObjects(client runtimeclient.Client, delObjects map[string]runtimecli
 			return err
 		}
 	}
+
 	return nil
 }
 
-var _ = Describe("Managed cluster should", framework.LabelMachines, func() {
+var _ = Describe("Managed cluster should", framework.LabelMAPI, func() {
 	var client runtimeclient.Client
 	var machineSet *machinev1.MachineSet
 	var machineSetParams framework.MachineSetParams
 
+	var gatherer *gatherer.StateGatherer
+
 	BeforeEach(func() {
 		var err error
 
+		gatherer, err = framework.NewGatherer()
+		Expect(err).ToNot(HaveOccurred(), "StateGatherer should be able to be created")
+
 		client, err = framework.LoadClient()
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "Controller-runtime client should be able to be created")
 
-		machineSetParams = framework.BuildMachineSetParams(client, 2)
-
-		By("Creating a new MachineSet")
-		machineSet, err = framework.CreateMachineSet(client, machineSetParams)
-		Expect(err).ToNot(HaveOccurred())
-
-		framework.WaitForMachineSet(client, machineSet.GetName())
 	})
 
 	AfterEach(func() {
 		specReport := CurrentSpecReport()
-		if specReport.Failed() == true {
-			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
+		if specReport.Failed() {
+			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed(), "StateGatherer should be able to gather resources")
 		}
 
-		By("Deleting the new MachineSet")
-		err := client.Delete(context.Background(), machineSet)
-		Expect(err).ToNot(HaveOccurred())
+		if machineSet != nil {
+			By("Deleting the new MachineSet")
+			Expect(client.Delete(context.Background(), machineSet)).To(Succeed(), "MachineSet should be able to be deleted")
+			framework.WaitForMachineSetsDeleted(client, machineSet)
+		}
 
-		framework.WaitForMachineSetDelete(client, machineSet)
 	})
 
-	It("have ability to additively reconcile taints from machine to nodes", func() {
-		selector := machineSet.Spec.Selector
-		machines, err := framework.GetMachines(client, &selector)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(machines).ToNot(BeEmpty())
+	When("machineset has one replica", framework.LabelDisruptive, func() {
+		BeforeEach(func() {
+			var err error
+			machineSetParams = framework.BuildMachineSetParams(client, 1)
 
-		machine := machines[0]
-		By(fmt.Sprintf("getting machine %q", machine.Name))
+			By("Creating a new MachineSet")
+			machineSet, err = framework.CreateMachineSet(client, machineSetParams)
+			Expect(err).ToNot(HaveOccurred(), "MachineSet should be able to be created")
 
-		node, err := framework.GetNodeForMachine(client, machine)
-		Expect(err).NotTo(HaveOccurred())
-		By(fmt.Sprintf("getting the backed node %q", node.Name))
+			framework.WaitForMachineSet(client, machineSet.GetName())
+		})
 
-		nodeTaint := corev1.Taint{
-			Key:    "not-from-machine",
-			Value:  "true",
-			Effect: corev1.TaintEffectNoSchedule,
-		}
-		By(fmt.Sprintf("updating node %q with taint: %v", node.Name, nodeTaint))
-		node.Spec.Taints = append(node.Spec.Taints, nodeTaint)
-		err = client.Update(context.TODO(), node)
-		Expect(err).NotTo(HaveOccurred())
+		// Machines required for test: 1
+		// Reason: This test works on a single machine and its node.
+		It("have ability to additively reconcile taints from machine to nodes", func() {
+			selector := machineSet.Spec.Selector
+			machines, err := framework.GetMachines(client, &selector)
+			Expect(err).ToNot(HaveOccurred(), "Listing Machines should succeed")
+			Expect(machines).ToNot(BeEmpty(), "The list of Machines should not be empty")
 
-		machineTaint := corev1.Taint{
-			Key:    fmt.Sprintf("from-machine-%v", string(uuid.NewUUID())),
-			Value:  "true",
-			Effect: corev1.TaintEffectNoSchedule,
-		}
-		By(fmt.Sprintf("updating machine %q with taint: %v", machine.Name, machineTaint))
-		machine.Spec.Taints = append(machine.Spec.Taints, machineTaint)
-		err = client.Update(context.TODO(), machine)
-		Expect(err).NotTo(HaveOccurred())
+			machine := machines[0]
+			By(fmt.Sprintf("getting machine %q", machine.Name))
 
-		var expectedTaints = sets.NewString("not-from-machine", machineTaint.Key)
-		Eventually(func() bool {
-			klog.Info("Getting node from machine again for verification of taints")
 			node, err := framework.GetNodeForMachine(client, machine)
-			if err != nil {
+			Expect(err).NotTo(HaveOccurred(), "Should be able to retrieve Node from its Machine")
+			By(fmt.Sprintf("getting the backed node %q", node.Name))
+
+			nodeTaint := corev1.Taint{
+				Key:    "not-from-machine",
+				Value:  "true",
+				Effect: corev1.TaintEffectNoSchedule,
+			}
+			By(fmt.Sprintf("updating node %q with taint: %v", node.Name, nodeTaint))
+			for {
+				node.Spec.Taints = append(node.Spec.Taints, nodeTaint)
+				err = client.Update(context.TODO(), node)
+				if !apierrors.IsConflict(err) {
+					break
+				}
+			}
+			Expect(err).NotTo(HaveOccurred(), "Node update should succeed")
+
+			machineTaint := corev1.Taint{
+				Key:    fmt.Sprintf("from-machine-%v", string(uuid.NewUUID())),
+				Value:  "true",
+				Effect: corev1.TaintEffectNoSchedule,
+			}
+			By(fmt.Sprintf("updating machine %q with taint: %v", machine.Name, machineTaint))
+			for {
+				machine.Spec.Taints = append(machine.Spec.Taints, machineTaint)
+				err = client.Update(context.TODO(), machine)
+				if !apierrors.IsConflict(err) {
+					break
+				}
+			}
+			Expect(err).NotTo(HaveOccurred(), "Machine update should succeed")
+
+			var expectedTaints = sets.NewString("not-from-machine", machineTaint.Key)
+			Eventually(func() bool {
+				klog.Info("Getting node from machine again for verification of taints")
+				node, err := framework.GetNodeForMachine(client, machine)
+				if err != nil {
+					return false
+				}
+				var observedTaints = sets.NewString()
+				for _, taint := range node.Spec.Taints {
+					observedTaints.Insert(taint.Key)
+				}
+				if !expectedTaints.Difference(observedTaints).HasAny("not-from-machine", machineTaint.Key) {
+					klog.Infof("Expected : %v, observed %v , difference %v, ", expectedTaints, observedTaints, expectedTaints.Difference(observedTaints))
+					return true
+				}
+				klog.Infof("Did not find all expected taints on the node. Missing: %v", expectedTaints.Difference(observedTaints))
+
 				return false
+			}, framework.WaitMedium, 5*time.Second).Should(BeTrue(), "Should find all the expected taints on the Node")
+		})
+
+	})
+
+	When("machineset has 2 replicas", framework.LabelDisruptive, func() {
+		BeforeEach(func() {
+			var err error
+			machineSetParams = framework.BuildMachineSetParams(client, 2)
+
+			By("Creating a new MachineSet")
+			machineSet, err = framework.CreateMachineSet(client, machineSetParams)
+			Expect(err).ToNot(HaveOccurred(), "MachineSet creation should succeed")
+
+			framework.WaitForMachineSet(client, machineSet.GetName())
+		})
+
+		// Machines required for test: 2
+		// Reason: We want to test that all machines get replaced when we delete them.
+		It("recover from deleted worker machines", framework.LabelLEVEL0, func() {
+			selector := machineSet.Spec.Selector
+			machines, err := framework.GetMachines(client, &selector)
+			Expect(err).ToNot(HaveOccurred(), "Listing Machines should succeed")
+			Expect(machines).ToNot(BeEmpty(), "The list of Machines should not be empty")
+
+			By("deleting all machines")
+			Expect(framework.DeleteMachines(client, machines...)).To(Succeed(), "Should be able to delete all Machines")
+			framework.WaitForMachinesDeleted(client, machines...)
+
+			framework.WaitForMachineSet(client, machineSet.GetName())
+		})
+
+		// Machines required for test: 4
+		// Reason: MachineSet scales 2->0 and MachineSet2 scales 0->2. Changing to scaling 1->0 and 0->1 might not test this thoroughly.
+		It("grow and decrease when scaling different machineSets simultaneously", framework.LabelPeriodic, framework.LabelLEVEL0, func() {
+			By("Creating a second MachineSet") // Machineset 1 can start with 1 replica
+			machineSetParams := framework.BuildMachineSetParams(client, 0)
+			machineSet2, err := framework.CreateMachineSet(client, machineSetParams)
+			Expect(err).ToNot(HaveOccurred(), "Should be able to create MachineSet")
+
+			// Make sure second machineset gets deleted anyway
+			defer func() {
+				By("Deleting the second MachineSet")
+				Expect(deleteObject(client, machineSet2)).To(Succeed(), "Should be able to delete MachineSet")
+				framework.WaitForMachineSetsDeleted(client, machineSet2)
+			}()
+
+			framework.WaitForMachineSet(client, machineSet2.GetName())
+
+			Expect(framework.ScaleMachineSet(machineSet.GetName(), 0)).To(Succeed(), "Should be able to scale down MachineSet")
+			Expect(framework.ScaleMachineSet(machineSet2.GetName(), 1)).To(Succeed(), "Should be able to scale MachineSet")
+
+			framework.WaitForMachineSet(client, machineSet.GetName())
+			framework.WaitForMachineSet(client, machineSet2.GetName())
+		})
+
+		// Machines required for test: 2 (3 but it gets deleted without waiting for it to be ready)
+		// Reason: Pods are spread across both machines. After one is deleted, the pods are rescheduled onto the other machine.
+		It("drain node before removing machine resource", func() {
+			By("Create a machine for node about to be drained")
+
+			selector := machineSet.Spec.Selector
+			machines, err := framework.GetMachines(client, &selector)
+			Expect(err).ToNot(HaveOccurred(), "Should be able to List Machines")
+			Expect(len(machines)).To(BeNumerically(">=", 2), "Should have found at least 2 Machines")
+
+			// Add node draining labels to params
+			for k, v := range nodeDrainLabels {
+				machineSetParams.Labels[k] = v
 			}
-			var observedTaints = sets.NewString()
-			for _, taint := range node.Spec.Taints {
-				observedTaints.Insert(taint.Key)
-			}
-			if expectedTaints.Difference(observedTaints).HasAny("not-from-machine", machineTaint.Key) == false {
-				klog.Infof("Expected : %v, observed %v , difference %v, ", expectedTaints, observedTaints, expectedTaints.Difference(observedTaints))
-				return true
-			}
-			klog.Infof("Did not find all expected taints on the node. Missing: %v", expectedTaints.Difference(observedTaints))
-			return false
-		}, framework.WaitMedium, 5*time.Second).Should(BeTrue())
+
+			machines[0].Spec.ObjectMeta.Labels = machineSetParams.Labels
+			machines[1].Spec.ObjectMeta.Labels = machineSetParams.Labels
+
+			Expect(client.Update(context.TODO(), machines[0])).To(Succeed(), "Should be able to update Machine")
+
+			Expect(client.Update(context.TODO(), machines[1])).To(Succeed(), "Should be able to update Machine")
+
+			// Make sure RC and PDB get deleted anyway
+			delObjects := make(map[string]runtimeclient.Object)
+
+			defer func() {
+				Expect(deleteObjects(client, delObjects)).To(Succeed(), "Should be able to cleanup test objects")
+			}()
+
+			By("Creating RC with workload")
+
+			// Use the openshift-machine-api namespace as it is excluded from
+			// Pod security admission checks.
+			namespace := framework.MachineAPINamespace
+
+			rc := replicationControllerWorkload(namespace)
+			Expect(client.Create(context.TODO(), rc)).To(Succeed(), "Should be able to create ReplicationController")
+			delObjects["rc"] = rc
+
+			By("Creating PDB for RC")
+			pdb := podDisruptionBudget(namespace)
+			Expect(client.Create(context.TODO(), pdb)).To(Succeed(), "Should be able to create PodDisruptionBudget")
+			delObjects["pdb"] = pdb
+
+			By("Wait until all replicas are ready")
+			Expect(framework.WaitUntilAllRCPodsAreReady(client, rc)).To(Succeed(), "Should wait until all Pod replicas are ready")
+
+			// TODO(jchaloup): delete machine that has at least half of the RC pods
+
+			// All pods are distributed evenly among all nodes so it's fine to drain
+			// random node and observe reconciliation of pods on the other one.
+			By("Delete machine to trigger node draining")
+			Expect(client.Delete(context.TODO(), machines[0])).To(Succeed(), "Should be able to Delete Machine")
+
+			// We still should be able to list the machine as until rc.replicas-1 are running on the other node
+			By("Observing and verifying node draining")
+			drainedNodeName, err := framework.VerifyNodeDraining(client, machines[0], rc)
+			Expect(err).NotTo(HaveOccurred(), "Should verify Node was drained")
+
+			By("Validating the machine is deleted")
+			framework.WaitForMachinesDeleted(client, machines[0])
+
+			By("Validate underlying node corresponding to machine1 is removed as well")
+			Expect(framework.WaitUntilNodeDoesNotExists(client, drainedNodeName)).To(Succeed(), "Should wait until Node does not exit")
+		})
 	})
 
-	It("recover from deleted worker machines", func() {
-		selector := machineSet.Spec.Selector
-		machines, err := framework.GetMachines(client, &selector)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(machines).ToNot(BeEmpty())
-
-		By(fmt.Sprint("deleting all machines"))
-		err = framework.DeleteMachines(client, machines...)
-		Expect(err).NotTo(HaveOccurred())
-		framework.WaitForMachinesDeleted(client, machines...)
-
-		framework.WaitForMachineSet(client, machineSet.GetName())
-	})
-
-	It("grow and decrease when scaling different machineSets simultaneously", func() {
-		By("Creating a second MachineSet")
-		machineSetParams := framework.BuildMachineSetParams(client, 0)
-		machineSet2, err := framework.CreateMachineSet(client, machineSetParams)
-		Expect(err).ToNot(HaveOccurred())
-
-		// Make sure second machineset gets deleted anyway
-		defer func() {
-			By("Deleting the second MachineSet")
-			err := deleteObject(client, machineSet2)
-			Expect(err).ToNot(HaveOccurred())
-			framework.WaitForMachineSetDelete(client, machineSet2)
-		}()
-
-		framework.WaitForMachineSet(client, machineSet2.GetName())
-
-		Expect(framework.ScaleMachineSet(machineSet.GetName(), 0)).To(Succeed())
-		Expect(framework.ScaleMachineSet(machineSet2.GetName(), 3)).To(Succeed())
-
-		framework.WaitForMachineSet(client, machineSet.GetName())
-		framework.WaitForMachineSet(client, machineSet2.GetName())
-	})
-
-	It("drain node before removing machine resource", func() {
-		By("Create a machine for node about to be drained")
-
-		selector := machineSet.Spec.Selector
-		machines, err := framework.GetMachines(client, &selector)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(len(machines)).To(BeNumerically(">=", 2))
-
-		// Add node draining labels to params
-		for k, v := range nodeDrainLabels {
-			machineSetParams.Labels[k] = v
-		}
-
-		machines[0].Spec.ObjectMeta.Labels = machineSetParams.Labels
-		machines[1].Spec.ObjectMeta.Labels = machineSetParams.Labels
-
-		err = client.Update(context.TODO(), machines[0])
-		Expect(err).ToNot(HaveOccurred())
-
-		err = client.Update(context.TODO(), machines[1])
-		Expect(err).ToNot(HaveOccurred())
-
-		// Make sure RC and PDB get deleted anyway
-		delObjects := make(map[string]runtimeclient.Object)
-
-		defer func() {
-			err := deleteObjects(client, delObjects)
-			Expect(err).ToNot(HaveOccurred())
-		}()
-
-		By("Creating RC with workload")
-
-		// Use the openshift-machine-api namespace as it is excluded from
-		// Pod security admission checks.
-		namespace := framework.MachineAPINamespace
-
-		rc := replicationControllerWorkload(namespace)
-		err = client.Create(context.TODO(), rc)
-		Expect(err).NotTo(HaveOccurred())
-		delObjects["rc"] = rc
-
-		By("Creating PDB for RC")
-		pdb := podDisruptionBudget(namespace)
-		err = client.Create(context.TODO(), pdb)
-		Expect(err).NotTo(HaveOccurred())
-		delObjects["pdb"] = pdb
-
-		By("Wait until all replicas are ready")
-		err = framework.WaitUntilAllRCPodsAreReady(client, rc)
-		Expect(err).NotTo(HaveOccurred())
-
-		// TODO(jchaloup): delete machine that has at least half of the RC pods
-
-		// All pods are distributed evenly among all nodes so it's fine to drain
-		// random node and observe reconciliation of pods on the other one.
-		By("Delete machine to trigger node draining")
-		err = client.Delete(context.TODO(), machines[0])
-		Expect(err).NotTo(HaveOccurred())
-
-		// We still should be able to list the machine as until rc.replicas-1 are running on the other node
-		By("Observing and verifying node draining")
-		drainedNodeName, err := framework.VerifyNodeDraining(client, machines[0], rc)
-		Expect(err).NotTo(HaveOccurred())
-
-		By("Validating the machine is deleted")
-		framework.WaitForMachinesDeleted(client, machines[0])
-
-		By("Validate underlying node corresponding to machine1 is removed as well")
-		err = framework.WaitUntilNodeDoesNotExists(client, drainedNodeName)
-		Expect(err).NotTo(HaveOccurred())
-	})
-
+	// Machines required for test: 0
+	// Reason: The machineSet creation is rejected by the webhook.
 	It("reject invalid machinesets", func() {
 		By("Creating invalid machineset")
 		invalidMachineSet := invalidMachinesetWithEmptyProviderConfig()
 		expectedAdmissionWebhookErr := "admission webhook \"default.machineset.machine.openshift.io\" denied the request: providerSpec.value: Required value: a value must be provided"
 
-		err := client.Create(context.TODO(), invalidMachineSet)
-		Expect(err).To(MatchError(expectedAdmissionWebhookErr))
+		Expect(client.Create(context.TODO(), invalidMachineSet)).To(MatchError(expectedAdmissionWebhookErr), "Should fail to create invalid MachineSet")
 	})
 })

@@ -6,14 +6,16 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	v1 "github.com/openshift/api/config/v1"
-	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
-	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 )
 
 var (
@@ -23,7 +25,7 @@ var (
 
 var _ = Describe(
 	"Machine API operator deployment should",
-	framework.LabelDisruptive, framework.LabelOperators, framework.LabelMachines,
+	framework.LabelMAPI,
 	Serial,
 	func() {
 		var gatherer *gatherer.StateGatherer
@@ -36,18 +38,18 @@ var _ = Describe(
 
 		AfterEach(func() {
 			specReport := CurrentSpecReport()
-			if specReport.Failed() == true {
+			if specReport.Failed() {
 				Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
 			}
 		})
 
-		It("be available", func() {
+		It("be available", framework.LabelLEVEL0, func() {
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(framework.IsDeploymentAvailable(client, maoDeployment, framework.MachineAPINamespace)).To(BeTrue())
 		})
 
-		It("reconcile controllers deployment", func() {
+		It("reconcile controllers deployment", framework.LabelDisruptive, func() {
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred())
 
@@ -67,7 +69,7 @@ var _ = Describe(
 			Expect(framework.IsDeploymentSynced(client, initialDeployment, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
 		})
 
-		It("maintains deployment spec", func() {
+		It("maintains deployment spec", framework.LabelDisruptive, func() {
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred())
 
@@ -78,7 +80,7 @@ var _ = Describe(
 			Expect(framework.IsDeploymentAvailable(client, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue())
 
 			changedDeployment := initialDeployment.DeepCopy()
-			changedDeployment.Spec.Replicas = pointer.Int32Ptr(0)
+			changedDeployment.Spec.Replicas = pointer.Int32(0)
 
 			By(fmt.Sprintf("updating deployment %q", maoManagedDeployment))
 			Expect(framework.UpdateDeployment(client, maoManagedDeployment, framework.MachineAPINamespace, changedDeployment)).NotTo(HaveOccurred())
@@ -124,6 +126,7 @@ var _ = Describe(
 				if err := client.Get(context.Background(), key, current); err != nil && !apierrors.IsNotFound(err) {
 					return "", err
 				}
+
 				return current.GetUID(), nil
 			}).ShouldNot(Equal(initialUID))
 
@@ -150,6 +153,7 @@ var _ = Describe(
 				if err := client.Get(context.Background(), key, current); err != nil && !apierrors.IsNotFound(err) {
 					return "", err
 				}
+
 				return current.GetUID(), nil
 			}).ShouldNot(Equal(initialUID))
 
@@ -184,7 +188,7 @@ var _ = Describe(
 			}
 		})
 
-		It("maintains spec after validating webhook configuration change and preserve caBundle", func() {
+		It("maintains spec after validating webhook configuration change and preserve caBundle", framework.LabelDisruptive, func() {
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred())
 
@@ -213,8 +217,8 @@ var _ = Describe(
 	})
 
 var _ = Describe(
-	"Machine API cluster operator status should", framework.LabelOperators, framework.LabelMachines, func() {
-		It("be available", func() {
+	"Machine API cluster operator status should", framework.LabelMAPI, func() {
+		It("be available", framework.LabelLEVEL0, func() {
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(framework.WaitForStatusAvailableShort(client, "machine-api")).To(BeTrue())
@@ -223,17 +227,9 @@ var _ = Describe(
 
 var _ = Describe(
 	"When cluster-wide proxy is configured, Machine API cluster operator should ",
-	framework.LabelDisruptive, framework.LabelOperators, framework.LabelPeriodic, framework.LabelMachines,
+	framework.LabelDisruptive, framework.LabelPeriodic, framework.LabelMAPI,
 	Serial,
 	func() {
-		var gatherer *gatherer.StateGatherer
-
-		BeforeEach(func() {
-			var err error
-			gatherer, err = framework.NewGatherer()
-			Expect(err).ToNot(HaveOccurred())
-		})
-
 		It("create machines when configured behind a proxy", func() {
 			// This test case takes upwards of 20 minutes to complete.
 			// This test cannot be run in parallel with other tests and as such,
@@ -275,15 +271,15 @@ var _ = Describe(
 
 			By("destroying a machineset")
 			Expect(client.Delete(context.Background(), machineSet)).To(Succeed())
-			framework.WaitForMachineSetDelete(client, machineSet)
+			framework.WaitForMachineSetsDeleted(client, machineSet)
 
 			By("unconfiguring cluster-wide proxy")
 			err = client.Patch(context.Background(), proxy, runtimeclient.RawPatch(apitypes.JSONPatchType, []byte(`[
-			{"op": "remove", "path": "/spec/httpProxy"},
-			{"op": "remove", "path": "/spec/httpsProxy"},
-			{"op": "remove", "path": "/spec/noProxy"},
-			{"op": "remove", "path": "/spec/trustedCA"}
-		]`)))
+				{"op": "remove", "path": "/spec/httpProxy"},
+				{"op": "remove", "path": "/spec/httpsProxy"},
+				{"op": "remove", "path": "/spec/noProxy"},
+				{"op": "remove", "path": "/spec/trustedCA"}
+			]`)))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("waiting for machine-api-controller deployment to reflect unconfigured cluster-wide proxy")
@@ -291,11 +287,6 @@ var _ = Describe(
 		})
 
 		AfterEach(func() {
-			specReport := CurrentSpecReport()
-			if specReport.Failed() == true {
-				Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed())
-			}
-
 			By("waiting for MAO, KAPI and KCM cluster operators to become available")
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred())
