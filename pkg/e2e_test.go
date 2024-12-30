@@ -1,22 +1,19 @@
 package e2e
 
 import (
-	"fmt"
-	"os"
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/config"
-	"github.com/onsi/ginkgo/reporters"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/klog"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	caov1alpha1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis"
-	"k8s.io/client-go/kubernetes/scheme"
 
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/autoscaler"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/infra"
@@ -24,8 +21,6 @@ import (
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/operators"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/providers"
 )
-
-const junitDirEnvVar = "JUNIT_DIR"
 
 func init() {
 	klog.InitFlags(nil)
@@ -46,19 +41,7 @@ func init() {
 
 func TestE2E(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecsWithDefaultAndCustomReporters(t, "Machine Suite", e2eReporters())
-}
-
-func e2eReporters() []Reporter {
-	reportDir := os.Getenv(junitDirEnvVar)
-	if reportDir != "" {
-		// Include `ParallelNode` so tests running in parallel do not overwrite the same file.
-		// Include timestamp so test suite can be called multiple times with focus within same CI job
-		// without overwriting files.
-		junitFileName := fmt.Sprintf("%s/junit_cluster_api_actuator_pkg_e2e_%d_%d.xml", reportDir, time.Now().UnixNano(), config.GinkgoConfig.ParallelNode)
-		return []Reporter{reporters.NewJUnitReporter(junitFileName)}
-	}
-	return []Reporter{}
+	RunSpecs(t, "Machine Suite")
 }
 
 var _ = BeforeSuite(func() {
@@ -74,6 +57,5 @@ var _ = BeforeSuite(func() {
 		framework.WaitShort = 2 * time.Minute  // Normally 1m
 		framework.WaitMedium = 6 * time.Minute // Normally 3m
 		framework.WaitLong = 30 * time.Minute  // Normally 15m
-
 	}
 })

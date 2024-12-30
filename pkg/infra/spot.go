@@ -3,17 +3,15 @@ package infra
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
+	"os"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	configv1 "github.com/openshift/api/config/v1"
-	machinev1 "github.com/openshift/api/machine/v1beta1"
-	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
-	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
+
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -23,36 +21,50 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	configv1 "github.com/openshift/api/config/v1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
+	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
+
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 )
 
-const machinesCount = 3
+const (
+	// Spot machineSet replicas.
+	machinesCount = 1
 
-var _ = Describe("[Feature:Machines] Running on Spot", func() {
+	// Maximum retries when provisioning a spot machineSet.
+	spotMachineSetMaxProvisioningRetryCount = 3
+)
+
+var _ = Describe("Running on Spot", framework.LabelMAPI, framework.LabelDisruptive, func() {
 	var ctx = context.Background()
 
 	var client runtimeclient.Client
 	var machineSet *machinev1.MachineSet
-	var machineSetParams framework.MachineSetParams
 	var platform configv1.PlatformType
 
 	var delObjects map[string]runtimeclient.Object
+
+	var gatherer *gatherer.StateGatherer
 
 	BeforeEach(func() {
 		delObjects = make(map[string]runtimeclient.Object)
 
 		var err error
+
+		gatherer, err = framework.NewGatherer()
+		Expect(err).ToNot(HaveOccurred(), "StateGatherer should be able to be created")
+
 		client, err = framework.LoadClient()
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "Controller-runtime client should be able to be created")
 
 		platform, err = framework.GetPlatform(client)
-		Expect(err).NotTo(HaveOccurred())
+		Expect(err).NotTo(HaveOccurred(), "Should be able to get Platform type")
 		switch platform {
 		case configv1.AWSPlatformType, configv1.AzurePlatformType:
-			// The failure rate of this test has increased significantly on Azure and AWS.
-			// We are seeing a massive spike in not being able to create instances due to
-			// a lack of capacity on the platform.
-			// Skip the test until we have time to work out how to mitigate this.
-			Skip("This test has a high failure rate, skipping until further notice")
+			// Supported platforms, ok to continue.
 		case configv1.GCPPlatformType:
 			// TODO: GCP relies on the metadata IP for DNS.
 			// This test prevents it from accessing the DNS, therefore
@@ -65,18 +77,44 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 		}
 
 		By("Creating a Spot backed MachineSet", func() {
-			machineSetParams = framework.BuildMachineSetParams(client, machinesCount)
-			Expect(setSpotOnProviderSpec(platform, machineSetParams, "")).To(Succeed())
+			machineSetReady := false
+			machineSetParams := framework.BuildMachineSetParams(client, machinesCount)
+			machineSetParamsList, err := framework.BuildAlternativeMachineSetParams(machineSetParams, platform)
+			Expect(err).ToNot(HaveOccurred(), "Should be able to build list of MachineSet parameters")
+			for i, machineSetParams := range machineSetParamsList {
+				if i >= spotMachineSetMaxProvisioningRetryCount {
+					// If there are many alternatives, only try the specified number of times
+					break
+				}
+				Expect(setSpotOnProviderSpec(platform, machineSetParams, "")).To(Succeed(), "Should be able to set spot options on ProviderSpec")
 
-			machineSet, err = framework.CreateMachineSet(client, machineSetParams)
-			Expect(err).ToNot(HaveOccurred())
-			delObjects[machineSet.Name] = machineSet
+				machineSet, err = framework.CreateMachineSet(client, machineSetParams)
+				Expect(err).ToNot(HaveOccurred(), "MachineSet should be able to be created")
+				delObjects[machineSet.Name] = machineSet
 
-			framework.WaitForMachineSet(client, machineSet.GetName())
+				err = framework.WaitForSpotMachineSet(client, machineSet.GetName())
+				if errors.Is(err, framework.ErrMachineNotProvisionedInsufficientCloudCapacity) {
+					By("Trying alternative machineSet because current one could not provision due to insufficient spot capacity")
+					// If machineSet cannot scale up due to insufficient capacity, try again with different machineSetParams
+					framework.WaitForMachineSetsDeleted(client, machineSet)
+
+					continue
+				}
+				Expect(err).ToNot(HaveOccurred(), "Error while waiting for all spot MachineSet Machines to be ready")
+				machineSetReady = true
+
+				break // MachineSet created successfully
+			}
+			Expect(machineSetReady).To(BeTrue(), "Failed to create a spot backed MachineSet")
 		})
 	})
 
 	AfterEach(func() {
+		specReport := CurrentSpecReport()
+		if specReport.Failed() {
+			Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed(), "StateGatherer should be able to gather resources")
+		}
+
 		var machineSets []*machinev1.MachineSet
 
 		for _, obj := range delObjects {
@@ -87,7 +125,7 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 				machineSets = append(machineSets, machineSet)
 			}
 
-			Expect(deleteObject(client, obj)).To(Succeed())
+			Expect(deleteObject(client, obj)).To(Succeed(), "Should be able to cleanup test objects")
 		}
 
 		if len(machineSets) > 0 {
@@ -97,22 +135,24 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 		}
 	})
 
+	// Machines required for test: 1
+	// Reason: We only deploy the termination simulator pod on one node. Machine draining is tested in other tests.
 	It("should handle the spot instances", func() {
 		By("should label the Machine specs as interruptible", func() {
 			selector := machineSet.Spec.Selector
 			machines, err := framework.GetMachines(client, &selector)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(machines).To(HaveLen(machinesCount))
+			Expect(err).ToNot(HaveOccurred(), "Listing Machines should succeed")
+			Expect(machines).To(HaveLen(machinesCount), "Should match the expected number of Machines")
 
 			for _, machine := range machines {
-				Expect(machine.Spec.ObjectMeta.Labels).To(HaveKeyWithValue(machinecontroller.MachineInterruptibleInstanceLabelName, ""))
+				Expect(machine.Spec.ObjectMeta.Labels).To(HaveKeyWithValue(machinecontroller.MachineInterruptibleInstanceLabelName, ""), "Should have the expected spot label on the Machine")
 			}
 		})
 
 		By("should deploy a termination handler pod to each instance", func() {
 			nodes, err := framework.GetNodesFromMachineSet(client, machineSet)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(nodes).To(HaveLen(machinesCount))
+			Expect(err).ToNot(HaveOccurred(), "Should be able to get Nodes linked to the MachineSet's Machines")
+			Expect(nodes).To(HaveLen(machinesCount), "Nodes and Machines count should match")
 
 			terminationLabels := map[string]string{
 				"api":     "clusterapi",
@@ -124,28 +164,31 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 				pods := []corev1.Pod{}
 				Eventually(func() ([]corev1.Pod, error) {
 					podList := &corev1.PodList{}
-					err := client.List(context.Background(), podList, runtimeclient.MatchingLabels(terminationLabels))
-					if err != nil {
+
+					if err := client.List(context.Background(), podList, runtimeclient.MatchingLabels(terminationLabels)); err != nil {
 						return podList.Items, err
 					}
+
 					for _, pod := range podList.Items {
 						if pod.Spec.NodeName == node.Name {
 							pods = append(pods, pod)
 						}
 					}
+
 					return pods, nil
-				}, framework.WaitLong, framework.RetryMedium).ShouldNot(BeEmpty())
+				}, framework.WaitLong, framework.RetryMedium).ShouldNot(BeEmpty(), "Should find termination pod on Node")
 				// Termination Pods run in a DaemonSet, should only be 1 per node
-				Expect(pods).To(HaveLen(1))
+				Expect(pods).To(HaveLen(1), "There should only be one termination handler pod for this Node")
 				podKey := runtimeclient.ObjectKey{Namespace: pods[0].Namespace, Name: pods[0].Name}
 
 				By("Ensuring the termination Pod is running and the containers are ready")
 				Eventually(func() (bool, error) {
 					pod := &corev1.Pod{}
-					err := client.Get(context.Background(), podKey, pod)
-					if err != nil {
+
+					if err := client.Get(context.Background(), podKey, pod); err != nil {
 						return false, err
 					}
+
 					if pod.Status.Phase != corev1.PodRunning {
 						return false, nil
 					}
@@ -158,54 +201,54 @@ var _ = Describe("[Feature:Machines] Running on Spot", func() {
 					}
 
 					return false, nil
-				}, framework.WaitLong, framework.RetryMedium).Should(BeTrue())
+				}, framework.WaitLong, framework.RetryMedium).Should(BeTrue(), "Should find the termination pod Ready")
 			}
 		})
 
 		By("should terminate a Machine if a termination event is observed", func() {
 			By("Deploying a mock metadata application", func() {
 				configMap, err := getMetadataMockConfigMap()
-				Expect(err).ToNot(HaveOccurred())
-				Expect(client.Create(ctx, configMap)).To(Succeed())
+				Expect(err).ToNot(HaveOccurred(), "Should load the desired metadata ConfigMap")
+				Expect(client.Create(ctx, configMap)).To(Succeed(), "Should be able to create metadata ConfigMap")
 				delObjects[configMap.Name] = configMap
 
 				service := getMetadataMockService()
-				Expect(client.Create(ctx, service)).To(Succeed())
+				Expect(client.Create(ctx, service)).To(Succeed(), "Should be able to create metadata Service")
 				delObjects[service.Name] = service
 
 				deployment := getMetadataMockDeployment(platform)
-				Expect(client.Create(ctx, deployment)).To(Succeed())
+				Expect(client.Create(ctx, deployment)).To(Succeed(), "Should be able to create metadata Deployment")
 				delObjects[deployment.Name] = deployment
 
-				Expect(framework.IsDeploymentAvailable(client, deployment.Name, deployment.Namespace)).To(BeTrue())
+				Expect(framework.IsDeploymentAvailable(client, deployment.Name, deployment.Namespace)).To(BeTrue(), "Should find an available the metadata Deployment")
 			})
 
 			var machine *machinev1.Machine
 			By("Choosing a Machine to terminate", func() {
 				machines, err := framework.GetMachinesFromMachineSet(client, machineSet)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(len(machines)).To(BeNumerically(">", 0))
+				Expect(err).ToNot(HaveOccurred(), "Should be able to get Machines from MachineSet")
+				Expect(len(machines)).To(BeNumerically(">", 0), "There should be at least one Machine")
 
 				rand.Seed(time.Now().Unix())
 				machine = machines[rand.Intn(len(machines))]
-				Expect(machine.Status.NodeRef).ToNot(BeNil())
+				Expect(machine.Status.NodeRef).ToNot(BeNil(), "Machine should have a linked Node")
 			})
 
 			By("Deploying a job to reroute metadata traffic to the mock", func() {
 				serviceAccount := getTerminationSimulatorServiceAccount()
-				Expect(client.Create(ctx, serviceAccount)).To(Succeed())
+				Expect(client.Create(ctx, serviceAccount)).To(Succeed(), "Should be able to create termination simulator ServiceAccount")
 				delObjects[serviceAccount.Name] = serviceAccount
 
 				role := getTerminationSimulatorRole()
-				Expect(client.Create(ctx, role)).To(Succeed())
+				Expect(client.Create(ctx, role)).To(Succeed(), "Should be able to create termination simulator Role")
 				delObjects[role.Name] = role
 
 				roleBinding := getTerminationSimulatorRoleBinding()
-				Expect(client.Create(ctx, roleBinding)).To(Succeed())
+				Expect(client.Create(ctx, roleBinding)).To(Succeed(), "Should be able to create termination simulator RoleBinding")
 				delObjects[roleBinding.Name] = roleBinding
 
 				job := getTerminationSimulatorJob(machine.Status.NodeRef.Name)
-				Expect(client.Create(ctx, job)).To(Succeed())
+				Expect(client.Create(ctx, job)).To(Succeed(), "Should be able to create termination simulator Job")
 				delObjects[job.Name] = job
 			})
 
@@ -233,9 +276,8 @@ func setSpotOnProviderSpec(platform configv1.PlatformType, params framework.Mach
 func setSpotOnAWSProviderSpec(params framework.MachineSetParams, maxPrice string) error {
 	spec := machinev1.AWSMachineProviderConfig{}
 
-	err := json.Unmarshal(params.ProviderSpec.Value.Raw, &spec)
-	if err != nil {
-		return fmt.Errorf("error unmarshalling providerspec: %v", err)
+	if err := json.Unmarshal(params.ProviderSpec.Value.Raw, &spec); err != nil {
+		return fmt.Errorf("error unmarshalling providerspec: %w", err)
 	}
 
 	spec.SpotMarketOptions = &machinev1.SpotMarketOptions{}
@@ -243,9 +285,11 @@ func setSpotOnAWSProviderSpec(params framework.MachineSetParams, maxPrice string
 		spec.SpotMarketOptions.MaxPrice = &maxPrice
 	}
 
+	var err error
+
 	params.ProviderSpec.Value.Raw, err = json.Marshal(spec)
 	if err != nil {
-		return fmt.Errorf("error marshalling providerspec: %v", err)
+		return fmt.Errorf("error marshalling providerspec: %w", err)
 	}
 
 	return nil
@@ -253,20 +297,23 @@ func setSpotOnAWSProviderSpec(params framework.MachineSetParams, maxPrice string
 
 func setSpotOnAzureProviderSpec(params framework.MachineSetParams, maxPrice string) error {
 	spec := machinev1.AzureMachineProviderSpec{}
-	err := json.Unmarshal(params.ProviderSpec.Value.Raw, &spec)
-	if err != nil {
-		return fmt.Errorf("error unmarshalling providerspec: %v", err)
+
+	if err := json.Unmarshal(params.ProviderSpec.Value.Raw, &spec); err != nil {
+		return fmt.Errorf("error unmarshalling providerspec: %w", err)
 	}
 
 	spec.SpotVMOptions = &machinev1.SpotVMOptions{}
+
 	if maxPrice != "" {
 		maxPriceQuantity := resource.MustParse(maxPrice)
 		spec.SpotVMOptions.MaxPrice = &maxPriceQuantity
 	}
 
+	var err error
+
 	params.ProviderSpec.Value.Raw, err = json.Marshal(spec)
 	if err != nil {
-		return fmt.Errorf("error marshalling providerspec: %v", err)
+		return fmt.Errorf("error marshalling providerspec: %w", err)
 	}
 
 	return nil
@@ -275,16 +322,17 @@ func setSpotOnAzureProviderSpec(params framework.MachineSetParams, maxPrice stri
 func setSpotOnGCPProviderSpec(params framework.MachineSetParams) error {
 	spec := machinev1.GCPMachineProviderSpec{}
 
-	err := json.Unmarshal(params.ProviderSpec.Value.Raw, &spec)
-	if err != nil {
-		return fmt.Errorf("error unmarshalling providerspec: %v", err)
+	if err := json.Unmarshal(params.ProviderSpec.Value.Raw, &spec); err != nil {
+		return fmt.Errorf("error unmarshalling providerspec: %w", err)
 	}
 
 	spec.Preemptible = true
 
+	var err error
+
 	params.ProviderSpec.Value.Raw, err = json.Marshal(spec)
 	if err != nil {
-		return fmt.Errorf("error marshalling providerspec: %v", err)
+		return fmt.Errorf("error marshalling providerspec: %w", err)
 	}
 
 	return nil
@@ -311,7 +359,7 @@ func getMetadataMockDeployment(platform configv1.PlatformType) *appsv1.Deploymen
 			Labels:    getMetadataMockLabels(),
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: pointer.Int32Ptr(1),
+			Replicas: pointer.Int32(1),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: getMetadataMockLabels(),
 			},
@@ -390,7 +438,7 @@ func getMetadataMockService() *corev1.Service {
 
 func getMetadataMockConfigMap() (*corev1.ConfigMap, error) {
 	// Load relative to the test execution directory
-	data, err := ioutil.ReadFile("./infra/mock/metadata_mock.go")
+	data, err := os.ReadFile("./infra/mock/metadata_mock.go")
 	if err != nil {
 		return nil, err
 	}
@@ -424,6 +472,7 @@ ifconfig lo:0 169.254.169.254 up;
 echo "Redirected metadata service to ${SERVICE_IP}:${MOCK_SERVICE_PORT}";`
 
 	fileOrCreate := corev1.HostPathFileOrCreate
+
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      terminationSimulatorName,
@@ -453,7 +502,7 @@ echo "Redirected metadata service to ${SERVICE_IP}:${MOCK_SERVICE_PORT}";`
 								},
 							},
 							SecurityContext: &corev1.SecurityContext{
-								Privileged: pointer.BoolPtr(true),
+								Privileged: pointer.Bool(true),
 								Capabilities: &corev1.Capabilities{
 									Add: []corev1.Capability{"NET_ADMIN", "NET_RAW"},
 								},
