@@ -11,6 +11,7 @@ import (
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 	capiinfrastructurev1beta2resourcebuilder "github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/cluster-api/infrastructure/v1beta2"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/utils/ptr"
 	awsv1 "sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 
@@ -139,6 +140,79 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 		}
 		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
 		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-75396", machineSetParams)
+		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
+		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
+		framework.WaitForCAPIMachinesRunning(ctx, cl, machineSet.Name)
+	})
+
+	//OCP-78677 - [CAPI] Dedicated tenancy should be exposed on aws providerspec.
+	It("should be able to run a machine with dedicated instance", func() {
+		awsMachineTemplate = newAWSMachineTemplate(mapiDefaultProviderSpec)
+		awsMachineTemplate.Spec.Template.Spec.Tenancy = "dedicated"
+		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
+		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-78677", machineSetParams)
+		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
+		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
+		framework.WaitForCAPIMachinesRunning(ctx, cl, machineSet.Name)
+	})
+
+	//huliu-OCP-75662 - [CAPI] AWS Machine API Support of more than one block device.
+	It("should be able to run a machine with more than one block device", func() {
+		awsMachineTemplate = newAWSMachineTemplate(mapiDefaultProviderSpec)
+		awsMachineTemplate.Spec.Template.Spec.NonRootVolumes = []awsv1.Volume{
+			{
+				DeviceName: "/dev/xvda",
+				Size:       120,
+				Type:       awsv1.VolumeTypeGP3,
+				IOPS:       5000,
+				Encrypted:  ptr.To(true),
+			},
+			{
+				DeviceName: "/dev/sdf",
+				Size:       120,
+				Type:       awsv1.VolumeTypeGP2,
+				Encrypted:  ptr.To(false),
+			},
+		}
+		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
+		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-75662", machineSetParams)
+		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
+		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
+		framework.WaitForCAPIMachinesRunning(ctx, cl, machineSet.Name)
+	})
+
+	//huliu-OCP-75663 - [CAPI] User defined tags can be applied to AWS EC2 Instances.
+	It("should be able to run a machine with user defined tags", func() {
+		awsMachineTemplate = newAWSMachineTemplate(mapiDefaultProviderSpec)
+		awsMachineTemplate.Spec.Template.Spec.AdditionalTags = map[string]string{
+			"adminContact": "qe",
+			"costCenter":   "1981",
+			"customTag":    "test",
+			"Email":        "qe@redhat.com",
+		}
+		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
+		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-75663", machineSetParams)
+		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
+		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
+		framework.WaitForCAPIMachinesRunning(ctx, cl, machineSet.Name)
+	})
+
+	//OCP-76794 - [CAPI] Support AWS capacity-reservations in CAPA.
+	It("should be able to run a machine with capacity-reservations", func() {
+		awsMachineTemplate = newAWSMachineTemplate(mapiDefaultProviderSpec)
+		By("Access AWS to create CapacityReservation")
+		awsClient := framework.NewAwsClient(framework.GetCredentialsFromCluster(oc))
+		capacityReservationID, err := awsClient.CreateCapacityReservation(mapiDefaultProviderSpec.InstanceType, "Linux/UNIX", mapiDefaultProviderSpec.Placement.AvailabilityZone, 1)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(capacityReservationID).ToNot(Equal(""))
+
+		DeferCleanup(func() {
+			_, err := awsClient.CancelCapacityReservation(capacityReservationID)
+			Expect(err).ToNot(HaveOccurred(), "Failed to cancel capacityreservation")
+		})
+		awsMachineTemplate.Spec.Template.Spec.CapacityReservationID = &capacityReservationID
+		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
+		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-76794", machineSetParams)
 		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
 		framework.WaitForCAPIMachinesRunning(ctx, cl, machineSet.Name)
