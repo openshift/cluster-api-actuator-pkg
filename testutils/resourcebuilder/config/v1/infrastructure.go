@@ -17,9 +17,13 @@ limitations under the License.
 package v1
 
 import (
-	configv1 "github.com/openshift/api/config/v1"
+	"fmt"
+	"path"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
+
+	configv1 "github.com/openshift/api/config/v1"
 )
 
 // Infrastructure creates a new infrastructure builder.
@@ -344,6 +348,38 @@ func (i InfrastructureBuilder) AsVSphereWithFailureDomains(name string, failureD
 
 	i.spec = infraBuilder.spec
 	i.status = infraBuilder.status
+
+	return i
+}
+
+func (i InfrastructureBuilder) WithVSphereVMHostZonal() InfrastructureBuilder {
+	infraBuilder := i
+
+	for n := range infraBuilder.spec.PlatformSpec.VSphere.FailureDomains {
+		datacenter := "test-dc1"
+		cluster := "test-cluster-1"
+		datastore := "test-datastore-1"
+
+		fdName := infraBuilder.spec.PlatformSpec.VSphere.FailureDomains[n].Name
+
+		infraBuilder.spec.PlatformSpec.VSphere.FailureDomains[n].Topology.Datacenter = datacenter
+		infraBuilder.spec.PlatformSpec.VSphere.FailureDomains[n].Topology.ComputeCluster = path.Join("/", datacenter, "host", cluster)
+		infraBuilder.spec.PlatformSpec.VSphere.FailureDomains[n].Topology.Datastore = path.Join("/", datacenter, "datastore", datastore)
+		infraBuilder.spec.PlatformSpec.VSphere.FailureDomains[n].Topology.ResourcePool = path.Join("/", datacenter, "host", cluster, "Resources")
+
+		infraBuilder.spec.PlatformSpec.VSphere.FailureDomains[n].ZoneAffinity = &configv1.VSphereFailureDomainZoneAffinity{
+			Type: configv1.HostGroupFailureDomainZone,
+			HostGroup: &configv1.VSphereFailureDomainHostGroup{
+				VMGroup:    fmt.Sprintf("%s-vm-group", fdName),
+				HostGroup:  fmt.Sprintf("%s-host-group", fdName),
+				VMHostRule: fmt.Sprintf("%s-vm-host-rule", fdName),
+			},
+		}
+
+		infraBuilder.spec.PlatformSpec.VSphere.FailureDomains[n].RegionAffinity = &configv1.VSphereFailureDomainRegionAffinity{Type: configv1.ComputeClusterFailureDomainRegion}
+	}
+
+	i.spec = infraBuilder.spec
 
 	return i
 }
