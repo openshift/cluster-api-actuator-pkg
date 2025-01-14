@@ -16,6 +16,7 @@ import (
 	caov1alpha1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis"
 	awsv1 "sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2"
 	azurev1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
+	gcpv1 "sigs.k8s.io/cluster-api-provider-gcp/api/v1beta1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/autoscaler"
@@ -53,6 +54,10 @@ func init() {
 	if err := awsv1.AddToScheme(scheme.Scheme); err != nil {
 		klog.Fatal(err)
 	}
+
+	if err := gcpv1.AddToScheme(scheme.Scheme); err != nil {
+		klog.Fatal(err)
+	}
 }
 
 func TestE2E(t *testing.T) {
@@ -71,7 +76,7 @@ var _ = BeforeSuite(func() {
 
 	// Extend timeouts for slower providers
 	switch platform {
-	case osconfigv1.AzurePlatformType, osconfigv1.VSpherePlatformType, osconfigv1.OpenStackPlatformType, osconfigv1.PowerVSPlatformType, osconfigv1.NutanixPlatformType:
+	case osconfigv1.AzurePlatformType, osconfigv1.GCPPlatformType, osconfigv1.VSpherePlatformType, osconfigv1.OpenStackPlatformType, osconfigv1.PowerVSPlatformType, osconfigv1.NutanixPlatformType:
 		framework.WaitShort = 2 * time.Minute  // Normally 1m
 		framework.WaitMedium = 6 * time.Minute // Normally 3m
 		framework.WaitLong = 30 * time.Minute  // Normally 15m
