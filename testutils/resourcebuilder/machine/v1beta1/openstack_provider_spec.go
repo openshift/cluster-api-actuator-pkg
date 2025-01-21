@@ -43,6 +43,7 @@ func OpenStackProviderSpec() OpenStackProviderSpecBuilder {
 				UUID: "d06af90b-1677-4b35-a7fb-3ae023dc8f62",
 			},
 		},
+		ports:      nil,
 		rootVolume: nil,
 		securityGroups: []machinev1alpha1.SecurityGroupParam{
 			{
@@ -61,6 +62,7 @@ type OpenStackProviderSpecBuilder struct {
 	availabilityZone       string
 	flavor                 string
 	networks               []machinev1alpha1.NetworkParam
+	ports                  []machinev1alpha1.PortOpts
 	rootVolume             *machinev1alpha1.RootVolume
 	serverGroupName        string
 	securityGroups         []machinev1alpha1.SecurityGroupParam
@@ -83,6 +85,7 @@ func (m OpenStackProviderSpecBuilder) Build() *machinev1alpha1.OpenstackProvider
 		Flavor:          m.flavor,
 		Image:           "rhcos",
 		Networks:        m.networks,
+		Ports:           m.ports,
 		PrimarySubnet:   "810c3d97-98c2-4cf3-b0f6-8977b6e0b4b2",
 		RootVolume:      m.rootVolume,
 		SecurityGroups:  m.securityGroups,
@@ -137,6 +140,12 @@ func (m OpenStackProviderSpecBuilder) WithFlavor(flavor string) OpenStackProvide
 // WithNetworks sets the networks for the OpenStack machine config builder.
 func (m OpenStackProviderSpecBuilder) WithNetworks(networks []machinev1alpha1.NetworkParam) OpenStackProviderSpecBuilder {
 	m.networks = networks
+	return m
+}
+
+// WithPorts sets the ports for the OpenStack machine config builder.
+func (m OpenStackProviderSpecBuilder) WithPorts(ports []machinev1alpha1.PortOpts) OpenStackProviderSpecBuilder {
+	m.ports = ports
 	return m
 }
 
