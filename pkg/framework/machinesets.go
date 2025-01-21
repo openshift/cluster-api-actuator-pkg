@@ -74,7 +74,7 @@ func BuildPerArchMachineSetParamsList(ctx context.Context, client runtimeclient.
 	var params MachineSetParams
 
 	for _, worker := range workers {
-		if arch, err = getArchitectureFromMachineSetNodes(ctx, client, worker); err != nil {
+		if arch, err = GetArchitectureFromMachineSetNodes(ctx, client, worker); err != nil {
 			klog.Warningf("unable to get the architecture for the machine set %s: %v", worker.Name, err)
 			continue
 		}
@@ -175,7 +175,7 @@ func CreateMachineSet(c runtimeclient.Client, params MachineSetParams) (*machine
 }
 
 // BuildMachineSetParamsList creates a list of MachineSetParams based on the given machineSetParams with modified instance type.
-func BuildAlternativeMachineSetParams(machineSetParams MachineSetParams, platform configv1.PlatformType) ([]MachineSetParams, error) {
+func BuildAlternativeMachineSetParams(machineSetParams MachineSetParams, platform configv1.PlatformType, arch string) ([]MachineSetParams, error) {
 	baseMachineSetParams := machineSetParams
 	baseProviderSpec := baseMachineSetParams.ProviderSpec.DeepCopy()
 
@@ -184,7 +184,15 @@ func BuildAlternativeMachineSetParams(machineSetParams MachineSetParams, platfor
 	switch platform {
 	case configv1.AWSPlatformType:
 		// Using cheapest compute optimized instances that meet openshift minimum requirements (4 vCPU, 8GiB RAM)
-		alternativeInstanceTypes := []string{"c5.xlarge", "c5a.xlarge", "m5.xlarge"}
+		var alternativeInstanceTypes []string
+
+		switch arch {
+		case "arm64":
+			alternativeInstanceTypes = []string{"m6g.large", "t4g.nano", "t4g.micro", "m6gd.xlarge"}
+		default:
+			alternativeInstanceTypes = []string{"c5.xlarge", "c5a.xlarge", "m5.xlarge"}
+		}
+
 		for _, instanceType := range alternativeInstanceTypes {
 			updatedProviderSpec, err := updateProviderSpecAWSInstanceType(baseProviderSpec, instanceType)
 			if err != nil {
@@ -195,7 +203,15 @@ func BuildAlternativeMachineSetParams(machineSetParams MachineSetParams, platfor
 			output = append(output, baseMachineSetParams)
 		}
 	case configv1.AzurePlatformType:
-		alternativeVMSizes := []string{"Standard_F4s_v2", "Standard_D4as_v5", "Standard_D4as_v4"}
+		var alternativeVMSizes []string
+
+		switch arch {
+		case "arm64":
+			alternativeVMSizes = []string{"Standard_D2ps_v5", "Standard_D3ps_v5", "Standard_D4ps_v5"}
+		default:
+			alternativeVMSizes = []string{"Standard_F4s_v2", "Standard_D4as_v5", "Standard_D4as_v4"}
+		}
+
 		for _, VMSize := range alternativeVMSizes {
 			updatedProviderSpec, err := updateProviderSpecAzureVMSize(baseProviderSpec, VMSize)
 			if err != nil {
@@ -333,13 +349,13 @@ func GetWorkerMachineSets(ctx context.Context, client runtimeclient.Client) ([]*
 	return result, nil
 }
 
-// getArchitectureFromMachineSetNodes returns the architecture of the nodes controlled by the given machineSet's machines.
-func getArchitectureFromMachineSetNodes(ctx context.Context, client runtimeclient.Client, machineSet *machinev1.MachineSet) (string, error) {
+// GetArchitectureFromMachineSetNodes returns the architecture of the nodes controlled by the given machineSet's machines.
+func GetArchitectureFromMachineSetNodes(ctx context.Context, client runtimeclient.Client, machineSet *machinev1.MachineSet) (string, error) {
 	nodes, err := GetNodesFromMachineSet(ctx, client, machineSet)
 	if err != nil || len(nodes) == 0 {
 		klog.Warningf("error getting the machineSet's nodes or no nodes associated with %s. Using the capacity annotation", machineSet.Name)
 
-		for _, kv := range strings.Split(machineSet.Labels[labelsKey], ",") {
+		for _, kv := range strings.Split(machineSet.Annotations[labelsKey], ",") {
 			if strings.Contains(kv, "kubernetes.io/arch") {
 				return strings.Split(kv, "=")[1], nil
 			}
