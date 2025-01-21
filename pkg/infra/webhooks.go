@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/klog"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -109,6 +110,21 @@ var _ = Describe("Webhooks", framework.LabelMAPI, framework.LabelDisruptive, fun
 			if err != nil {
 				return err
 			}
+
+			failed := framework.FilterMachines([]*machinev1beta1.Machine{m}, framework.MachinePhaseFailed)
+			if len(failed) > 0 {
+				reason := "failureReason not present in Machine.status"
+				if m.Status.ErrorReason != nil {
+					reason = string(*m.Status.ErrorReason)
+				}
+				message := "failureMessage not present in Machine.status"
+				if m.Status.ErrorMessage != nil {
+					message = *m.Status.ErrorMessage
+				}
+				klog.Errorf("Failed machine: %s, Reason: %s, Message: %s", m.Name, reason, message)
+			}
+			Expect(len(failed)).To(Equal(0), "zero machines should be in a Failed phase")
+
 			running := framework.FilterRunningMachines([]*machinev1beta1.Machine{m})
 			if len(running) == 0 {
 				return fmt.Errorf("machine not yet running")
@@ -249,6 +265,9 @@ func minimalAzureProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta1.
 				OSDisk: machinev1beta1.OSDisk{
 					DiskSizeGB: fullProviderSpec.OSDisk.DiskSizeGB,
 				},
+				Vnet:                 fullProviderSpec.Vnet,
+				Subnet:               fullProviderSpec.Subnet,
+				NetworkResourceGroup: fullProviderSpec.NetworkResourceGroup,
 			},
 		},
 	}, nil
@@ -267,6 +286,11 @@ func minimalGCPProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta1.Pr
 				Region:          fullProviderSpec.Region,
 				Zone:            fullProviderSpec.Zone,
 				ServiceAccounts: fullProviderSpec.ServiceAccounts,
+				NetworkInterfaces: []*machinev1beta1.GCPNetworkInterface{{
+					Network:    fullProviderSpec.NetworkInterfaces[0].Network,
+					Subnetwork: fullProviderSpec.NetworkInterfaces[0].Subnetwork,
+					ProjectID:  fullProviderSpec.NetworkInterfaces[0].ProjectID,
+				}},
 			},
 		},
 	}, nil
