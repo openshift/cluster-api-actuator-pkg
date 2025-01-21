@@ -93,7 +93,7 @@ var _ = Describe("Conditions", func() {
 			expected := []metav1.Condition{condUpgradable, condAvailable}
 
 			ok, err := MatchConditions(expected).Match(metav1.Condition{})
-			Expect(err).To(MatchError(HavePrefix("conditions did not match: ConsistOf matcher expects an array/slice/map.")))
+			Expect(err).To(MatchError(HavePrefix("conditions did not match: ConsistOf matcher expects an array/slice/map/iter")))
 			Expect(ok).To(BeFalse())
 		})
 	})
@@ -218,7 +218,7 @@ var _ = Describe("Conditions", func() {
 			expected := []configv1.ClusterOperatorStatusCondition{condUpgradable, condAvailable}
 
 			ok, err := MatchClusterOperatorStatusConditions(expected).Match(metav1.Condition{})
-			Expect(err).To(MatchError(HavePrefix("conditions did not match: ConsistOf matcher expects an array/slice/map.")))
+			Expect(err).To(MatchError(HavePrefix("conditions did not match: ConsistOf matcher expects an array/slice/map/iter")))
 			Expect(ok).To(BeFalse())
 		})
 	})
