@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -44,7 +45,7 @@ var _ = Describe("Running on Spot", framework.LabelMAPI, framework.LabelDisrupti
 	var client runtimeclient.Client
 	var machineSet *machinev1.MachineSet
 	var platform configv1.PlatformType
-
+	var arch string
 	var delObjects map[string]runtimeclient.Object
 
 	var gatherer *gatherer.StateGatherer
@@ -101,7 +102,13 @@ var _ = Describe("Running on Spot", framework.LabelMAPI, framework.LabelDisrupti
 		By("Creating a Spot backed MachineSet", func() {
 			machineSetReady := false
 			machineSetParams := framework.BuildMachineSetParams(ctx, client, machinesCount)
-			machineSetParamsList, err := framework.BuildAlternativeMachineSetParams(machineSetParams, platform)
+
+			workers, err := framework.GetWorkerMachineSets(ctx, client)
+			Expect(err).ToNot(HaveOccurred(), "listing Worker MachineSets should not error.")
+
+			arch, err = framework.GetArchitectureFromMachineSetNodes(ctx, client, workers[0])
+			Expect(err).NotTo(HaveOccurred(), "unable to get the architecture for the machine set")
+			machineSetParamsList, err := framework.BuildAlternativeMachineSetParams(machineSetParams, platform, arch)
 			Expect(err).ToNot(HaveOccurred(), "Should be able to build list of MachineSet parameters")
 			for i, machineSetParams := range machineSetParamsList {
 				if i >= spotMachineSetMaxProvisioningRetryCount {
@@ -258,6 +265,22 @@ var _ = Describe("Running on Spot", framework.LabelMAPI, framework.LabelDisrupti
 				delObjects[job.Name] = job
 			})
 
+			By("Skip case on disconnected cluster")
+			oc, _ := framework.NewCLI()
+			Eventually(func() string {
+				podStatus, err := oc.WithoutNamespace().Run("get").Args("pod", "-l", "job-name=termination-simulator", "-n", "openshift-machine-api").Output()
+				Expect(err).ToNot(HaveOccurred(), "Should be able to get termination-simulator pod")
+				fmt.Println(podStatus)
+				if strings.Contains(podStatus, "ImagePullBackOff") {
+					Skip("Skip as termination-simulator pod can not be deployed on a disconnected cluster!")
+				}
+
+				return podStatus
+			}, framework.WaitMedium, framework.RetryMedium).Should(SatisfyAny(
+				ContainSubstring("Completed"),
+				ContainSubstring("Running"),
+			))
+
 			// If the job deploys correctly, the Machine will go away
 			By(fmt.Sprintf("Waiting for machine %q to be deleted", machine.Name), func() {
 				framework.WaitForMachinesDeleted(client, machine)
@@ -377,7 +400,7 @@ func getMetadataMockDeployment(platform configv1.PlatformType) *appsv1.Deploymen
 					Containers: []corev1.Container{
 						{
 							Name:    "metadata-mock",
-							Image:   "golang:1.14",
+							Image:   "quay.io/openshifttest/golang@sha256:8f1c43387f0a107535906c7ee918a9d46079cc7be5e80a18424e8558d8afc702",
 							Command: []string{"/usr/local/go/bin/go"},
 							Args: []string{
 								"run",
