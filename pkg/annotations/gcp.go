@@ -20,12 +20,12 @@ import (
 )
 
 var (
-	annotationsToTest = map[string]string{
-		"traffic-policy.network.alpha.openshift.io/local-with-fallback": "true",
-		"alpha.cloud.google.com/load-balancer-backend-share":            "",
-		"networking.gke.io/internal-load-balancer-allow-global-access":  "true",
-		"networking.gke.io/internal-load-balancer-subnet":               "",
-		"cloud.google.com/network-tier":                                 "Standard",
+	annotationsToTest = map[string][]string{
+		"traffic-policy.network.alpha.openshift.io/local-with-fallback": {"true"},
+		"alpha.cloud.google.com/load-balancer-backend-share":            {""},
+		"networking.gke.io/internal-load-balancer-allow-global-access":  {"true"},
+		"networking.gke.io/internal-load-balancer-subnet":               {""},
+		"cloud.google.com/network-tier":                                 {"Standard", "Premium", "InvalidValue"},
 	}
 )
 
@@ -69,11 +69,11 @@ var _ = g.Describe("Service Annotation tests GCP", framework.LabelCCM, framework
 		}
 	})
 
-	g.It("should validate IP changes only for specific annotations", func() {
+	g.It("should validate annotations including network-tier and IP changes", func() {
 		g.By("Create service without annotations")
 		service := &corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-service-ip-validation",
+				Name:      "test-service-annotation-validation",
 				Namespace: namespace,
 			},
 			Spec: corev1.ServiceSpec{
@@ -87,7 +87,6 @@ var _ = g.Describe("Service Annotation tests GCP", framework.LabelCCM, framework
 		o.Expect(cl.Create(ctx, service)).To(o.Succeed())
 		createdServices = append(createdServices, service.Name)
 
-		g.By("Verify LoadBalancer service creation")
 		var lastIngressIP string
 		o.Eventually(func() (string, error) {
 			updatedService := &corev1.Service{}
@@ -103,57 +102,39 @@ var _ = g.Describe("Service Annotation tests GCP", framework.LabelCCM, framework
 			return "", nil
 		}, 2*time.Minute, 10*time.Second).ShouldNot(o.BeEmpty(), "LoadBalancer service did not get an external IP")
 
-		// Add and remove annotations alternately
-		for key, value := range annotationsToTest {
-			// Add annotation
-			g.By(fmt.Sprintf("Adding annotation: %s=%s", key, value))
-			latestService := &corev1.Service{}
-			o.Expect(cl.Get(ctx, client.ObjectKey{Name: service.Name, Namespace: namespace}, latestService)).To(o.Succeed())
+		for key, values := range annotationsToTest {
+			for _, value := range values {
+				g.By(fmt.Sprintf("Adding annotation: %s=%s", key, value))
+				latestService := &corev1.Service{}
+				o.Expect(cl.Get(ctx, client.ObjectKey{Name: service.Name, Namespace: namespace}, latestService)).To(o.Succeed())
 
-			if latestService.Annotations == nil {
-				latestService.Annotations = make(map[string]string)
-			}
-			latestService.Annotations[key] = value
-			o.Expect(cl.Update(ctx, latestService)).To(o.Succeed())
+				if latestService.Annotations == nil {
+					latestService.Annotations = make(map[string]string)
+				}
+				latestService.Annotations[key] = value
 
-			// Validate IP change only for relevant annotations
-			if key == "cloud.google.com/network-tier" {
-				g.By(fmt.Sprintf("Validating Ingress IP change after annotation update: %s=%s", key, value))
-				o.Eventually(func() (string, error) {
-					updatedService := &corev1.Service{}
-					err := cl.Get(ctx, client.ObjectKey{Name: service.Name, Namespace: namespace}, updatedService)
-					if err != nil {
-						return "", err
-					}
-					if len(updatedService.Status.LoadBalancer.Ingress) > 0 {
-						return updatedService.Status.LoadBalancer.Ingress[0].IP, nil
-					}
+				if key == "cloud.google.com/network-tier" && value != "Standard" && value != "Premium" {
+					o.Expect(cl.Update(ctx, latestService)).ToNot(o.Succeed(), "The annotation 'cloud.google.com/network-tier', if specified, must be either 'Standard' or 'Premium'")
+					continue
+				}
 
-					return "", nil
-				}, 4*time.Minute, 10*time.Second).ShouldNot(o.Equal(lastIngressIP), "Ingress IP did not change after annotation update")
-			}
+				o.Expect(cl.Update(ctx, latestService)).To(o.Succeed())
 
-			// Remove annotation
-			g.By(fmt.Sprintf("Removing annotation: %s", key))
-			o.Expect(cl.Get(ctx, client.ObjectKey{Name: service.Name, Namespace: namespace}, latestService)).To(o.Succeed())
-			delete(latestService.Annotations, key)
-			o.Expect(cl.Update(ctx, latestService)).To(o.Succeed())
+				if key == "cloud.google.com/network-tier" {
+					g.By(fmt.Sprintf("Validating Ingress IP change after annotation update: %s=%s", key, value))
+					o.Eventually(func() (string, error) {
+						updatedService := &corev1.Service{}
+						err := cl.Get(ctx, client.ObjectKey{Name: service.Name, Namespace: namespace}, updatedService)
+						if err != nil {
+							return "", err
+						}
+						if len(updatedService.Status.LoadBalancer.Ingress) > 0 {
+							return updatedService.Status.LoadBalancer.Ingress[0].IP, nil
+						}
 
-			g.By("Validate IP change only for relevant annotations")
-			if key == "cloud.google.com/network-tier" {
-				g.By(fmt.Sprintf("Validating Ingress IP change after annotation removal: %s", key))
-				o.Eventually(func() (string, error) {
-					updatedService := &corev1.Service{}
-					err := cl.Get(ctx, client.ObjectKey{Name: service.Name, Namespace: namespace}, updatedService)
-					if err != nil {
-						return "", err
-					}
-					if len(updatedService.Status.LoadBalancer.Ingress) > 0 {
-						return updatedService.Status.LoadBalancer.Ingress[0].IP, nil
-					}
-
-					return "", nil
-				}, 4*time.Minute, 10*time.Second).ShouldNot(o.Equal(lastIngressIP), "Ingress IP did not change after annotation removal")
+						return "", nil
+					}, 4*time.Minute, 10*time.Second).ShouldNot(o.Equal(lastIngressIP), "Ingress IP did not change after annotation update")
+				}
 			}
 		}
 	})
