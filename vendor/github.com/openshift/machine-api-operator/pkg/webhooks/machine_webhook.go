@@ -3,11 +3,15 @@ package webhooks
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
 	goruntime "runtime"
 	"strconv"
 	"strings"
+
+	"k8s.io/component-base/featuregate"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -28,6 +32,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
+	apifeatures "github.com/openshift/api/features"
 	machinev1 "github.com/openshift/api/machine/v1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
@@ -123,6 +128,9 @@ var (
 
 	// tagUrnPattern is helps validate the format of a given tag URN
 	tagUrnPattern = regexp.MustCompile(`^(urn):(vmomi):(InventoryServiceTag):([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}):([^:]+)$`)
+
+	// vSphereDataDiskNamePattern is used to validate the name of a data disk
+	vSphereDataDiskNamePattern = regexp.MustCompile(`^[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?$`)
 )
 
 const (
@@ -172,6 +180,12 @@ const (
 	minVSphereMemoryMiB = 2048
 	// https://docs.openshift.com/container-platform/4.1/installing/installing_vsphere/installing-vsphere.html#minimum-resource-requirements_installing-vsphere
 	minVSphereDiskGiB = 120
+	// Maximum number of data disks allowed to be added to a VM
+	maxVSphereDataDisks = 29
+	// Max length of a DataDisk name
+	maxVSphereDataDiskNameLength = 80
+	// Max size of any data disk in vSphere is 62 TiB.  We are currently limiting to 16TiB (16384 GiB) as a starting point.
+	maxVSphereDataDiskSize = 16384
 
 	// Nutanix Defaults
 	// Minimum Nutanix values taken from Nutanix reconciler
@@ -322,6 +336,7 @@ type admissionConfig struct {
 	platformStatus  *osconfigv1.PlatformStatus
 	dnsDisconnected bool
 	client          client.Client
+	featureGates    featuregate.MutableFeatureGate
 }
 
 type admissionHandler struct {
@@ -351,7 +366,7 @@ type machineDefaulterHandler struct {
 }
 
 // NewValidator returns a new machineValidatorHandler.
-func NewMachineValidator(client client.Client) (*admission.Webhook, error) {
+func NewMachineValidator(client client.Client, featureGate featuregate.MutableFeatureGate) (*admission.Webhook, error) {
 	infra, err := getInfra()
 	if err != nil {
 		return nil, err
@@ -362,15 +377,16 @@ func NewMachineValidator(client client.Client) (*admission.Webhook, error) {
 		return nil, err
 	}
 
-	return admission.WithCustomValidator(scheme.Scheme, &machinev1beta1.Machine{}, createMachineValidator(infra, client, dns)), nil
+	return admission.WithCustomValidator(scheme.Scheme, &machinev1beta1.Machine{}, createMachineValidator(infra, client, dns, featureGate)), nil
 }
 
-func createMachineValidator(infra *osconfigv1.Infrastructure, client client.Client, dns *osconfigv1.DNS) *machineValidatorHandler {
+func createMachineValidator(infra *osconfigv1.Infrastructure, client client.Client, dns *osconfigv1.DNS, featureGate featuregate.MutableFeatureGate) *machineValidatorHandler {
 	admissionConfig := &admissionConfig{
 		dnsDisconnected: dns.Spec.PublicZone == nil,
 		clusterID:       infra.Status.InfrastructureName,
 		platformStatus:  infra.Status.PlatformStatus,
 		client:          client,
+		featureGates:    featureGate,
 	}
 	return &machineValidatorHandler{
 		admissionHandler: &admissionHandler{
@@ -725,8 +741,36 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 		)
 	}
 
+	if providerSpec.Subnet.ARN != nil {
+		warnings = append(
+			warnings,
+			"can't use providerSpec.subnet.arn, only providerSpec.subnet.id or providerSpec.subnet.filters can be used to reference Subnet",
+		)
+	}
+
 	if providerSpec.IAMInstanceProfile == nil {
 		warnings = append(warnings, "providerSpec.iamInstanceProfile: no IAM instance profile provided: nodes may be unable to join the cluster")
+	} else {
+
+		if providerSpec.IAMInstanceProfile.ARN != nil {
+			warnings = append(
+				warnings,
+				"can't use providerSpec.iamInstanceProfile.arn, only providerSpec.iamInstanceProfile.id can be used to reference IAMInstanceProfile",
+			)
+		}
+
+		if providerSpec.IAMInstanceProfile.Filters != nil {
+			warnings = append(
+				warnings,
+				"can't use providerSpec.iamInstanceProfile.filters, only providerSpec.iamInstanceProfile.id can be used to reference IAMInstanceProfile",
+			)
+		}
+	}
+
+	if providerSpec.CapacityReservationID != "" {
+		if err := validateAwsCapacityReservationId(providerSpec.CapacityReservationID); err != nil {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "capacityReservationId"), providerSpec.CapacityReservationID, err.Error()))
+		}
 	}
 
 	// TODO(alberto): Validate providerSpec.BlockDevices.
@@ -1435,7 +1479,7 @@ func validateVSphere(m *machinev1beta1.Machine, config *admissionConfig) (bool, 
 		errs = append(errs, field.Required(field.NewPath("providerSpec", "template"), "template must be provided"))
 	}
 
-	workspaceWarnings, workspaceErrors := validateVSphereWorkspace(providerSpec.Workspace, field.NewPath("providerSpec", "workspace"))
+	workspaceWarnings, workspaceErrors := validateVSphereWorkspace(providerSpec.Workspace, config, field.NewPath("providerSpec", "workspace"))
 	warnings = append(warnings, workspaceWarnings...)
 	errs = append(errs, workspaceErrors...)
 
@@ -1482,13 +1526,55 @@ func validateVSphere(m *machinev1beta1.Machine, config *admissionConfig) (bool, 
 		}
 	}
 
+	if len(providerSpec.DataDisks) > 0 {
+		if !config.featureGates.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereMultiDisk)) {
+			errs = append(errs, field.Forbidden(field.NewPath("providerSpec", "disks"), "this field is protected by the VSphereMultiDisk feature gate which must be enabled through either the TechPreviewNoUpgrade or CustomNoUpgrade feature set"))
+		} else {
+			errs = append(errs, validateVSphereDataDisks(providerSpec.DataDisks)...)
+		}
+	}
+
 	if len(errs) > 0 {
 		return false, warnings, errs
 	}
 	return true, warnings, nil
 }
 
-func validateVSphereWorkspace(workspace *machinev1beta1.Workspace, parentPath *field.Path) ([]string, field.ErrorList) {
+func validateVSphereDataDisks(dataDisks []machinev1beta1.VSphereDisk) field.ErrorList {
+	var errs field.ErrorList
+
+	disksPath := field.NewPath("providerSpec", "disks")
+	if len(dataDisks) > maxVSphereDataDisks {
+		errs = append(errs, field.Invalid(disksPath, len(dataDisks), fmt.Sprintf("data disk count must not exceed %d", maxVSphereDataDisks)))
+	}
+
+	for i, disk := range dataDisks {
+		diskPath := disksPath.Index(i)
+
+		if len(disk.Name) == 0 {
+			errs = append(errs, field.Required(diskPath.Child("name"), "data disk name must be set"))
+		} else {
+			if len(disk.Name) > maxVSphereDataDiskNameLength {
+				errs = append(errs, field.Invalid(diskPath.Child("name"), len(disk.Name), fmt.Sprintf("data disk name must not exceed %d", maxVSphereDataDiskNameLength)))
+			}
+			if vSphereDataDiskNamePattern.FindStringSubmatch(disk.Name) == nil {
+				errs = append(errs, field.Invalid(diskPath.Child("name"), disk.Name, "data disk name must consist only of alphanumeric characters, hyphens and underscores, and must start and end with an alphanumeric character."))
+			}
+		}
+
+		if disk.SizeGiB == 0 {
+			errs = append(errs, field.Required(diskPath.Child("sizeGiB"), "data disk size must be set"))
+		}
+
+		if disk.SizeGiB > maxVSphereDataDiskSize {
+			errs = append(errs, field.Invalid(diskPath.Child("sizeGiB"), disk.SizeGiB, fmt.Sprintf("data disk size (GiB) must not exceed %d", maxVSphereDataDiskSize)))
+		}
+	}
+
+	return errs
+}
+
+func validateVSphereWorkspace(workspace *machinev1beta1.Workspace, config *admissionConfig, parentPath *field.Path) ([]string, field.ErrorList) {
 	if workspace == nil {
 		return []string{}, field.ErrorList{field.Required(parentPath, "workspace must be provided")}
 	}
@@ -1507,6 +1593,14 @@ func validateVSphereWorkspace(workspace *machinev1beta1.Workspace, parentPath *f
 			errMsg := fmt.Sprintf("folder must be absolute path: expected prefix %q", expectedPrefix)
 			errs = append(errs, field.Invalid(parentPath.Child("folder"), workspace.Folder, errMsg))
 		}
+	}
+
+	if config.featureGates.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereHostVMGroupZonal)) {
+		if len(workspace.VMGroup) > 80 {
+			errs = append(errs, field.Invalid(parentPath.Child("vmGroup"), workspace.VMGroup, "vmGroup must be less than 80 characters in length"))
+		}
+	} else if workspace.VMGroup != "" {
+		errs = append(errs, field.Invalid(parentPath.Child("vmGroup"), workspace.VMGroup, "feature gate VSphereHostVMGroupZonal must be enabled to use vmGroup"))
 	}
 
 	return warnings, errs
@@ -1581,19 +1675,30 @@ func validateNutanix(m *machinev1beta1.Machine, config *admissionConfig) (bool, 
 	if err := validateNutanixResourceIdentifier("image", providerSpec.Image); err != nil {
 		errs = append(errs, err)
 	}
-	// Currently, we only support one subnet per VM in Openshift
-	// We may extend this to support more than one subnet per VM in future releases
-	if len(providerSpec.Subnets) == 0 {
+
+	numSubnets := len(providerSpec.Subnets)
+	switch {
+	case numSubnets == 0:
 		subnets, _ := json.Marshal(providerSpec.Subnets)
 		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "subnets"), string(subnets), "missing subnets: nodes may fail to start if no subnets are configured"))
-	} else if len(providerSpec.Subnets) > 1 {
-		subnets, _ := json.Marshal(providerSpec.Subnets)
-		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "subnets"), string(subnets), "too many subnets: currently nutanix platform supports one subnet per VM but more than one subnets are configured"))
-	}
+	case numSubnets > 32:
+		errs = append(errs, field.TooMany(field.NewPath("providerSpec", "subnets"), numSubnets, 32))
+	default:
+		subnets := []machinev1.NutanixResourceIdentifier{}
+		for _, subnet := range providerSpec.Subnets {
+			if err := validateNutanixResourceIdentifier("subnet", subnet); err != nil {
+				errs = append(errs, err)
+			} else {
+				// check duplication
+				for _, other := range subnets {
+					if reflect.DeepEqual(subnet, other) {
+						subnetData, _ := json.Marshal(subnet)
+						errs = append(errs, field.Invalid(field.NewPath("providerSpec", "subnets"), string(subnetData), "should not configure duplicate subnet value"))
+					}
+				}
+			}
 
-	for _, subnet := range providerSpec.Subnets {
-		if err := validateNutanixResourceIdentifier("subnet", subnet); err != nil {
-			errs = append(errs, err)
+			subnets = append(subnets, subnet)
 		}
 	}
 
@@ -2268,4 +2373,17 @@ func appendNextAzureResourceIDValidation(parts []string, id string) error {
 		return appendNextAzureResourceIDValidation(parts[2:], id)
 	}
 	return fmt.Errorf("invalid resource ID: %s", id)
+}
+
+// validateAWScapacityReservationId validate capacity reservation group ID.
+func validateAwsCapacityReservationId(capacityReservationId string) error {
+	if len(capacityReservationId) == 0 {
+		return errors.New("invalid capacityReservationId: capacityReservationId cannot be empty")
+	}
+	// It must starts with cr-xxxxxxxxxxxxxxxxx with length of 17 characters excluding cr-
+	re := regexp.MustCompile(`^cr-[0-9a-f]{17}$`)
+	if !re.MatchString(capacityReservationId) {
+		return fmt.Errorf("invalid value for capacityReservationId: %q, it must start with 'cr-' and be exactly 20 characters long with 17 hexadecimal characters", capacityReservationId)
+	}
+	return nil
 }
