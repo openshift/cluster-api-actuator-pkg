@@ -21,6 +21,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	capov1 "sigs.k8s.io/cluster-api-provider-openstack/api/v1beta1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+
+	//nolint:staticcheck // Ignore SA1019 (deprecation) until capi v1beta2.
 	"sigs.k8s.io/cluster-api/errors"
 )
 

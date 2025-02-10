@@ -22,6 +22,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	capibmv1 "sigs.k8s.io/cluster-api-provider-ibmcloud/api/v1beta2"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+
+	//nolint:staticcheck // Ignore SA1019 (deprecation) until capi v1beta2.
 	"sigs.k8s.io/cluster-api/errors"
 )
 

@@ -23,6 +23,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+
+	//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
 	capierrors "sigs.k8s.io/cluster-api/errors"
 )
 
@@ -203,6 +205,7 @@ var _ = Describe("MachineSet", func() {
 		It("should return the custom value when specified and not nil", func() {
 			message := "test error"
 			machineSet := MachineSet().WithStatusFailureMessage(message).Build()
+			//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
 			Expect(*machineSet.Status.FailureMessage).To(Equal(message))
 		})
 	})
@@ -211,6 +214,7 @@ var _ = Describe("MachineSet", func() {
 		It("should return the custom value when specified and not nil", func() {
 			reason := capierrors.InvalidConfigurationMachineSetError
 			machineSet := MachineSet().WithStatusFailureReason(reason).Build()
+			//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
 			Expect(*machineSet.Status.FailureReason).To(Equal(reason))
 		})
 	})
@@ -219,6 +223,7 @@ var _ = Describe("MachineSet", func() {
 		It("should return the custom value when specified", func() {
 			fullyLabeledReplicas := int32(5)
 			machineSet := MachineSet().WithStatusFullyLabeledReplicas(fullyLabeledReplicas).Build()
+			//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
 			Expect(machineSet.Status.FullyLabeledReplicas).To(Equal(fullyLabeledReplicas))
 		})
 	})

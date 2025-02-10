@@ -26,6 +26,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+
+	//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
 	capierrors "sigs.k8s.io/cluster-api/errors"
 )
 
@@ -241,6 +243,7 @@ var _ = Describe("Machine", func() {
 		It("should have the correct failure reason when set", func() {
 			reason := capierrors.InvalidConfigurationMachineError
 			machine := Machine().WithFailureReason(&reason).Build()
+			//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
 			Expect(*machine.Status.FailureReason).To(Equal(reason))
 		})
 
@@ -250,6 +253,7 @@ var _ = Describe("Machine", func() {
 		It("should have the correct failure message when set", func() {
 			message := "test-fail-msg"
 			machine := Machine().WithFailureMessage(&message).Build()
+			//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
 			Expect(*machine.Status.FailureMessage).To(Equal(message))
 		})
 	})
