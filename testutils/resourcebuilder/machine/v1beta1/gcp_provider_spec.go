@@ -38,6 +38,7 @@ func GCPProviderSpec() GCPProviderSpecBuilder {
 			},
 		},
 		machineType: "n1-standard-4",
+		projectID:   "openshift-cpms-unit-tests",
 		targetPools: []string{"target-pool-1", "target-pool-2"},
 		zone:        "us-central1-a",
 	}
@@ -47,6 +48,7 @@ func GCPProviderSpec() GCPProviderSpecBuilder {
 type GCPProviderSpecBuilder struct {
 	disks       []*machinev1beta1.GCPDisk
 	machineType string
+	projectID   string
 	targetPools []string
 	zone        string
 }
@@ -73,7 +75,7 @@ func (m GCPProviderSpecBuilder) Build() *machinev1beta1.GCPMachineProviderSpec {
 		},
 		Zone:         m.zone,
 		CanIPForward: false,
-		ProjectID:    "openshift-cpms-unit-tests",
+		ProjectID:    m.projectID,
 		Region:       "us-central1",
 		Disks:        m.disks,
 		Tags: []string{
@@ -114,6 +116,12 @@ func (m GCPProviderSpecBuilder) WithDisks(disks []*machinev1beta1.GCPDisk) GCPPr
 // WithMachineType sets the machine type for the GCP machine config builder.
 func (m GCPProviderSpecBuilder) WithMachineType(machineType string) GCPProviderSpecBuilder {
 	m.machineType = machineType
+	return m
+}
+
+// WithProjectID sets the project ID for the gcp machine config builder.
+func (m GCPProviderSpecBuilder) WithProjectID(project string) GCPProviderSpecBuilder {
+	m.projectID = project
 	return m
 }
 
