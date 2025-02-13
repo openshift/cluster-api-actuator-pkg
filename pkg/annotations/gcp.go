@@ -29,13 +29,16 @@ var (
 	}
 )
 
+const (
+	namespace = "openshift-machine-api"
+)
+
 var cl client.Client
 
 var _ = g.Describe("Service Annotation tests GCP", framework.LabelCCM, framework.LabelDisruptive, g.Ordered, func() {
 	var (
 		ctx             context.Context
 		platform        configv1.PlatformType
-		namespace       string
 		createdServices []string
 	)
 
@@ -54,7 +57,6 @@ var _ = g.Describe("Service Annotation tests GCP", framework.LabelCCM, framework
 			g.Skip("Skipping GCP E2E tests")
 		}
 
-		namespace = "default"
 	})
 
 	g.AfterAll(func() {
@@ -92,7 +94,7 @@ var _ = g.Describe("Service Annotation tests GCP", framework.LabelCCM, framework
 			updatedService := &corev1.Service{}
 			err := cl.Get(ctx, client.ObjectKey{Name: service.Name, Namespace: namespace}, updatedService)
 			if err != nil {
-				return "", err
+				return "", fmt.Errorf("failed to get updated service: %w", err)
 			}
 			if len(updatedService.Status.LoadBalancer.Ingress) > 0 {
 				lastIngressIP = updatedService.Status.LoadBalancer.Ingress[0].IP
@@ -126,7 +128,7 @@ var _ = g.Describe("Service Annotation tests GCP", framework.LabelCCM, framework
 						updatedService := &corev1.Service{}
 						err := cl.Get(ctx, client.ObjectKey{Name: service.Name, Namespace: namespace}, updatedService)
 						if err != nil {
-							return "", err
+							return "", fmt.Errorf("failed to get updated service: %w", err)
 						}
 						if len(updatedService.Status.LoadBalancer.Ingress) > 0 {
 							return updatedService.Status.LoadBalancer.Ingress[0].IP, nil
