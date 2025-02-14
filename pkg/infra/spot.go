@@ -44,7 +44,7 @@ var _ = Describe("Running on Spot", framework.LabelMAPI, framework.LabelDisrupti
 	var client runtimeclient.Client
 	var machineSet *machinev1.MachineSet
 	var platform configv1.PlatformType
-
+	var arch string
 	var delObjects map[string]runtimeclient.Object
 
 	var gatherer *gatherer.StateGatherer
@@ -97,11 +97,22 @@ var _ = Describe("Running on Spot", framework.LabelMAPI, framework.LabelDisrupti
 		default:
 			Skip(fmt.Sprintf("Platform %s does not support Spot, skipping.", platform))
 		}
+		oc, _ := framework.NewCLI()
+		if framework.IsCustomerVPC(oc) {
+			//The termination-simulator will hit network error on customer vpc cluster, cannot mark the node as terminating, skip for now.
+			Skip("Skip this test on customer vpc cluster.")
+		}
 
 		By("Creating a Spot backed MachineSet", func() {
 			machineSetReady := false
 			machineSetParams := framework.BuildMachineSetParams(ctx, client, machinesCount)
-			machineSetParamsList, err := framework.BuildAlternativeMachineSetParams(machineSetParams, platform)
+
+			workers, err := framework.GetWorkerMachineSets(ctx, client)
+			Expect(err).ToNot(HaveOccurred(), "listing Worker MachineSets should not error.")
+
+			arch, err = framework.GetArchitectureFromMachineSetNodes(ctx, client, workers[0])
+			Expect(err).NotTo(HaveOccurred(), "unable to get the architecture for the machine set")
+			machineSetParamsList, err := framework.BuildAlternativeMachineSetParams(machineSetParams, platform, arch)
 			Expect(err).ToNot(HaveOccurred(), "Should be able to build list of MachineSet parameters")
 			for i, machineSetParams := range machineSetParamsList {
 				if i >= spotMachineSetMaxProvisioningRetryCount {
@@ -376,8 +387,9 @@ func getMetadataMockDeployment(platform configv1.PlatformType) *appsv1.Deploymen
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:    "metadata-mock",
-							Image:   "golang:1.14",
+							Name: "metadata-mock",
+							// This is a golang:1.22 image which is mirrored in https://quay.io/repository/openshifttest/golang, so that disconnected cluster can access.
+							Image:   "quay.io/openshifttest/golang@sha256:8f1c43387f0a107535906c7ee918a9d46079cc7be5e80a18424e8558d8afc702",
 							Command: []string{"/usr/local/go/bin/go"},
 							Args: []string{
 								"run",

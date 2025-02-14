@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -312,4 +313,19 @@ func GetCredentialsFromCluster(oc *gatherer.CLI) ([]byte, []byte, string) {
 	Expect(err).NotTo(HaveOccurred(), "Failed to get clusterRegion")
 
 	return accessKeyID, secureKey, clusterRegion
+}
+
+// IsCustomerVPC check if cluster is customer vpc cluster.
+func IsCustomerVPC(oc *gatherer.CLI) bool {
+	installConfig, err := oc.WithoutNamespace().Run("get").Args("cm", "cluster-config-v1", "-n", "kube-system", "-o=jsonpath={.data.install-config}").Output()
+	Expect(err).NotTo(HaveOccurred(), "Failed to get install-config")
+
+	switch platform {
+	case configv1.AWSPlatformType:
+		return strings.Contains(installConfig, "subnets:")
+	case configv1.AzurePlatformType:
+		return strings.Contains(installConfig, "virtualNetwork:")
+	default:
+		return false
+	}
 }
