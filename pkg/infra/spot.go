@@ -232,8 +232,8 @@ var _ = Describe("Running on Spot", framework.LabelMAPI, framework.LabelDisrupti
 				Expect(err).ToNot(HaveOccurred(), "Should be able to get Machines from MachineSet")
 				Expect(len(machines)).To(BeNumerically(">", 0), "There should be at least one Machine")
 
-				rand.Seed(time.Now().Unix())
-				machine = machines[rand.Intn(len(machines))]
+				customRand := rand.New(rand.NewSource(time.Now().Unix()))
+				machine = machines[customRand.Intn(len(machines))]
 				Expect(machine.Status.NodeRef).ToNot(BeNil(), "Machine should have a linked Node")
 			})
 
