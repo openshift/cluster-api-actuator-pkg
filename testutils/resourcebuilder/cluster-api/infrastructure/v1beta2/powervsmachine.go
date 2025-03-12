@@ -22,9 +22,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	capibmv1 "sigs.k8s.io/cluster-api-provider-ibmcloud/api/v1beta2"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-
-	//nolint:staticcheck // Ignore SA1019 (deprecation) until capi v1beta2.
-	"sigs.k8s.io/cluster-api/errors"
 )
 
 // PowerVSMachine creates a new PowerVSMachine builder.
@@ -56,7 +53,7 @@ type PowerVSMachineBuilder struct {
 	addresses      []corev1.NodeAddress
 	conditions     clusterv1.Conditions
 	failureMessage *string
-	failureReason  *errors.MachineStatusError
+	failureReason  *string
 	instanceID     string
 	instanceState  capibmv1.PowerVSInstanceState
 	ready          bool
@@ -207,7 +204,7 @@ func (p PowerVSMachineBuilder) WithFailureMessage(failureMessage *string) PowerV
 }
 
 // WithFailureReason sets the failureReason for the PowerVSMachine builder.
-func (p PowerVSMachineBuilder) WithFailureReason(failureReason *errors.MachineStatusError) PowerVSMachineBuilder {
+func (p PowerVSMachineBuilder) WithFailureReason(failureReason *string) PowerVSMachineBuilder {
 	p.failureReason = failureReason
 	return p
 }
