@@ -20,9 +20,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	capav1 "sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-
-	//nolint:staticcheck // Ignore SA1019 (deprecation) until capi v1beta2.
-	"sigs.k8s.io/cluster-api/errors"
 )
 
 // AWSMachine creates a new AWSMachine builder.
@@ -72,7 +69,7 @@ type AWSMachineBuilder struct {
 	addresses      []clusterv1.MachineAddress
 	conditions     clusterv1.Conditions
 	failureMessage *string
-	failureReason  *errors.MachineStatusError
+	failureReason  *string
 	instanceState  *capav1.InstanceState
 	interruptible  bool
 	ready          bool
@@ -352,7 +349,7 @@ func (a AWSMachineBuilder) WithFailureMessage(failureMessage *string) AWSMachine
 }
 
 // WithFailureReason sets the failureReason for the AWSMachine builder.
-func (a AWSMachineBuilder) WithFailureReason(failureReason *errors.MachineStatusError) AWSMachineBuilder {
+func (a AWSMachineBuilder) WithFailureReason(failureReason *string) AWSMachineBuilder {
 	a.failureReason = failureReason
 	return a
 }

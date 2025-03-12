@@ -24,9 +24,6 @@ import (
 	"k8s.io/utils/ptr"
 	capav1 "sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-
-	//nolint:staticcheck // Ignore SA1019 (deprecation) until capi v1beta2.
-	"sigs.k8s.io/cluster-api/errors"
 )
 
 var _ = Describe("AWSMachineBuilder", func() {
@@ -322,7 +319,7 @@ var _ = Describe("AWSMachineBuilder", func() {
 
 	Describe("WithFailureReason", func() {
 		It("should return the custom value when specified", func() {
-			reason := errors.CreateMachineError
+			reason := "CreateError"
 			awsMachine := AWSMachine().WithFailureReason(&reason).Build()
 			Expect(awsMachine.Status.FailureReason).To(Equal(&reason))
 		})

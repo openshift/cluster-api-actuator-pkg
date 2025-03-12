@@ -25,9 +25,6 @@ import (
 	"k8s.io/utils/ptr"
 	capibmv1 "sigs.k8s.io/cluster-api-provider-ibmcloud/api/v1beta2"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-
-	//nolint:staticcheck // Ignore SA1019 (deprecation) until capi v1beta2.
-	"sigs.k8s.io/cluster-api/errors"
 )
 
 var _ = Describe("PowerVSMachine", func() {
@@ -183,7 +180,7 @@ var _ = Describe("PowerVSMachine", func() {
 
 	Describe("WithFailureReason", func() {
 		It("should return the custom value when specified", func() {
-			reason := errors.CreateMachineError
+			reason := "CreateError"
 			powerVSMachine := PowerVSMachine().WithFailureReason(&reason).Build()
 			Expect(powerVSMachine.Status.FailureReason).To(Equal(&reason))
 		})
