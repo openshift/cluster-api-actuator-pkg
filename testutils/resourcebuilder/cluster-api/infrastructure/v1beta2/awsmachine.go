@@ -30,10 +30,11 @@ func AWSMachine() AWSMachineBuilder {
 // AWSMachineBuilder is used to build out an AWSMachine object.
 type AWSMachineBuilder struct {
 	// ObjectMeta fields.
-	annotations map[string]string
-	labels      map[string]string
-	name        string
-	namespace   string
+	annotations     map[string]string
+	labels          map[string]string
+	name            string
+	namespace       string
+	ownerReferences []metav1.OwnerReference
 
 	// Spec fields.
 	additionalSecurityGroups []capav1.AWSResourceReference
@@ -83,10 +84,11 @@ func (a AWSMachineBuilder) Build() *capav1.AWSMachine {
 			Kind:       "AWSMachine",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        a.name,
-			Namespace:   a.namespace,
-			Labels:      a.labels,
-			Annotations: a.annotations,
+			Name:            a.name,
+			Namespace:       a.namespace,
+			Labels:          a.labels,
+			Annotations:     a.annotations,
+			OwnerReferences: a.ownerReferences,
 		},
 		Spec: capav1.AWSMachineSpec{
 			AdditionalSecurityGroups: a.additionalSecurityGroups,
@@ -155,6 +157,12 @@ func (a AWSMachineBuilder) WithName(name string) AWSMachineBuilder {
 // WithNamespace sets the namespace for the AWSMachine builder.
 func (a AWSMachineBuilder) WithNamespace(namespace string) AWSMachineBuilder {
 	a.namespace = namespace
+	return a
+}
+
+// WithOwnerReferences sets the OwnerReferences for the machine builder.
+func (a AWSMachineBuilder) WithOwnerReferences(ownerRefs []metav1.OwnerReference) AWSMachineBuilder {
+	a.ownerReferences = ownerRefs
 	return a
 }
 

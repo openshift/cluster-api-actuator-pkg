@@ -34,10 +34,11 @@ func OpenStackMachine() OpenStackMachineBuilder {
 // OpenStackMachineBuilder is used to build out an OpenStackMachine object.
 type OpenStackMachineBuilder struct {
 	// ObjectMeta fields.
-	annotations map[string]string
-	labels      map[string]string
-	name        string
-	namespace   string
+	annotations     map[string]string
+	labels          map[string]string
+	name            string
+	namespace       string
+	ownerReferences []metav1.OwnerReference
 
 	// Spec fields.
 	additionalBlockDevices            []capov1.AdditionalBlockDevice
@@ -75,10 +76,11 @@ func (a OpenStackMachineBuilder) Build() *capov1.OpenStackMachine {
 			Kind:       "OpenStackMachine",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        a.name,
-			Namespace:   a.namespace,
-			Labels:      a.labels,
-			Annotations: a.annotations,
+			Name:            a.name,
+			Namespace:       a.namespace,
+			Labels:          a.labels,
+			Annotations:     a.annotations,
+			OwnerReferences: a.ownerReferences,
 		},
 		Spec: capov1.OpenStackMachineSpec{
 			AdditionalBlockDevices:            a.additionalBlockDevices,
@@ -135,6 +137,12 @@ func (a OpenStackMachineBuilder) WithName(name string) OpenStackMachineBuilder {
 // WithNamespace sets the namespace for the OpenStackMachine builder.
 func (a OpenStackMachineBuilder) WithNamespace(namespace string) OpenStackMachineBuilder {
 	a.namespace = namespace
+	return a
+}
+
+// WithOwnerReferences sets the OwnerReferences for the machine builder.
+func (a OpenStackMachineBuilder) WithOwnerReferences(ownerRefs []metav1.OwnerReference) OpenStackMachineBuilder {
+	a.ownerReferences = ownerRefs
 	return a
 }
 

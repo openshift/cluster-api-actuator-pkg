@@ -92,6 +92,14 @@ var _ = Describe("AWSMachineTemplate", func() {
 		})
 	})
 
+	Describe("WithOwnerReferences", func() {
+		It("should return the custom value when specified", func() {
+			ownerReferences := []metav1.OwnerReference{{Name: "cluster"}}
+			awsMachineTemplate := AWSMachineTemplate().WithOwnerReferences(ownerReferences).Build()
+			Expect(awsMachineTemplate.OwnerReferences).To(Equal(ownerReferences))
+		})
+	})
+
 	// Spec fields.
 
 	Describe("WithAdditionalSecurityGroups", func() {

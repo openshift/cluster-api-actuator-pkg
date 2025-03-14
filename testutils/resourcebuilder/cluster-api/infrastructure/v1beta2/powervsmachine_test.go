@@ -21,6 +21,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
 	capibmv1 "sigs.k8s.io/cluster-api-provider-ibmcloud/api/v1beta2"
@@ -67,6 +68,14 @@ var _ = Describe("PowerVSMachine", func() {
 		It("should return the custom value when specified", func() {
 			PowerVSMachine := PowerVSMachine().WithNamespace("ns-test-5").Build()
 			Expect(PowerVSMachine.Namespace).To(Equal("ns-test-5"))
+		})
+	})
+
+	Describe("WithOwnerReferences", func() {
+		It("should return the custom value when specified", func() {
+			ownerReferences := []metav1.OwnerReference{{Name: "machine"}}
+			PowerVSMachine := PowerVSMachine().WithOwnerReferences(ownerReferences).Build()
+			Expect(PowerVSMachine.OwnerReferences).To(Equal(ownerReferences))
 		})
 	})
 

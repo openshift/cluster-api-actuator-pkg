@@ -37,6 +37,7 @@ type OpenStackMachineTemplateBuilder struct {
 	labels            map[string]string
 	name              string
 	namespace         string
+	ownerReference    []metav1.OwnerReference
 
 	// Spec fields.
 	additionalBlockDevices            []capov1.AdditionalBlockDevice
@@ -72,6 +73,7 @@ func (a OpenStackMachineTemplateBuilder) Build() *capov1.OpenStackMachineTemplat
 			Labels:            a.labels,
 			Name:              a.name,
 			Namespace:         a.namespace,
+			OwnerReferences:   a.ownerReference,
 		},
 		Spec: capov1.OpenStackMachineTemplateSpec{
 			Template: capov1.OpenStackMachineTemplateResource{
@@ -141,6 +143,12 @@ func (a OpenStackMachineTemplateBuilder) WithName(name string) OpenStackMachineT
 // WithNamespace sets the namespace for the OpenStackMachineTemplate builder.
 func (a OpenStackMachineTemplateBuilder) WithNamespace(namespace string) OpenStackMachineTemplateBuilder {
 	a.namespace = namespace
+	return a
+}
+
+// WithOwnerReferences sets the OwnerReferences for the OpenStackMachineTemplate builder.
+func (a OpenStackMachineTemplateBuilder) WithOwnerReferences(ownerRefs []metav1.OwnerReference) OpenStackMachineTemplateBuilder {
+	a.ownerReference = ownerRefs
 	return a
 }
 
