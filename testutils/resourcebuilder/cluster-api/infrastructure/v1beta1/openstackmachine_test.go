@@ -21,6 +21,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	capov1 "sigs.k8s.io/cluster-api-provider-openstack/api/v1beta1"
 )
 
@@ -41,6 +42,14 @@ var _ = Describe("OpenStackMachineBuilder", func() {
 			annotations := map[string]string{"key": "value"}
 			openstackMachine := OpenStackMachine().WithAnnotations(annotations).Build()
 			Expect(openstackMachine.Annotations).To(Equal(annotations))
+		})
+	})
+
+	Describe("WithOwnerReferences", func() {
+		It("should return the custom value when specified", func() {
+			ownerReferences := []metav1.OwnerReference{{Name: "machine"}}
+			openstackMachine := OpenStackMachine().WithOwnerReferences(ownerReferences).Build()
+			Expect(openstackMachine.OwnerReferences).To(Equal(ownerReferences))
 		})
 	})
 

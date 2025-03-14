@@ -32,10 +32,11 @@ func PowerVSMachine() PowerVSMachineBuilder {
 // PowerVSMachineBuilder is used to build out an PowerVSMachine object.
 type PowerVSMachineBuilder struct {
 	// ObjectMeta fields.
-	annotations map[string]string
-	labels      map[string]string
-	name        string
-	namespace   string
+	annotations     map[string]string
+	labels          map[string]string
+	name            string
+	namespace       string
+	ownerReferences []metav1.OwnerReference
 
 	// Spec fields.
 	image           *capibmv1.IBMPowerVSResourceReference
@@ -66,10 +67,11 @@ func (p PowerVSMachineBuilder) Build() *capibmv1.IBMPowerVSMachine {
 			APIVersion: capibmv1.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        p.name,
-			Namespace:   p.namespace,
-			Labels:      p.labels,
-			Annotations: p.annotations,
+			Name:            p.name,
+			Namespace:       p.namespace,
+			Labels:          p.labels,
+			Annotations:     p.annotations,
+			OwnerReferences: p.ownerReferences,
 		},
 		Spec: capibmv1.IBMPowerVSMachineSpec{
 			ServiceInstance: p.serviceInstance,
@@ -118,6 +120,12 @@ func (p PowerVSMachineBuilder) WithName(name string) PowerVSMachineBuilder {
 // WithNamespace sets the namespace for the PowerVSMachine builder.
 func (p PowerVSMachineBuilder) WithNamespace(namespace string) PowerVSMachineBuilder {
 	p.namespace = namespace
+	return p
+}
+
+// WithOwnerReferences sets the OwnerReferences for the machine builder.
+func (p PowerVSMachineBuilder) WithOwnerReferences(ownerRefs []metav1.OwnerReference) PowerVSMachineBuilder {
+	p.ownerReferences = ownerRefs
 	return p
 }
 

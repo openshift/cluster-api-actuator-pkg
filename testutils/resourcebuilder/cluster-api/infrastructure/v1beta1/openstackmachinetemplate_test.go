@@ -19,6 +19,7 @@ package v1beta1
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	capov1 "sigs.k8s.io/cluster-api-provider-openstack/api/v1beta1"
 )
@@ -40,6 +41,14 @@ var _ = Describe("OpenStackMachineTemplateBuilder", func() {
 			annotations := map[string]string{"key": "value"}
 			openstackMachineTemplate := OpenStackMachineTemplate().WithAnnotations(annotations).Build()
 			Expect(openstackMachineTemplate.Annotations).To(Equal(annotations))
+		})
+	})
+
+	Describe("WithOwnerReferences", func() {
+		It("should return the custom value when specified", func() {
+			ownerReferences := []metav1.OwnerReference{{Name: "cluster"}}
+			openstackMachineTemplate := OpenStackMachineTemplate().WithOwnerReferences(ownerReferences).Build()
+			Expect(openstackMachineTemplate.OwnerReferences).To(Equal(ownerReferences))
 		})
 	})
 

@@ -37,6 +37,7 @@ type AWSMachineTemplateBuilder struct {
 	labels            map[string]string
 	name              string
 	namespace         string
+	ownerReferences   []metav1.OwnerReference
 
 	// Spec fields.
 	additionalSecurityGroups []capav1.AWSResourceReference
@@ -87,6 +88,7 @@ func (a AWSMachineTemplateBuilder) Build() *capav1.AWSMachineTemplate {
 			Labels:            a.labels,
 			Name:              a.name,
 			Namespace:         a.namespace,
+			OwnerReferences:   a.ownerReferences,
 		},
 		Spec: capav1.AWSMachineTemplateSpec{
 			Template: capav1.AWSMachineTemplateResource{
@@ -171,6 +173,12 @@ func (a AWSMachineTemplateBuilder) WithName(name string) AWSMachineTemplateBuild
 // WithNamespace sets the namespace for the AWSMachineTemplate builder.
 func (a AWSMachineTemplateBuilder) WithNamespace(namespace string) AWSMachineTemplateBuilder {
 	a.namespace = namespace
+	return a
+}
+
+// WithOwnerReferences sets the OwnerReferences for the AWSMachineTemplate builder.
+func (a AWSMachineTemplateBuilder) WithOwnerReferences(ownerRefs []metav1.OwnerReference) AWSMachineTemplateBuilder {
+	a.ownerReferences = ownerRefs
 	return a
 }
 

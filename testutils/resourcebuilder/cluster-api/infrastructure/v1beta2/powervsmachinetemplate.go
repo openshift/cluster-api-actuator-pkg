@@ -38,6 +38,7 @@ type PowerVSMachineTemplateBuilder struct {
 	labels            map[string]string
 	name              string
 	namespace         string
+	ownerReferences   []metav1.OwnerReference
 
 	// Spec fields.
 	image           *capibmv1.IBMPowerVSResourceReference
@@ -70,6 +71,7 @@ func (p PowerVSMachineTemplateBuilder) Build() *capibmv1.IBMPowerVSMachineTempla
 			Labels:            p.labels,
 			Name:              p.name,
 			Namespace:         p.namespace,
+			OwnerReferences:   p.ownerReferences,
 		},
 		Spec: capibmv1.IBMPowerVSMachineTemplateSpec{
 			Template: capibmv1.IBMPowerVSMachineTemplateResource{
@@ -134,6 +136,12 @@ func (p PowerVSMachineTemplateBuilder) WithName(name string) PowerVSMachineTempl
 // WithNamespace sets the namespace for the PowerVSMachineTemplate builder.
 func (p PowerVSMachineTemplateBuilder) WithNamespace(namespace string) PowerVSMachineTemplateBuilder {
 	p.namespace = namespace
+	return p
+}
+
+// WithOwnerReferences sets the OwnerReferences for the PowerVSMachineTemplate builder.
+func (p PowerVSMachineTemplateBuilder) WithOwnerReferences(ownerRefs []metav1.OwnerReference) PowerVSMachineTemplateBuilder {
+	p.ownerReferences = ownerRefs
 	return p
 }
 

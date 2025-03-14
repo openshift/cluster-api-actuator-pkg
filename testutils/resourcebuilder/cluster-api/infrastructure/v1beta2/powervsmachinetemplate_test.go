@@ -94,6 +94,14 @@ var _ = Describe("PowerVSMachineTemplate", func() {
 		})
 	})
 
+	Describe("WithOwnerReferences", func() {
+		It("should return the custom value when specified", func() {
+			ownerReferences := []metav1.OwnerReference{{Name: "cluster"}}
+			powerVSMachineTemplate := PowerVSMachineTemplate().WithOwnerReferences(ownerReferences).Build()
+			Expect(powerVSMachineTemplate.OwnerReferences).To(Equal(ownerReferences))
+		})
+	})
+
 	// Spec fields.
 
 	Describe("WithServiceInstance", func() {
