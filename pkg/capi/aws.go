@@ -116,20 +116,16 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 	//huliu-OCP-75396 - [CAPI] Creating machines using KMS keys from AWS.
 	It("should be able to run a machine using KMS keys", framework.LabelQEOnly, func() {
 		awsMachineTemplate = newAWSMachineTemplate(mapiDefaultProviderSpec)
-		region := mapiDefaultProviderSpec.Placement.Region
-		if region != "us-east-1" && region != "us-east-2" {
-			Skip("Region is " + region + ", skip this test scenario because we only created kms key in us-east-1/us-east-2 region")
-		}
-		var key string
-		switch region {
-		case "us-east-1":
-			key = "arn:aws:kms:us-east-1:301721915996:key/c471ec83-cfaf-41a2-9241-d9e99c4da344"
-		case "us-east-2":
-			key = "arn:aws:kms:us-east-2:301721915996:key/c228ef83-df2c-4151-84c4-d9f39f39a972"
-		}
 		awskmsClient := framework.NewAwsKmsClient(framework.GetCredentialsFromCluster(oc))
-		_, err = awskmsClient.DescribeKeyByID(key)
-		Expect(err).ToNot(HaveOccurred(), "Failed to get the key")
+		key, err := awskmsClient.CreateKey(infrastructureName + " key 75396")
+		if err != nil {
+			Skip("Create key failed, skip the cases!!")
+		}
+		defer func() {
+			err := awskmsClient.DeleteKey(key)
+			Expect(err).ToNot(HaveOccurred(), "Failed to delete the key")
+		}()
+
 		encryptBool := true
 		awsMachineTemplate.Spec.Template.Spec.NonRootVolumes = []awsv1.Volume{
 			{
