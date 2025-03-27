@@ -156,6 +156,8 @@ var _ = Describe("Cluster API GCP MachineSet", framework.LabelCAPI, framework.La
 				mapiProviderSpec.OnHostMaintenance = OnHostMaintenanceTerminate
 			case gcpv1.ConfidentialComputePolicySEVSNP:
 				mapiProviderSpec.OnHostMaintenance = OnHostMaintenanceTerminate
+			case gcpv1.ConfidentialComputePolicyTDX:
+				mapiProviderSpec.OnHostMaintenance = OnHostMaintenanceTerminate
 			case gcpv1.ConfidentialComputePolicyDisabled:
 				mapiProviderSpec.OnHostMaintenance = "Migrate"
 			}
@@ -163,7 +165,12 @@ var _ = Describe("Cluster API GCP MachineSet", framework.LabelCAPI, framework.La
 			// Create GCP MachineTemplate after relevant fields are updated
 			gcpMachineTemplate = createGCPMachineTemplate(mapiProviderSpec)
 			gcpMachineTemplate.Spec.Template.Spec.ConfidentialCompute = ptr.To(confidentialCompute)
-			gcpMachineTemplate.Spec.Template.Spec.InstanceType = "n2d-standard-4"
+			if confidentialCompute == "IntelTrustedDomainExtensions" {
+				gcpMachineTemplate.Spec.Template.Spec.InstanceType = "c3-standard-4"
+				gcpMachineTemplate.Spec.Template.Spec.RootDeviceType = (*gcpv1.DiskType)(ptr.To("pd-ssd"))
+			} else {
+				gcpMachineTemplate.Spec.Template.Spec.InstanceType = "n2d-standard-4"
+			}
 			gcpMachineTemplate.Spec.Template.Spec.OnHostMaintenance = ptr.To(gcpv1.HostMaintenancePolicy(mapiProviderSpec.OnHostMaintenance))
 
 			Expect(cl.Create(ctx, gcpMachineTemplate)).To(Succeed())
@@ -194,6 +201,7 @@ var _ = Describe("Cluster API GCP MachineSet", framework.LabelCAPI, framework.La
 		Entry("Confidential Compute disabled", gcpv1.ConfidentialComputePolicyDisabled),
 		Entry("Confidential Compute AMDEncryptedVirtualization", gcpv1.ConfidentialComputePolicySEV),
 		Entry("Confidential Compute AMDEncryptedVirtualizationNestedPaging", gcpv1.ConfidentialComputePolicySEVSNP),
+		Entry("Confidential Compute IntelTrustedDomainExtensions", gcpv1.ConfidentialComputePolicyTDX),
 	)
 	It("should provision Preemptible machine successfully", func() {
 		mapiProviderSpec := getGCPMAPIProviderSpec(cl)
