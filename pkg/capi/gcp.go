@@ -152,6 +152,10 @@ var _ = Describe("Cluster API GCP MachineSet", framework.LabelCAPI, framework.La
 			switch confidentialCompute {
 			case gcpv1.ConfidentialComputePolicyEnabled:
 				mapiProviderSpec.OnHostMaintenance = OnHostMaintenanceTerminate
+			case gcpv1.ConfidentialComputePolicySEV:
+				mapiProviderSpec.OnHostMaintenance = OnHostMaintenanceTerminate
+			case gcpv1.ConfidentialComputePolicySEVSNP:
+				mapiProviderSpec.OnHostMaintenance = OnHostMaintenanceTerminate
 			case gcpv1.ConfidentialComputePolicyDisabled:
 				mapiProviderSpec.OnHostMaintenance = "Migrate"
 			}
@@ -188,6 +192,8 @@ var _ = Describe("Cluster API GCP MachineSet", framework.LabelCAPI, framework.La
 		},
 		Entry("Confidential Compute enabled", gcpv1.ConfidentialComputePolicyEnabled),
 		Entry("Confidential Compute disabled", gcpv1.ConfidentialComputePolicyDisabled),
+		Entry("Confidential Compute AMDEncryptedVirtualization", gcpv1.ConfidentialComputePolicySEV),
+		Entry("Confidential Compute AMDEncryptedVirtualizationNestedPaging", gcpv1.ConfidentialComputePolicySEVSNP),
 	)
 	It("should provision Preemptible machine successfully", func() {
 		mapiProviderSpec := getGCPMAPIProviderSpec(cl)
