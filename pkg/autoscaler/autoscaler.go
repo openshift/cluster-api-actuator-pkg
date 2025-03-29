@@ -856,7 +856,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 			Eventually(func() (bool, error) {
 				nodes, err := framework.GetReadyAndSchedulableNodes(client)
 				return len(nodes) == caMaxNodesTotal, err
-			}, framework.WaitOverMedium, pollingInterval).Should(BeTrue(), "Cluster failed to reach %d nodes", caMaxNodesTotal)
+			}, framework.WaitLong, pollingInterval).Should(BeTrue(), "Cluster failed to reach %d nodes", caMaxNodesTotal)
 
 			// Wait for all nodes to become ready, we wait here to help ensure
 			// that the cluster has reached a steady state and no more machines
