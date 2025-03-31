@@ -824,8 +824,8 @@ sigs.k8s.io/cluster-api-provider-aws/v2 v2.7.1 h1:NmsH/IZsMIiQV/kfJY7+mNriqvk5Im
 sigs.k8s.io/cluster-api-provider-aws/v2 v2.7.1/go.mod h1:fQ/aPIQs1YKb1hDJtibBY7kspUqvXb9JSWIYkzWlX34=
 sigs.k8s.io/cluster-api-provider-azure v1.17.1 h1:f1sTGfv6hAN9WrxeawE4pQ2nRhEKb7AJjH6MhU/wAzg=
 sigs.k8s.io/cluster-api-provider-azure v1.17.1/go.mod h1:16VtsvIpK8qtNHplG2ZHZ74/JKTzOUQIAWWutjnpvEc=
-sigs.k8s.io/cluster-api-provider-gcp v1.8.0 h1:K3/fa4VEPCIgtzGsKKPs3qwbJEkMxt+YjT+fkmE7CG8=
-sigs.k8s.io/cluster-api-provider-gcp v1.8.0/go.mod h1:dHC23Chv/PpH2M8pvkVpleW9auCsXuxmEQUz8UUwk7A=
+sigs.k8s.io/cluster-api-provider-gcp v1.9.0 h1:v99ymlG84Def6ZdB54O+lmL62SWx+EVIQM2lYstmpJY=
+sigs.k8s.io/cluster-api-provider-gcp v1.9.0/go.mod h1:mGps/ujfhUVIPI8qZBedGlz2WUibNwunBDyrdZktt2w=
 sigs.k8s.io/cluster-api-provider-ibmcloud v0.9.0 h1:7M26aznue8nbi27tF3av2Ts/FcQBJn+T022jD1dyBjo=
 sigs.k8s.io/cluster-api-provider-ibmcloud v0.9.0/go.mod h1:5h5sueD/nttTz/adeoJx+L0l96tYI9Zthqo2YXOLz7A=
 sigs.k8s.io/controller-runtime v0.19.5 h1:rsE2cRYe0hK/rAAwiS1bwqgEcgCxTz9lavs3FMgLW0c=
