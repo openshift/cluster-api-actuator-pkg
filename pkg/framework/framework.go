@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
+	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
 	cov1helpers "github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -270,4 +272,19 @@ func NewGatherer() (*gatherer.StateGatherer, error) {
 	}
 
 	return gatherer.NewStateGatherer(context.Background(), cli, time.Now()), nil
+}
+
+// IsCustomerVPC check if cluster is customer vpc cluster.
+func IsCustomerVPC(oc *gatherer.CLI) bool {
+	installConfig, err := oc.WithoutNamespace().Run("get").Args("cm", "cluster-config-v1", "-n", "kube-system", "-o=jsonpath={.data.install-config}").Output()
+	Expect(err).NotTo(HaveOccurred(), "Failed to get install-config")
+
+	switch platform {
+	case configv1.AWSPlatformType:
+		return strings.Contains(installConfig, "subnets:")
+	case configv1.AzurePlatformType:
+		return strings.Contains(installConfig, "virtualNetwork:")
+	default:
+		return false
+	}
 }
