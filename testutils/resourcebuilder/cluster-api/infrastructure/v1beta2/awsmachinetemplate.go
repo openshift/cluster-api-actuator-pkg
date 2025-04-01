@@ -55,6 +55,7 @@ type AWSMachineTemplateBuilder struct {
 	instanceMetadataOptions  *capav1.InstanceMetadataOptions
 	instanceType             string
 	networkInterfaces        []string
+	networkInterfaceType     capav1.NetworkInterfaceType
 	nonRootVolumes           []capav1.Volume
 	placementGroupName       string
 	placementGroupPartition  int64
@@ -108,6 +109,7 @@ func (a AWSMachineTemplateBuilder) Build() *capav1.AWSMachineTemplate {
 					InstanceMetadataOptions:  a.instanceMetadataOptions,
 					InstanceType:             a.instanceType,
 					NetworkInterfaces:        a.networkInterfaces,
+					NetworkInterfaceType:     a.networkInterfaceType,
 					NonRootVolumes:           a.nonRootVolumes,
 					PlacementGroupName:       a.placementGroupName,
 					PlacementGroupPartition:  a.placementGroupPartition,
@@ -271,6 +273,12 @@ func (a AWSMachineTemplateBuilder) WithInstanceType(instanceType string) AWSMach
 // WithNetworkInterfaces sets the networkInterfaces for the AWSMachineTemplate builder.
 func (a AWSMachineTemplateBuilder) WithNetworkInterfaces(interfaces []string) AWSMachineTemplateBuilder {
 	a.networkInterfaces = interfaces
+	return a
+}
+
+// WithNetworkInterfaceType sets the networkInterfaceType networkInterfaceType for the AWSMAchineTemplate builder.
+func (a AWSMachineTemplateBuilder) WithNetworkInterfaceType(networkInterfaceType capav1.NetworkInterfaceType) AWSMachineTemplateBuilder {
+	a.networkInterfaceType = networkInterfaceType
 	return a
 }
 
