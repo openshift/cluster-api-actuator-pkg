@@ -212,6 +212,14 @@ var _ = Describe("AWSMachineTemplate", func() {
 		})
 	})
 
+	Describe("WithNetworkInterfaceType", func() {
+		It("should return the custom value when specified", func() {
+			networkInterfaceType := capav1.NetworkInterfaceTypeEFAWithENAInterface
+			awsMachineTemplate := AWSMachineTemplate().WithNetworkInterfaceType(networkInterfaceType).Build()
+			Expect(awsMachineTemplate.Spec.Template.Spec.NetworkInterfaceType).To(Equal(networkInterfaceType))
+		})
+	})
+
 	Describe("WithNonRootVolumes", func() {
 		It("should return the custom value when specified", func() {
 			volumes := []capav1.Volume{{DeviceName: "test-device", Size: 100}}
