@@ -98,6 +98,9 @@ var _ = Describe("Cluster API GCP MachineSet", framework.LabelCAPI, framework.La
 		func(enableSecureBoot gcpv1.SecureBootPolicy, enableVtpm gcpv1.VirtualizedTrustedPlatformModulePolicy, enableIntegrityMonitoring gcpv1.IntegrityMonitoringPolicy) {
 			mapiProviderSpec := getGCPMAPIProviderSpec(cl)
 			Expect(mapiProviderSpec).ToNot(BeNil())
+			if mapiProviderSpec.ObjectMeta.Annotations["capacity.cluster-autoscaler.kubernetes.io/labels"] == "kubernetes.io/arch=arm64" {
+				Skip("this is arm cluster - not supported until OCPBUGS-17904 is implemeted")
+			}
 			gcpMachineTemplate = createGCPMachineTemplate(mapiProviderSpec)
 			mapiProviderSpec.OnHostMaintenance = OnHostMaintenanceMigrate
 			gcpMachineTemplate.Spec.Template.Spec.OnHostMaintenance = (*gcpv1.HostMaintenancePolicy)(&mapiProviderSpec.OnHostMaintenance)
