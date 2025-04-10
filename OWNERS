@@ -8,6 +8,8 @@ approvers:
 - elmiko
 - nrb
 - racheljpg
+- sunzhaohua2
+- huali9
 reviewers:
 - JoelSpeed
 - RadekManak
@@ -17,5 +19,7 @@ reviewers:
 - racheljpg
 - sub-mod
 - theobarberbany
+- sunzhaohua2
+- huali9
 component: Cloud Compute
 subcomponent: Unknown
