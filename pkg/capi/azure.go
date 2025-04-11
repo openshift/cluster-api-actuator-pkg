@@ -3,6 +3,7 @@ package capi
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	gotypes "github.com/onsi/ginkgo/v2/types"
@@ -206,13 +207,25 @@ func newAzureMachineTemplate(client runtimeclient.Client, mapiProviderSpec *mapi
 
 	subscriptionID := azureCredentialsSecret.Data["azure_subscription_id"]
 	azureImageID := fmt.Sprintf("/subscriptions/%s%s", subscriptionID, mapiProviderSpec.Image.ResourceID)
+
+	var (
+		identity               = azurev1.VMIdentityNone
+		userAssignedIdentities []azurev1.UserAssignedIdentity
+	)
+
+	if mi := mapiProviderSpec.ManagedIdentity; mi != "" {
+		providerID := mi
+		if !strings.HasPrefix(mi, "/subscriptions/") {
+			providerID = fmt.Sprintf("azure:///subscriptions/%s/resourcegroups/%s/providers/Microsoft.ManagedIdentity/userAssignedIdentities/%s", subscriptionID, mapiProviderSpec.ResourceGroup, mi)
+		}
+
+		userAssignedIdentities = []azurev1.UserAssignedIdentity{{ProviderID: providerID}}
+		identity = azurev1.VMIdentityUserAssigned
+	}
+
 	azureMachineSpec := azurev1.AzureMachineSpec{
-		Identity: azurev1.VMIdentityUserAssigned,
-		UserAssignedIdentities: []azurev1.UserAssignedIdentity{
-			{
-				ProviderID: fmt.Sprintf("azure:///subscriptions/%s/resourcegroups/%s/providers/Microsoft.ManagedIdentity/userAssignedIdentities/%s", subscriptionID, mapiProviderSpec.ResourceGroup, mapiProviderSpec.ManagedIdentity),
-			},
-		},
+		Identity:               identity,
+		UserAssignedIdentities: userAssignedIdentities,
 		NetworkInterfaces: []azurev1.NetworkInterface{
 			{
 				PrivateIPConfigs:      1,
