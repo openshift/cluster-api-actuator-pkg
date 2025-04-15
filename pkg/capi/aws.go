@@ -11,6 +11,7 @@ import (
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 	capiinfrastructurev1beta2resourcebuilder "github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/cluster-api/infrastructure/v1beta2"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/klog"
 	"k8s.io/utils/ptr"
 	awsv1 "sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -62,7 +63,7 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 		oc, err = framework.NewCLI()
 		Expect(err).ToNot(HaveOccurred(), "Failed to new CLI")
 		framework.SkipIfNotTechPreviewNoUpgrade(oc, cl)
-		_, mapiDefaultProviderSpec = getDefaultAWSMAPIProviderSpec(cl)
+		mapiDefaultProviderSpec = getDefaultAWSMAPIProviderSpec(cl)
 		machineSetParams = framework.NewCAPIMachineSetParams(
 			"aws-machineset",
 			clusterName,
@@ -85,7 +86,7 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 
 	//huliu-OCP-51071 - [CAPI] Create machineset with CAPI on aws
 	It("should be able to run a machine with a default provider spec", func() {
-		awsMachineTemplate = newAWSMachineTemplate(mapiDefaultProviderSpec)
+		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
 		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
 		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-51071", machineSetParams)
 		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
@@ -105,7 +106,7 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 			Expect(err).ToNot(HaveOccurred(), "Failed to delete placementgroup")
 		})
 
-		awsMachineTemplate = newAWSMachineTemplate(mapiDefaultProviderSpec)
+		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
 		awsMachineTemplate.Spec.Template.Spec.PlacementGroupName = placementGroupName
 		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
 		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-75395", machineSetParams)
@@ -116,7 +117,7 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 
 	//huliu-OCP-75396 - [CAPI] Creating machines using KMS keys from AWS.
 	It("should be able to run a machine using KMS keys", framework.LabelQEOnly, func() {
-		awsMachineTemplate = newAWSMachineTemplate(mapiDefaultProviderSpec)
+		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
 		awskmsClient := framework.NewAwsKmsClient(framework.GetCredentialsFromCluster(oc))
 		key, err := awskmsClient.CreateKey(infrastructureName + " key 75396")
 		if err != nil {
@@ -147,7 +148,7 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 
 	//OCP-78677 - [CAPI] Dedicated tenancy should be exposed on aws providerspec.
 	It("should be able to run a machine with dedicated instance", func() {
-		awsMachineTemplate = newAWSMachineTemplate(mapiDefaultProviderSpec)
+		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
 		awsMachineTemplate.Spec.Template.Spec.Tenancy = "dedicated"
 		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
 		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-78677", machineSetParams)
@@ -158,7 +159,7 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 
 	//huliu-OCP-75662 - [CAPI] AWS Machine API Support of more than one block device.
 	It("should be able to run a machine with more than one block device", func() {
-		awsMachineTemplate = newAWSMachineTemplate(mapiDefaultProviderSpec)
+		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
 		awsMachineTemplate.Spec.Template.Spec.NonRootVolumes = []awsv1.Volume{
 			{
 				DeviceName: "/dev/xvda",
@@ -183,7 +184,7 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 
 	//huliu-OCP-75663 - [CAPI] User defined tags can be applied to AWS EC2 Instances.
 	It("should be able to run a machine with user defined tags", func() {
-		awsMachineTemplate = newAWSMachineTemplate(mapiDefaultProviderSpec)
+		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
 		awsMachineTemplate.Spec.Template.Spec.AdditionalTags = map[string]string{
 			"adminContact": "qe",
 			"costCenter":   "1981",
@@ -199,7 +200,7 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 
 	//OCP-76794 - [CAPI] Support AWS capacity-reservations in CAPA.
 	It("should be able to run a machine with capacity-reservations", func() {
-		awsMachineTemplate = newAWSMachineTemplate(mapiDefaultProviderSpec)
+		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
 		By("Access AWS to create CapacityReservation")
 		awsClient := framework.NewAwsClient(framework.GetCredentialsFromCluster(oc))
 		capacityReservationID, err := awsClient.CreateCapacityReservation(mapiDefaultProviderSpec.InstanceType, "Linux/UNIX", mapiDefaultProviderSpec.Placement.AvailabilityZone, 1)
@@ -219,7 +220,7 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 	})
 })
 
-func getDefaultAWSMAPIProviderSpec(cl client.Client) (*mapiv1.MachineSet, *mapiv1.AWSMachineProviderConfig) {
+func getDefaultAWSMAPIProviderSpec(cl client.Client) *mapiv1.AWSMachineProviderConfig {
 	machineSetList := &mapiv1.MachineSetList{}
 
 	Eventually(func() error {
@@ -233,10 +234,12 @@ func getDefaultAWSMAPIProviderSpec(cl client.Client) (*mapiv1.MachineSet, *mapiv
 	providerSpec := &mapiv1.AWSMachineProviderConfig{}
 	Expect(yaml.Unmarshal(machineSet.Spec.Template.Spec.ProviderSpec.Value.Raw, providerSpec)).To(Succeed(), "it should be able to unmarshal the raw yaml into providerSpec")
 
-	return machineSet, providerSpec
+	klog.Infof("Getting from machineset %v", machineSet.Name)
+
+	return providerSpec
 }
 
-func newAWSMachineTemplate(mapiProviderSpec *mapiv1.AWSMachineProviderConfig) *awsv1.AWSMachineTemplate {
+func newAWSMachineTemplate(name string, mapiProviderSpec *mapiv1.AWSMachineProviderConfig) *awsv1.AWSMachineTemplate {
 	By("Creating AWS machine template")
 
 	Expect(mapiProviderSpec).ToNot(BeNil(), "expected the mapi ProviderSpec to not be nil")
@@ -301,7 +304,7 @@ func newAWSMachineTemplate(mapiProviderSpec *mapiv1.AWSMachineProviderConfig) *a
 		WithIgnition(ignition).
 		WithSubnet(&subnet).
 		WithAdditionalSecurityGroups(additionalSecurityGroups).
-		WithName(awsMachineTemplateName).
+		WithName(name).
 		WithNamespace(framework.ClusterAPINamespace).
 		Build()
 
