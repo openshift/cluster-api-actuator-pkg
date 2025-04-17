@@ -73,7 +73,7 @@ var _ = Describe("Cluster API Azure MachineSet", framework.LabelCAPI, framework.
 	// OCP-75884 - [CAPI] Create machineset with capi on Azure.
 	// author: zhsun@redhat.com
 	It("should be able to run a machine", func() {
-		azureMachineTemplate = newAzureMachineTemplate(client, mapiMachineSpec)
+		azureMachineTemplate = newAzureMachineTemplate(client, azureMachineTemplateName, mapiMachineSpec)
 		Expect(client.Create(ctx, azureMachineTemplate)).To(Succeed(), "Failed to create azuremachinetemplate")
 		machineSet, err = framework.CreateCAPIMachineSet(ctx, client, framework.NewCAPIMachineSetParams(
 			"azure-machineset-75884",
@@ -94,7 +94,7 @@ var _ = Describe("Cluster API Azure MachineSet", framework.LabelCAPI, framework.
 	// author: zhsun@redhat.com
 	// EncryptionAtHost feature is not enabled for dev subscription, added framework.LabelQEOnly
 	It("should be able to run a machine with host-based disk encryption", framework.LabelQEOnly, func() {
-		azureMachineTemplate = newAzureMachineTemplate(client, mapiMachineSpec)
+		azureMachineTemplate = newAzureMachineTemplate(client, azureMachineTemplateName, mapiMachineSpec)
 		azureMachineTemplate.Spec.Template.Spec.SecurityProfile = &azurev1.SecurityProfile{
 			EncryptionAtHost: ptr.To(true),
 		}
@@ -120,7 +120,7 @@ var _ = Describe("Cluster API Azure MachineSet", framework.LabelCAPI, framework.
 	// OCP-75961 - [CAPI] Enable accelerated network via MachineSets on Azure.
 	// author: zhsun@redhat.com
 	It("should be able to run a machine with accelerated network", func() {
-		azureMachineTemplate = newAzureMachineTemplate(client, mapiMachineSpec)
+		azureMachineTemplate = newAzureMachineTemplate(client, azureMachineTemplateName, mapiMachineSpec)
 		azureMachineTemplate.Spec.Template.Spec.NetworkInterfaces = []azurev1.NetworkInterface{
 			{
 				AcceleratedNetworking: ptr.To(true),
@@ -153,7 +153,7 @@ var _ = Describe("Cluster API Azure MachineSet", framework.LabelCAPI, framework.
 		if region == "northcentralus" || region == "westus" || region == "usgovtexas" {
 			Skip("Skipping this test scenario on the " + region + " region, because this region doesn't have zones")
 		}
-		azureMachineTemplate = newAzureMachineTemplate(client, mapiMachineSpec)
+		azureMachineTemplate = newAzureMachineTemplate(client, azureMachineTemplateName, mapiMachineSpec)
 		azureMachineTemplate.Spec.Template.Spec.SpotVMOptions = &azurev1.SpotVMOptions{}
 		Expect(client.Create(ctx, azureMachineTemplate)).To(Succeed(), "Failed to create azuremachinetemplate")
 		machineSet, err = framework.CreateCAPIMachineSet(ctx, client, framework.NewCAPIMachineSetParams(
@@ -189,7 +189,7 @@ func getAzureMAPIProviderSpec(client runtimeclient.Client) *mapiv1.AzureMachineP
 	return providerSpec
 }
 
-func newAzureMachineTemplate(client runtimeclient.Client, mapiProviderSpec *mapiv1.AzureMachineProviderSpec) *azurev1.AzureMachineTemplate {
+func newAzureMachineTemplate(client runtimeclient.Client, name string, mapiProviderSpec *mapiv1.AzureMachineProviderSpec) *azurev1.AzureMachineTemplate {
 	By("Creating Azure machine template")
 	Expect(mapiProviderSpec).ToNot(BeNil(), "expected the mapi ProviderSpec to not be nil")
 	Expect(mapiProviderSpec.Subnet).ToNot(BeEmpty(), "expected the mapi Subnet to not be empty")
@@ -251,7 +251,7 @@ func newAzureMachineTemplate(client runtimeclient.Client, mapiProviderSpec *mapi
 
 	azureMachineTemplate := &azurev1.AzureMachineTemplate{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      azureMachineTemplateName,
+			Name:      name,
 			Namespace: framework.ClusterAPINamespace,
 		},
 		Spec: azurev1.AzureMachineTemplateSpec{
