@@ -57,14 +57,15 @@ func UpdateCAPIMachineSetName(msName string, params CAPIMachineSetParams) CAPIMa
 func CreateCAPIMachineSet(ctx context.Context, cl client.Client, params CAPIMachineSetParams) (*clusterv1.MachineSet, error) {
 	By(fmt.Sprintf("Creating MachineSet %q", params.msName))
 	selector := metav1.LabelSelector{
-		MatchLabels: map[string]string{"machine.openshift.io/cluster-api-cluster": params.clusterName, "machine.openshift.io/cluster-api-machineset": params.msName},
+		MatchLabels: map[string]string{"cluster.x-k8s.io/cluster-name": params.clusterName, "cluster.x-k8s.io/set-name": params.msName},
 	}
 	userDataSecret := "worker-user-data"
 	template := clusterv1.MachineTemplateSpec{
 		ObjectMeta: clusterv1.ObjectMeta{
 			Labels: map[string]string{
-				"machine.openshift.io/cluster-api-cluster":    params.clusterName,
-				"machine.openshift.io/cluster-api-machineset": params.msName,
+				"cluster.x-k8s.io/cluster-name":  params.clusterName,
+				"cluster.x-k8s.io/set-name":      params.msName,
+				"node-role.kubernetes.io/worker": "",
 			},
 		},
 		Spec: clusterv1.MachineSpec{
