@@ -9,8 +9,8 @@ import (
 	mapiv1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
-	capiinfrastructurev1beta2resourcebuilder "github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/cluster-api/infrastructure/v1beta2"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
 	"k8s.io/utils/ptr"
 	awsv1 "sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2"
@@ -218,6 +218,29 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
 		framework.WaitForCAPIMachinesRunning(ctx, cl, machineSet.Name)
 	})
+
+	//OCP-81293 - [CAPI][AWS] Support AWS EFA network interface type in CAPI.
+	It("should be able to run a machine with EFA network interface type", func() {
+		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
+		awsMachineTemplate.Spec.Template.Spec.InstanceType = "m5dn.24xlarge"
+		awsMachineTemplate.Spec.Template.Spec.NetworkInterfaceType = awsv1.NetworkInterfaceTypeEFAWithENAInterface
+		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
+		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-81293", machineSetParams)
+		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
+		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
+		framework.WaitForCAPIMachinesRunning(ctx, cl, machineSet.Name)
+	})
+
+	//OCP-79026 - [CAPI] Spot instance can be created successfully with CAPI on aws.
+	It("should be able to run a machine with SpotMarketOptions", func() {
+		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
+		awsMachineTemplate.Spec.Template.Spec.SpotMarketOptions = &awsv1.SpotMarketOptions{}
+		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
+		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-79026", machineSetParams)
+		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
+		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
+		framework.WaitForCAPIMachinesRunning(ctx, cl, machineSet.Name)
+	})
 })
 
 func getDefaultAWSMAPIProviderSpec(cl client.Client) *mapiv1.AWSMachineProviderConfig {
@@ -295,18 +318,28 @@ func newAWSMachineTemplate(name string, mapiProviderSpec *mapiv1.AWSMachineProvi
 			},
 		},
 	}
-	awsmt := capiinfrastructurev1beta2resourcebuilder.
-		AWSMachineTemplate().
-		WithUncompressedUserData(uncompressedUserData).
-		WithIAMInstanceProfile(*mapiProviderSpec.IAMInstanceProfile.ID).
-		WithInstanceType(mapiProviderSpec.InstanceType).
-		WithAMI(ami).
-		WithIgnition(ignition).
-		WithSubnet(&subnet).
-		WithAdditionalSecurityGroups(additionalSecurityGroups).
-		WithName(name).
-		WithNamespace(framework.ClusterAPINamespace).
-		Build()
 
-	return awsmt
+	awsMachineSpec := awsv1.AWSMachineSpec{
+		UncompressedUserData:     &uncompressedUserData,
+		IAMInstanceProfile:       *mapiProviderSpec.IAMInstanceProfile.ID,
+		InstanceType:             mapiProviderSpec.InstanceType,
+		AMI:                      ami,
+		Ignition:                 ignition,
+		Subnet:                   &subnet,
+		AdditionalSecurityGroups: additionalSecurityGroups,
+	}
+
+	awsMachineTemplate := &awsv1.AWSMachineTemplate{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: framework.ClusterAPINamespace,
+		},
+		Spec: awsv1.AWSMachineTemplateSpec{
+			Template: awsv1.AWSMachineTemplateResource{
+				Spec: awsMachineSpec,
+			},
+		},
+	}
+
+	return awsMachineTemplate
 }

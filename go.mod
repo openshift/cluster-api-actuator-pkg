@@ -22,7 +22,7 @@ require (
 	k8s.io/klog v1.0.0
 	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
 	sigs.k8s.io/cluster-api v1.9.4
-	sigs.k8s.io/cluster-api-provider-aws/v2 v2.7.1
+	sigs.k8s.io/cluster-api-provider-aws/v2 v2.8.2
 	sigs.k8s.io/cluster-api-provider-azure v1.17.1
 	sigs.k8s.io/cluster-api-provider-gcp v1.9.0
 	sigs.k8s.io/controller-runtime v0.19.5
