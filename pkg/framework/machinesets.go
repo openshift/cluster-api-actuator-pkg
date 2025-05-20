@@ -34,11 +34,13 @@ import (
 // MachineSetParams represents the parameters for creating a new MachineSet
 // resource for use in tests.
 type MachineSetParams struct {
-	Name         string
-	Replicas     int32
-	Labels       map[string]string
-	Taints       []corev1.Taint
-	ProviderSpec *machinev1.ProviderSpec
+	Name                       string
+	Replicas                   int32
+	Labels                     map[string]string
+	Taints                     []corev1.Taint
+	ProviderSpec               *machinev1.ProviderSpec
+	MachinesetAuthoritativeAPI machinev1.MachineAuthority
+	MachineAuthoritativeAPI    machinev1.MachineAuthority
 }
 
 const (
@@ -112,9 +114,11 @@ func buildMachineSetParamsFromMachineSet(ctx context.Context, client runtimeclie
 	name := clusterInfra.Status.InfrastructureName + "-" + uuid.New().String()[0:5]
 
 	return MachineSetParams{
-		Name:         name,
-		Replicas:     int32(replicas),
-		ProviderSpec: providerSpec,
+		Name:                       name,
+		Replicas:                   int32(replicas),
+		MachinesetAuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
+		MachineAuthoritativeAPI:    machinev1.MachineAuthorityMachineAPI,
+		ProviderSpec:               providerSpec,
 		Labels: map[string]string{
 			MachineSetKey: name,
 			ClusterKey:    clusterName,
@@ -164,11 +168,13 @@ func CreateMachineSet(c runtimeclient.Client, params MachineSetParams) (*machine
 					ObjectMeta: machinev1.ObjectMeta{
 						Labels: params.Labels,
 					},
-					ProviderSpec: *params.ProviderSpec,
-					Taints:       params.Taints,
+					ProviderSpec:     *params.ProviderSpec,
+					Taints:           params.Taints,
+					AuthoritativeAPI: params.MachineAuthoritativeAPI,
 				},
 			},
-			Replicas: ptr.To[int32](params.Replicas),
+			Replicas:         ptr.To[int32](params.Replicas),
+			AuthoritativeAPI: params.MachinesetAuthoritativeAPI,
 		},
 	}
 
