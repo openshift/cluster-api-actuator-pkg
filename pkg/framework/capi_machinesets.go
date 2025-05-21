@@ -74,10 +74,13 @@ func CreateCAPIMachineSet(ctx context.Context, cl client.Client, params CAPIMach
 			},
 			ClusterName:       params.clusterName,
 			InfrastructureRef: params.infrastructureRef,
-			FailureDomain:     &params.failureDomain,
 		},
 	}
 	ms := capiv1resourcebuilder.MachineSet().WithName(params.msName).WithNamespace(ClusterAPINamespace).WithReplicas(params.replicas).WithClusterName(params.clusterName).WithSelector(selector).WithTemplate(template).WithLabels(map[string]string{"cluster.x-k8s.io/cluster-name": params.clusterName}).Build()
+
+	if params.failureDomain != "" {
+		ms.Spec.Template.Spec.FailureDomain = &params.failureDomain
+	}
 
 	Eventually(func() error {
 		return cl.Create(ctx, ms)
