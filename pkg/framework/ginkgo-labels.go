@@ -35,4 +35,7 @@ var (
 
 	// LabelQEOnly indicates that the test can run in qe account only.
 	LabelQEOnly = ginkgo.Label("qe-only")
+
+	// LabelConnectedOnly indicates that the test can run in a connection cluster only.
+	LabelConnectedOnly = ginkgo.Label("connected-only")
 )
