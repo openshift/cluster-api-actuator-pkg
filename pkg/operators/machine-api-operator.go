@@ -265,7 +265,7 @@ var _ = Describe(
 
 var _ = Describe(
 	"When cluster-wide proxy is configured, Machine API cluster operator should ",
-	framework.LabelDisruptive, framework.LabelPeriodic, framework.LabelMAPI,
+	framework.LabelDisruptive, framework.LabelConnectedOnly, framework.LabelPeriodic, framework.LabelMAPI,
 	Serial,
 	func() {
 		var gatherer *gatherer.StateGatherer
