@@ -124,8 +124,21 @@ func (g *GCPClient) GetLoadBalancerInfo(ctx context.Context, ipAddress string) (
 	}, nil
 }
 
+// isGCloudAvailable checks if gcloud CLI is available in the system.
+func (g *GCPClient) isGCloudAvailable(ctx context.Context) bool {
+	cmd := exec.CommandContext(ctx, "gcloud", "version")
+	err := cmd.Run()
+
+	return err == nil
+}
+
 // WaitForLoadBalancerNetworkTier waits for a load balancer to have the expected network tier.
 func (g *GCPClient) WaitForLoadBalancerNetworkTier(ctx context.Context, ipAddress, expectedTier string, timeout time.Duration) error {
+	// Check if gcloud is available first
+	if !g.isGCloudAvailable(ctx) {
+		return fmt.Errorf("gcloud CLI is not available in the system")
+	}
+
 	deadline := time.Now().Add(timeout)
 
 	for time.Now().Before(deadline) {

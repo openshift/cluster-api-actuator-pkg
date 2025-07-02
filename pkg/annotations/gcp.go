@@ -3,6 +3,7 @@ package annotations
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -112,11 +113,14 @@ var _ = Describe("Service Annotation tests GCP", framework.LabelCCM, framework.L
 			return "", nil
 		}, serviceTimeout, servicePollInterval).ShouldNot(BeEmpty(), "LoadBalancer service did not get an external IP")
 
-		// Verify with GCP CLI that LB has network-tier: Standard
+		// Verify with GCP CLI that LB has network-tier: Standard (skip if gcloud not available)
 		By("Verifying with GCP CLI that load balancer has network-tier: Standard")
-		Eventually(func() error {
-			return gcpClient.WaitForLoadBalancerNetworkTier(ctx, ingressIP, "STANDARD", 2*time.Minute)
-		}, serviceTimeout, servicePollInterval).Should(Succeed(), "Load balancer should have STANDARD network tier")
+		gcpErr := gcpClient.WaitForLoadBalancerNetworkTier(ctx, ingressIP, "STANDARD", 2*time.Minute)
+		if gcpErr != nil && (strings.Contains(gcpErr.Error(), "executable file not found") || strings.Contains(gcpErr.Error(), "gcloud CLI is not available")) {
+			klog.Warningf("Skipping GCP CLI verification - gcloud not available: %v", gcpErr)
+		} else {
+			Expect(gcpErr).To(Succeed(), "Load balancer should have STANDARD network tier")
+		}
 
 		// Step 2: Update service annotation to network-tier: Premium
 		By("Updating service annotation to network-tier: Premium")
@@ -153,11 +157,14 @@ var _ = Describe("Service Annotation tests GCP", framework.LabelCCM, framework.L
 		Expect(newIngressIP).NotTo(BeEmpty(), "New ingress IP should not be empty")
 		klog.Infof("Proceeding with new IP: %s", newIngressIP)
 
-		// Verify with GCP CLI that LB has network-tier: Premium
+		// Verify with GCP CLI that LB has network-tier: Premium (skip if gcloud not available)
 		By("Verifying with GCP CLI that load balancer has network-tier: Premium")
-		Eventually(func() error {
-			return gcpClient.WaitForLoadBalancerNetworkTier(ctx, newIngressIP, "Premium", 2*time.Minute)
-		}, serviceTimeout, servicePollInterval).Should(Succeed(), "Load balancer should have PREMIUM network tier")
+		gcpErr = gcpClient.WaitForLoadBalancerNetworkTier(ctx, newIngressIP, "Premium", 2*time.Minute)
+		if gcpErr != nil && (strings.Contains(gcpErr.Error(), "executable file not found") || strings.Contains(gcpErr.Error(), "gcloud CLI is not available")) {
+			klog.Warningf("Skipping GCP CLI verification - gcloud not available: %v", gcpErr)
+		} else {
+			Expect(gcpErr).To(Succeed(), "Load balancer should have PREMIUM network tier")
+		}
 
 		// Step 3: Test that empty string value is rejected by validation policy
 		By("Testing that empty string value is rejected by validation policy")
