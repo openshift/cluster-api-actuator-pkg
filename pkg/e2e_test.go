@@ -23,6 +23,7 @@ import (
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/capi"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/infra"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/machinehealthcheck"
+	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/mapi"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/operators"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/providers"
 )
