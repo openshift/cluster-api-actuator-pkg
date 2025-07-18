@@ -15,6 +15,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -229,6 +230,10 @@ var _ = Describe("Running on Spot", framework.LabelMAPI, framework.LabelDisrupti
 				Expect(client.Create(ctx, configMap)).To(Succeed(), "Should be able to create metadata ConfigMap")
 				delObjects[configMap.Name] = configMap
 
+				networkPolicy := getMetadataMockNetworkPolicy()
+				Expect(client.Create(ctx, networkPolicy)).To(Succeed(), "Should be able to create metadata NetworkPolicy")
+				delObjects[networkPolicy.Name] = networkPolicy
+
 				service := getMetadataMockService()
 				Expect(client.Create(ctx, service)).To(Succeed(), "Should be able to create metadata Service")
 				delObjects[service.Name] = service
@@ -356,10 +361,11 @@ func setSpotOnGCPProviderSpec(params framework.MachineSetParams) error {
 }
 
 const (
-	metadataServiceMockName          = "metadata-service-mock"
-	metadataServiceMockServiceName   = metadataServiceMockName + "-service"
-	metadataServiceMockConfigMapName = metadataServiceMockName + "-configmap"
-	metadataServiceMockPort          = 8082
+	metadataServiceMockName              = "metadata-service-mock"
+	metadataServiceMockServiceName       = metadataServiceMockName + "-service"
+	metadataServiceMockNetworkPolicyName = metadataServiceMockName + "-networkpolicy"
+	metadataServiceMockConfigMapName     = metadataServiceMockName + "-configmap"
+	metadataServiceMockPort              = 8082
 )
 
 func getMetadataMockLabels() map[string]string {
@@ -450,6 +456,37 @@ func getMetadataMockService() *corev1.Service {
 			SessionAffinity: corev1.ServiceAffinityNone,
 			ClusterIP:       "None",
 			Type:            corev1.ServiceTypeClusterIP,
+		},
+	}
+}
+
+func getMetadataMockNetworkPolicy() *networkingv1.NetworkPolicy {
+	return &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      metadataServiceMockNetworkPolicyName,
+			Namespace: framework.MachineAPINamespace,
+			Labels:    getMetadataMockLabels(),
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			PolicyTypes: []networkingv1.PolicyType{
+				networkingv1.PolicyTypeIngress,
+			},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{
+				{
+					Ports: []networkingv1.NetworkPolicyPort{
+						{
+							Protocol: func() *corev1.Protocol {
+								proto := corev1.ProtocolTCP
+								return &proto
+							}(),
+							Port: func() *intstr.IntOrString {
+								p := intstr.FromInt(metadataServiceMockPort)
+								return &p
+							}(),
+						},
+					},
+				},
+			},
 		},
 	}
 }
