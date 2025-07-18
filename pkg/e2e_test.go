@@ -19,6 +19,7 @@ import (
 	gcpv1 "sigs.k8s.io/cluster-api-provider-gcp/api/v1beta1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 
+	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/annotations"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/autoscaler"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/capi"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/infra"
@@ -49,6 +50,10 @@ func init() {
 	}
 
 	if err := azurev1.AddToScheme(scheme.Scheme); err != nil {
+		klog.Fatal(err)
+	}
+
+	if err := gcpv1.AddToScheme(scheme.Scheme); err != nil {
 		klog.Fatal(err)
 	}
 
