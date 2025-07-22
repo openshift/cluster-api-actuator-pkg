@@ -10,15 +10,14 @@ approvers:
 - nrb
 - racheljpg
 - sunzhaohua2
+- theobarberbany
 reviewers:
-- JoelSpeed
 - RadekManak
 - damdo
-- elmiko
 - huali9
+- mdbooth
 - nrb
 - racheljpg
-- sub-mod
 - sunzhaohua2
 - theobarberbany
 component: Cloud Compute
