@@ -100,7 +100,7 @@ type NetworkSpec struct {
 
 	// APIServerLB is the configuration for the control-plane load balancer.
 	// +optional
-	APIServerLB LoadBalancerSpec `json:"apiServerLB,omitempty"`
+	APIServerLB *LoadBalancerSpec `json:"apiServerLB,omitempty"`
 
 	// NodeOutboundLB is the configuration for the node outbound load balancer.
 	// +optional
@@ -111,7 +111,21 @@ type NetworkSpec struct {
 	// +optional
 	ControlPlaneOutboundLB *LoadBalancerSpec `json:"controlPlaneOutboundLB,omitempty"`
 
+	// AdditionalAPIServerLBPorts specifies extra inbound ports for the APIServer load balancer.
+	// Each port specified (e.g., 9345) creates an inbound rule where the frontend port and the backend port are the same.
+	// +optional
+	AdditionalAPIServerLBPorts []LoadBalancerPort `json:"additionalAPIServerLBPorts,omitempty"`
+
 	NetworkClassSpec `json:",inline"`
+}
+
+// LoadBalancerPort specifies additional port for the API server load balancer.
+type LoadBalancerPort struct {
+	// Name for the additional port within LB definition
+	Name string `json:"name"`
+
+	// Port for the LB definition
+	Port int32 `json:"port"`
 }
 
 // VnetSpec configures an Azure virtual network.
@@ -570,7 +584,7 @@ type UserAssignedIdentity struct {
 }
 
 // IdentityType represents different types of identities.
-// +kubebuilder:validation:Enum=ServicePrincipal;UserAssignedMSI;ManualServicePrincipal;ServicePrincipalCertificate;WorkloadIdentity
+// +kubebuilder:validation:Enum=ServicePrincipal;UserAssignedMSI;ManualServicePrincipal;ServicePrincipalCertificate;WorkloadIdentity;UserAssignedIdentityCredential
 type IdentityType string
 
 const (
@@ -588,6 +602,9 @@ const (
 
 	// WorkloadIdentity represents a WorkloadIdentity.
 	WorkloadIdentity IdentityType = "WorkloadIdentity"
+
+	// UserAssignedIdentityCredential represents a UserAssignedIdentityCredential.
+	UserAssignedIdentityCredential IdentityType = "UserAssignedIdentityCredential"
 )
 
 // OSDisk defines the operating system disk for a VM.
@@ -596,6 +613,7 @@ const (
 // conversion-gen where the warning message generated uses a relative directory import rather than the fully
 // qualified import when generating outside of the GOPATH.
 type OSDisk struct {
+	// +kubebuilder:default:=Linux
 	OSType string `json:"osType"`
 	// DiskSizeGB is the size in GB to assign to the OS disk.
 	// Will have a default of 30GB if not provided
@@ -609,6 +627,7 @@ type OSDisk struct {
 	// CachingType specifies the caching requirements.
 	// +optional
 	// +kubebuilder:validation:Enum=None;ReadOnly;ReadWrite
+	// +kubebuilder:default:=None
 	CachingType string `json:"cachingType,omitempty"`
 }
 
@@ -886,6 +905,17 @@ func (s SubnetSpec) IsIPv6Enabled() bool {
 		}
 	}
 	return false
+}
+
+// GetSecurityRuleByDestination returns security group rule, which matches provided destination ports.
+func (s SubnetSpec) GetSecurityRuleByDestination(port string) *SecurityRule {
+	for _, rule := range s.SecurityGroup.SecurityRules {
+		if rule.DestinationPorts != nil && *rule.DestinationPorts == port {
+			return &rule
+		}
+	}
+
+	return nil
 }
 
 // SecurityProfile specifies the Security profile settings for a

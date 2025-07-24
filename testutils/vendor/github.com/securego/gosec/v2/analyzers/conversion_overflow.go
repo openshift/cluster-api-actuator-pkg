@@ -15,6 +15,7 @@
 package analyzers
 
 import (
+	"cmp"
 	"fmt"
 	"go/token"
 	"math"
@@ -22,7 +23,6 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/exp/constraints"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
@@ -40,7 +40,7 @@ type integer struct {
 type rangeResult struct {
 	minValue             int
 	maxValue             uint
-	explixitPositiveVals []uint
+	explicitPositiveVals []uint
 	explicitNegativeVals []int
 	isRangeCheck         bool
 	convertFound         bool
@@ -49,7 +49,7 @@ type rangeResult struct {
 type branchResults struct {
 	minValue             *int
 	maxValue             *uint
-	explixitPositiveVals []uint
+	explicitPositiveVals []uint
 	explicitNegativeVals []int
 	convertFound         bool
 }
@@ -141,8 +141,8 @@ func parseIntType(intType string) (integer, error) {
 		return integer{}, fmt.Errorf("invalid bit size: %d", intSize)
 	}
 
-	var min int
-	var max uint
+	var minVal int
+	var maxVal uint
 
 	if signed {
 		shiftAmount := intSize - 1
@@ -152,19 +152,19 @@ func parseIntType(intType string) (integer, error) {
 			return integer{}, fmt.Errorf("invalid shift amount: %d", shiftAmount)
 		}
 
-		max = (1 << uint(shiftAmount)) - 1
-		min = -1 << (intSize - 1)
+		maxVal = (1 << uint(shiftAmount)) - 1
+		minVal = -1 << (intSize - 1)
 
 	} else {
-		max = (1 << uint(intSize)) - 1
-		min = 0
+		maxVal = (1 << uint(intSize)) - 1
+		minVal = 0
 	}
 
 	return integer{
 		signed: signed,
 		size:   intSize,
-		min:    min,
-		max:    max,
+		min:    minVal,
+		max:    maxVal,
 	}, nil
 }
 
@@ -226,7 +226,12 @@ func isStringToIntConversion(instr *ssa.Convert, dstType string) bool {
 						if err != nil {
 							return false
 						}
-						isSafe := bitSizeValue <= dstInt.size && signed == dstInt.signed
+
+						// we're good if:
+						// - signs match and bit size is <= than destination
+						// - parsing unsigned and bit size is < than destination
+						isSafe := (bitSizeValue <= dstInt.size && signed == dstInt.signed) ||
+							(bitSizeValue < dstInt.size && !signed)
 						return isSafe
 					}
 				}
@@ -269,9 +274,9 @@ func hasExplicitRangeCheck(instr *ssa.Convert, dstType string) bool {
 			case *ssa.If:
 				result := getResultRange(v, instr, visitedIfs)
 				if result.isRangeCheck {
-					minValue = max(minValue, &result.minValue)
-					maxValue = min(maxValue, &result.maxValue)
-					explicitPositiveVals = append(explicitPositiveVals, result.explixitPositiveVals...)
+					minValue = max(minValue, result.minValue)
+					maxValue = min(maxValue, result.maxValue)
+					explicitPositiveVals = append(explicitPositiveVals, result.explicitPositiveVals...)
 					explicitNegativeVals = append(explicitNegativeVals, result.explicitNegativeVals...)
 				}
 			case *ssa.Call:
@@ -323,17 +328,18 @@ func getResultRange(ifInstr *ssa.If, instr *ssa.Convert, visitedIfs map[*ssa.If]
 
 	if thenBounds.convertFound {
 		result.convertFound = true
-		result.minValue = max(result.minValue, thenBounds.minValue)
-		result.maxValue = min(result.maxValue, thenBounds.maxValue)
-		result.explixitPositiveVals = append(result.explixitPositiveVals, thenBounds.explixitPositiveVals...)
-		result.explicitNegativeVals = append(result.explicitNegativeVals, thenBounds.explicitNegativeVals...)
+		result.minValue = maxWithPtr(result.minValue, thenBounds.minValue)
+		result.maxValue = minWithPtr(result.maxValue, thenBounds.maxValue)
 	} else if elseBounds.convertFound {
 		result.convertFound = true
-		result.minValue = max(result.minValue, elseBounds.minValue)
-		result.maxValue = min(result.maxValue, elseBounds.maxValue)
-		result.explixitPositiveVals = append(result.explixitPositiveVals, elseBounds.explixitPositiveVals...)
-		result.explicitNegativeVals = append(result.explicitNegativeVals, elseBounds.explicitNegativeVals...)
+		result.minValue = maxWithPtr(result.minValue, elseBounds.minValue)
+		result.maxValue = minWithPtr(result.maxValue, elseBounds.maxValue)
 	}
+
+	result.explicitPositiveVals = append(result.explicitPositiveVals, thenBounds.explicitPositiveVals...)
+	result.explicitNegativeVals = append(result.explicitNegativeVals, thenBounds.explicitNegativeVals...)
+	result.explicitPositiveVals = append(result.explicitPositiveVals, elseBounds.explicitPositiveVals...)
+	result.explicitNegativeVals = append(result.explicitNegativeVals, elseBounds.explicitNegativeVals...)
 
 	return result
 }
@@ -344,15 +350,26 @@ func updateResultFromBinOp(result *rangeResult, binOp *ssa.BinOp, instr *ssa.Con
 	operandsFlipped := false
 
 	compareVal, op := getRealValueFromOperation(instr.X)
-	if x != compareVal {
-		y, operandsFlipped = x, true
+
+	// Handle FieldAddr
+	if fieldAddr, ok := compareVal.(*ssa.FieldAddr); ok {
+		compareVal = fieldAddr
+	}
+
+	if !isSameOrRelated(x, compareVal) {
+		y = x
+		operandsFlipped = true
 	}
 
 	constVal, ok := y.(*ssa.Const)
 	if !ok {
 		return
 	}
-
+	// TODO: constVal.Value nil check avoids #1229 panic but seems to be hiding a bug in the code above or in x/tools/go/ssa.
+	if constVal.Value == nil {
+		// log.Fatalf("[gosec] constVal.Value is nil flipped=%t, constVal=%#v, binOp=%#v", operandsFlipped, constVal, binOp)
+		return
+	}
 	switch binOp.Op {
 	case token.LEQ, token.LSS:
 		updateMinMaxForLessOrEqual(result, constVal, binOp.Op, operandsFlipped, successPathConvert)
@@ -362,37 +379,32 @@ func updateResultFromBinOp(result *rangeResult, binOp *ssa.BinOp, instr *ssa.Con
 		if !successPathConvert {
 			break
 		}
-
-		// Determine if the constant value is positive or negative.
-		if strings.Contains(constVal.String(), "-") {
-			result.explicitNegativeVals = append(result.explicitNegativeVals, int(constVal.Int64()))
-		} else {
-			result.explixitPositiveVals = append(result.explixitPositiveVals, uint(constVal.Uint64()))
-		}
-
+		updateExplicitValues(result, constVal)
 	case token.NEQ:
 		if successPathConvert {
 			break
 		}
-
-		// Determine if the constant value is positive or negative.
-		if strings.Contains(constVal.String(), "-") {
-			result.explicitNegativeVals = append(result.explicitNegativeVals, int(constVal.Int64()))
-		} else {
-			result.explixitPositiveVals = append(result.explixitPositiveVals, uint(constVal.Uint64()))
-		}
+		updateExplicitValues(result, constVal)
 	}
 
 	if op == "neg" {
-		min := result.minValue
-		max := result.maxValue
+		minVal := result.minValue
+		maxVal := result.maxValue
 
-		if min >= 0 {
-			result.maxValue = uint(min)
+		if minVal >= 0 {
+			result.maxValue = uint(minVal)
 		}
-		if max <= math.MaxInt {
-			result.minValue = int(max) //nolint:gosec
+		if maxVal <= math.MaxInt {
+			result.minValue = int(maxVal)
 		}
+	}
+}
+
+func updateExplicitValues(result *rangeResult, constVal *ssa.Const) {
+	if strings.Contains(constVal.String(), "-") {
+		result.explicitNegativeVals = append(result.explicitNegativeVals, int(constVal.Int64()))
+	} else {
+		result.explicitPositiveVals = append(result.explicitPositiveVals, uint(constVal.Uint64()))
 	}
 }
 
@@ -437,8 +449,10 @@ func walkBranchForConvert(block *ssa.BasicBlock, instr *ssa.Convert, visitedIfs 
 			bounds.convertFound = bounds.convertFound || result.convertFound
 
 			if result.isRangeCheck {
-				bounds.minValue = toPtr(max(result.minValue, bounds.minValue))
-				bounds.maxValue = toPtr(min(result.maxValue, bounds.maxValue))
+				bounds.minValue = toPtr(maxWithPtr(result.minValue, bounds.minValue))
+				bounds.maxValue = toPtr(minWithPtr(result.maxValue, bounds.maxValue))
+				bounds.explicitPositiveVals = append(bounds.explicitPositiveVals, result.explicitPositiveVals...)
+				bounds.explicitNegativeVals = append(bounds.explicitNegativeVals, result.explicitNegativeVals...)
 			}
 		case *ssa.Call:
 			if v == instr.X {
@@ -463,9 +477,10 @@ func isRangeCheck(v ssa.Value, x ssa.Value) bool {
 	switch op := v.(type) {
 	case *ssa.BinOp:
 		switch op.Op {
-		case token.LSS, token.LEQ, token.GTR, token.GEQ,
-			token.EQL, token.NEQ:
-			return op.X == compareVal || op.Y == compareVal
+		case token.LSS, token.LEQ, token.GTR, token.GEQ, token.EQL, token.NEQ:
+			leftMatch := isSameOrRelated(op.X, compareVal)
+			rightMatch := isSameOrRelated(op.Y, compareVal)
+			return leftMatch || rightMatch
 		}
 	}
 	return false
@@ -475,10 +490,34 @@ func getRealValueFromOperation(v ssa.Value) (ssa.Value, string) {
 	switch v := v.(type) {
 	case *ssa.UnOp:
 		if v.Op == token.SUB {
-			return v.X, "neg"
+			val, _ := getRealValueFromOperation(v.X)
+			return val, "neg"
 		}
+		return getRealValueFromOperation(v.X)
+	case *ssa.FieldAddr:
+		return v, "field"
+	case *ssa.Alloc:
+		return v, "alloc"
 	}
 	return v, ""
+}
+
+func isSameOrRelated(a, b ssa.Value) bool {
+	aVal, _ := getRealValueFromOperation(a)
+	bVal, _ := getRealValueFromOperation(b)
+
+	if aVal == bVal {
+		return true
+	}
+
+	// Check if both are FieldAddr operations referring to the same field of the same struct
+	if aField, aOk := aVal.(*ssa.FieldAddr); aOk {
+		if bField, bOk := bVal.(*ssa.FieldAddr); bOk {
+			return aField.X == bField.X && aField.Field == bField.Field
+		}
+	}
+
+	return false
 }
 
 func explicitValsInRange(explicitPosVals []uint, explicitNegVals []int, dstInt integer) bool {
@@ -501,24 +540,18 @@ func explicitValsInRange(explicitPosVals []uint, explicitNegVals []int, dstInt i
 	return true
 }
 
-func min[T constraints.Integer](a T, b *T) T {
+func minWithPtr[T cmp.Ordered](a T, b *T) T {
 	if b == nil {
 		return a
 	}
-	if a < *b {
-		return a
-	}
-	return *b
+	return min(a, *b)
 }
 
-func max[T constraints.Integer](a T, b *T) T {
+func maxWithPtr[T cmp.Ordered](a T, b *T) T {
 	if b == nil {
 		return a
 	}
-	if a > *b {
-		return a
-	}
-	return *b
+	return max(a, *b)
 }
 
 func toPtr[T any](a T) *T {

@@ -183,6 +183,7 @@ var _ = Describe("PowerVSMachine", func() {
 		It("should return the custom value when specified", func() {
 			message := "test failure message"
 			powerVSMachine := PowerVSMachine().WithFailureMessage(&message).Build()
+			//nolint:staticcheck
 			Expect(powerVSMachine.Status.FailureMessage).To(Equal(&message))
 		})
 	})
@@ -191,6 +192,7 @@ var _ = Describe("PowerVSMachine", func() {
 		It("should return the custom value when specified", func() {
 			reason := "CreateError"
 			powerVSMachine := PowerVSMachine().WithFailureReason(&reason).Build()
+			//nolint:staticcheck
 			Expect(powerVSMachine.Status.FailureReason).To(Equal(&reason))
 		})
 	})
