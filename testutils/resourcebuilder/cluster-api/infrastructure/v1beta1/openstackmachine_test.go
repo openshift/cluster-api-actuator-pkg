@@ -53,6 +53,14 @@ var _ = Describe("OpenStackMachineBuilder", func() {
 		})
 	})
 
+	Describe("WithGenerateName", func() {
+		It("should return the custom value when specified", func() {
+			generateName := "test-openstack-machine"
+			openstackMachine := OpenStackMachine().WithGenerateName(generateName).Build()
+			Expect(openstackMachine.GenerateName).To(Equal(generateName))
+		})
+	})
+
 	// Spec fields.
 
 	Describe("WithAdditionalBlockDevices", func() {
