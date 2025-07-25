@@ -36,6 +36,7 @@ type OpenStackMachineBuilder struct {
 	// ObjectMeta fields.
 	annotations     map[string]string
 	labels          map[string]string
+	generateName    string
 	name            string
 	namespace       string
 	ownerReferences []metav1.OwnerReference
@@ -76,6 +77,7 @@ func (a OpenStackMachineBuilder) Build() *capov1.OpenStackMachine {
 			Kind:       "OpenStackMachine",
 		},
 		ObjectMeta: metav1.ObjectMeta{
+			GenerateName:    a.generateName,
 			Name:            a.name,
 			Namespace:       a.namespace,
 			Labels:          a.labels,
@@ -125,6 +127,12 @@ func (a OpenStackMachineBuilder) WithAnnotations(annotations map[string]string) 
 // WithLabels sets the labels for the OpenStackMachine builder.
 func (a OpenStackMachineBuilder) WithLabels(labels map[string]string) OpenStackMachineBuilder {
 	a.labels = labels
+	return a
+}
+
+// WithGenerateName sets the generateName for the OpenStackMachine builder.
+func (a OpenStackMachineBuilder) WithGenerateName(generateName string) OpenStackMachineBuilder {
+	a.generateName = generateName
 	return a
 }
 

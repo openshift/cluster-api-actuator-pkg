@@ -56,6 +56,14 @@ var _ = Describe("PowerVSMachine", func() {
 		})
 	})
 
+	Describe("WithGenerateName", func() {
+		It("should return the custom value when specified", func() {
+			generateName := "test-aws-machine"
+			awsMachine := AWSMachine().WithGenerateName(generateName).Build()
+			Expect(awsMachine.GenerateName).To(Equal(generateName))
+		})
+	})
+
 	Describe("WithName", func() {
 		It("should return the custom value when specified", func() {
 			name := "test-aws-machine"

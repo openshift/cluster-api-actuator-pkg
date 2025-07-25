@@ -32,6 +32,7 @@ type AWSMachineBuilder struct {
 	// ObjectMeta fields.
 	annotations     map[string]string
 	labels          map[string]string
+	generateName    string
 	name            string
 	namespace       string
 	ownerReferences []metav1.OwnerReference
@@ -85,6 +86,7 @@ func (a AWSMachineBuilder) Build() *capav1.AWSMachine {
 			Kind:       "AWSMachine",
 		},
 		ObjectMeta: metav1.ObjectMeta{
+			GenerateName:    a.generateName,
 			Name:            a.name,
 			Namespace:       a.namespace,
 			Labels:          a.labels,
@@ -147,6 +149,12 @@ func (a AWSMachineBuilder) WithAnnotations(annotations map[string]string) AWSMac
 // WithLabels sets the labels for the AWSMachine builder.
 func (a AWSMachineBuilder) WithLabels(labels map[string]string) AWSMachineBuilder {
 	a.labels = labels
+	return a
+}
+
+// WithGenerateName sets the generateName for the AWSMachine builder.
+func (a AWSMachineBuilder) WithGenerateName(generateName string) AWSMachineBuilder {
+	a.generateName = generateName
 	return a
 }
 
