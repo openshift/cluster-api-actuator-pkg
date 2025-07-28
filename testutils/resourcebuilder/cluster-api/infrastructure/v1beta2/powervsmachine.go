@@ -34,6 +34,7 @@ type PowerVSMachineBuilder struct {
 	// ObjectMeta fields.
 	annotations     map[string]string
 	labels          map[string]string
+	generateName    string
 	name            string
 	namespace       string
 	ownerReferences []metav1.OwnerReference
@@ -67,6 +68,7 @@ func (p PowerVSMachineBuilder) Build() *capibmv1.IBMPowerVSMachine {
 			APIVersion: capibmv1.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
+			GenerateName:    p.generateName,
 			Name:            p.name,
 			Namespace:       p.namespace,
 			Labels:          p.labels,
@@ -108,6 +110,12 @@ func (p PowerVSMachineBuilder) WithAnnotations(annotations map[string]string) Po
 // WithLabels sets the labels for the PowerVSMachine builder.
 func (p PowerVSMachineBuilder) WithLabels(labels map[string]string) PowerVSMachineBuilder {
 	p.labels = labels
+	return p
+}
+
+// WithGenerateName sets the generateName for the PowerVSMachine builder.
+func (p PowerVSMachineBuilder) WithGenerateName(generateName string) PowerVSMachineBuilder {
+	p.generateName = generateName
 	return p
 }
 
