@@ -7,6 +7,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	configv1 "github.com/openshift/api/config/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apitypes "k8s.io/apimachinery/pkg/types"
@@ -324,6 +325,18 @@ var _ = Describe(
 			By("waiting for MAO cluster operator to become available")
 			Expect(framework.WaitForStatusAvailableMedium(ctx, client, "machine-api")).To(BeTrue(),
 				"Failed to wait for machine-api Cluster Operator to become available")
+
+			By("waiting for all nodes to become ready")
+			Expect(framework.WaitUntilAllNodesAreReady(ctx, client)).To(Succeed(),
+				"Failed to wait for all nodes to become ready")
+
+			By("waiting for all cluster operators to become available")
+			coList := &configv1.ClusterOperatorList{}
+			Eventually(client.List(ctx, coList)).Should(Succeed(), "failed to list ClusterOperators.")
+			for _, co := range coList.Items {
+				Expect(framework.WaitForStatusAvailableOverLong(ctx, client, co.Name)).To(BeTrue(),
+					"Failed to wait for %s Cluster Operator to become available", co.Name)
+			}
 
 			By("Removing the mitm-proxy")
 			framework.DeleteProxy(client)
