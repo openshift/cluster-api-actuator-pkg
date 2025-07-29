@@ -131,6 +131,13 @@ var (
 
 	// vSphereDataDiskNamePattern is used to validate the name of a data disk
 	vSphereDataDiskNamePattern = regexp.MustCompile(`^[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?$`)
+
+	// validProvisioningModes lists all valid data disk provisioning modes
+	validProvisioningModes = []machinev1beta1.ProvisioningMode{
+		machinev1beta1.ProvisioningModeThin,
+		machinev1beta1.ProvisioningModeThick,
+		machinev1beta1.ProvisioningModeEagerlyZeroed,
+	}
 )
 
 const (
@@ -186,6 +193,8 @@ const (
 	maxVSphereDataDiskNameLength = 80
 	// Max size of any data disk in vSphere is 62 TiB.  We are currently limiting to 16TiB (16384 GiB) as a starting point.
 	maxVSphereDataDiskSize = 16384
+	// Max number of networks allowed per machine
+	maxVSphereNetworkCount = 10
 
 	// Nutanix Defaults
 	// Minimum Nutanix values taken from Nutanix reconciler
@@ -216,7 +225,9 @@ const (
 
 // GCP Confidential VM supports Compute Engine machine types in the following series:
 // reference: https://cloud.google.com/compute/confidential-vm/docs/os-and-machine-type#machine-type
-var gcpConfidentialComputeSupportedMachineSeries = []string{"n2d", "c2d"}
+var gcpConfidentialTypeMachineSeriesSupportingSEV = []string{"n2d", "c2d", "c3d"}
+var gcpConfidentialTypeMachineSeriesSupportingSEVSNP = []string{"n2d"}
+var gcpConfidentialTypeMachineSeriesSupportingTDX = []string{"c3"}
 
 // defaultInstanceTypeForCloudProvider returns the default instance type for the given cloud provider and architecture.
 // If the cloud provider is not supported, an empty string is returned.
@@ -773,6 +784,16 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 		}
 	}
 
+	if providerSpec.MarketType != "" {
+		if err := validateAWSInstanceMarketType(providerSpec); err != nil {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "marketType"), providerSpec.MarketType, err.Error()))
+		}
+	}
+
+	if providerSpec.MarketType == "" && providerSpec.SpotMarketOptions != nil && providerSpec.CapacityReservationID != "" {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "capacityReservationId"), providerSpec.CapacityReservationID, "spotMarketOptions and capacityReservationID may not be used together"))
+	}
+
 	// TODO(alberto): Validate providerSpec.BlockDevices.
 	// https://github.com/openshift/cluster-api-provider-aws/pull/299#discussion_r433920532
 
@@ -1305,30 +1326,44 @@ func validateShieldedInstanceConfig(providerSpec *machinev1beta1.GCPMachineProvi
 
 func validateGCPConfidentialComputing(providerSpec *machinev1beta1.GCPMachineProviderSpec) field.ErrorList {
 	var errs field.ErrorList
-
-	switch providerSpec.ConfidentialCompute {
-	case machinev1beta1.ConfidentialComputePolicyEnabled:
+	if providerSpec.ConfidentialCompute != "" && providerSpec.ConfidentialCompute != machinev1beta1.ConfidentialComputePolicyDisabled {
 		// Check on host maintenance
 		if providerSpec.OnHostMaintenance != machinev1beta1.TerminateHostMaintenanceType {
 			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "onHostMaintenance"),
 				providerSpec.OnHostMaintenance,
-				fmt.Sprintf("ConfidentialCompute require OnHostMaintenance to be set to %s, the current value is: %s", machinev1beta1.TerminateHostMaintenanceType, providerSpec.OnHostMaintenance)))
+				fmt.Sprintf("ConfidentialCompute %s requires OnHostMaintenance to be set to %s, the current value is: %s", providerSpec.ConfidentialCompute, machinev1beta1.TerminateHostMaintenanceType, providerSpec.OnHostMaintenance)))
 		}
 		// Check machine series supports confidential computing
 		machineSeries := strings.Split(providerSpec.MachineType, "-")[0]
-		if !slices.Contains(gcpConfidentialComputeSupportedMachineSeries, machineSeries) {
-			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "machineType"),
-				providerSpec.MachineType,
-				fmt.Sprintf("ConfidentialCompute require machine type in the following series: %s", strings.Join(gcpConfidentialComputeSupportedMachineSeries, `,`))),
+		switch providerSpec.ConfidentialCompute {
+		case machinev1beta1.ConfidentialComputePolicyEnabled, machinev1beta1.ConfidentialComputePolicySEV:
+			if !slices.Contains(gcpConfidentialTypeMachineSeriesSupportingSEV, machineSeries) {
+				errs = append(errs, field.Invalid(field.NewPath("providerSpec", "machineType"),
+					providerSpec.MachineType,
+					fmt.Sprintf("ConfidentialCompute %s requires a machine type in the following series: %s", providerSpec.ConfidentialCompute, strings.Join(gcpConfidentialTypeMachineSeriesSupportingSEV, `,`))),
+				)
+			}
+		case machinev1beta1.ConfidentialComputePolicySEVSNP:
+			if !slices.Contains(gcpConfidentialTypeMachineSeriesSupportingSEVSNP, machineSeries) {
+				errs = append(errs, field.Invalid(field.NewPath("providerSpec", "machineType"),
+					providerSpec.MachineType,
+					fmt.Sprintf("ConfidentialCompute %s requires a machine type in the following series: %s", providerSpec.ConfidentialCompute, strings.Join(gcpConfidentialTypeMachineSeriesSupportingSEVSNP, `,`))),
+				)
+			}
+		case machinev1beta1.ConfidentialComputePolicyTDX:
+			if !slices.Contains(gcpConfidentialTypeMachineSeriesSupportingTDX, machineSeries) {
+				errs = append(errs, field.Invalid(field.NewPath("providerSpec", "machineType"),
+					providerSpec.MachineType,
+					fmt.Sprintf("ConfidentialCompute %s requires a machine type in the following series: %s", providerSpec.ConfidentialCompute, strings.Join(gcpConfidentialTypeMachineSeriesSupportingTDX, `,`))),
+				)
+			}
+		default:
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "confidentialCompute"),
+				providerSpec.ConfidentialCompute,
+				fmt.Sprintf("ConfidentialCompute must be %s, %s, %s, %s, or %s", machinev1beta1.ConfidentialComputePolicyEnabled, machinev1beta1.ConfidentialComputePolicyDisabled, machinev1beta1.ConfidentialComputePolicySEV, machinev1beta1.ConfidentialComputePolicySEVSNP, machinev1beta1.ConfidentialComputePolicyTDX)),
 			)
 		}
-	case machinev1beta1.ConfidentialComputePolicyDisabled, "":
-	default:
-		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "confidentialCompute"),
-			providerSpec.ConfidentialCompute,
-			fmt.Sprintf("ConfidentialCompute must be either %s or %s.", machinev1beta1.ConfidentialComputePolicyEnabled, machinev1beta1.ConfidentialComputePolicyDisabled)))
 	}
-
 	return errs
 }
 
@@ -1569,6 +1604,17 @@ func validateVSphereDataDisks(dataDisks []machinev1beta1.VSphereDisk) field.Erro
 		if disk.SizeGiB > maxVSphereDataDiskSize {
 			errs = append(errs, field.Invalid(diskPath.Child("sizeGiB"), disk.SizeGiB, fmt.Sprintf("data disk size (GiB) must not exceed %d", maxVSphereDataDiskSize)))
 		}
+
+		// Validate provisioning modes
+		if len(disk.ProvisioningMode) > 0 {
+			validModesSet := sets.NewString()
+			for _, m := range validProvisioningModes {
+				validModesSet.Insert(string(m))
+			}
+			if !validModesSet.Has(string(disk.ProvisioningMode)) {
+				errs = append(errs, field.NotSupported(diskPath, disk.ProvisioningMode, validModesSet.List()))
+			}
+		}
 	}
 
 	return errs
@@ -1609,6 +1655,11 @@ func validateVSphereWorkspace(workspace *machinev1beta1.Workspace, config *admis
 func validateVSphereNetwork(network machinev1beta1.NetworkSpec, parentPath *field.Path) field.ErrorList {
 	if len(network.Devices) == 0 {
 		return field.ErrorList{field.Required(parentPath.Child("devices"), "at least 1 network device must be provided")}
+	}
+
+	// We currently only support a max of 10 adapters in vSphere based on vSphere limitations
+	if len(network.Devices) > maxVSphereNetworkCount {
+		return field.ErrorList{field.TooMany(parentPath.Child("devices"), len(network.Devices), maxVSphereNetworkCount)}
 	}
 
 	var errs field.ErrorList
@@ -2384,6 +2435,27 @@ func validateAwsCapacityReservationId(capacityReservationId string) error {
 	re := regexp.MustCompile(`^cr-[0-9a-f]{17}$`)
 	if !re.MatchString(capacityReservationId) {
 		return fmt.Errorf("invalid value for capacityReservationId: %q, it must start with 'cr-' and be exactly 20 characters long with 17 hexadecimal characters", capacityReservationId)
+	}
+	return nil
+}
+
+func validateAWSInstanceMarketType(providerSpec *machinev1beta1.AWSMachineProviderConfig) error {
+	if providerSpec.MarketType == machinev1beta1.MarketTypeCapacityBlock && providerSpec.SpotMarketOptions != nil {
+		return errors.New("invalid marketType: marketType set to CapacityBlock and spotMarketOptions cannot be used together")
+	}
+	if providerSpec.MarketType == machinev1beta1.MarketTypeOnDemand && providerSpec.SpotMarketOptions != nil {
+		return errors.New("invalid marketType: setting marketType to OnDemand and spotMarketOptions cannot be used together")
+	}
+	if providerSpec.MarketType == machinev1beta1.MarketTypeCapacityBlock && len(providerSpec.CapacityReservationID) == 0 {
+		return errors.New("capacityReservationID is required when CapacityBlock is provided")
+	}
+	if providerSpec.MarketType == machinev1beta1.MarketTypeSpot && providerSpec.CapacityReservationID != "" {
+		return errors.New("invalid marketType: marketType set to Spot and capacityReservationID may not be used together")
+	}
+	switch providerSpec.MarketType {
+	case "", machinev1beta1.MarketTypeOnDemand, machinev1beta1.MarketTypeSpot, machinev1beta1.MarketTypeCapacityBlock:
+	default:
+		return fmt.Errorf("invalid marketType: %s valid values are: %s, %s, %s and omitted", providerSpec.MarketType, machinev1beta1.MarketTypeOnDemand, machinev1beta1.MarketTypeSpot, machinev1beta1.MarketTypeCapacityBlock)
 	}
 	return nil
 }
