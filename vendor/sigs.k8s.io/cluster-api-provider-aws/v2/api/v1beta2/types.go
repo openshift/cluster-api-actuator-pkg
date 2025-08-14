@@ -273,7 +273,43 @@ type Instance struct {
 	// If marketType is not specified and spotMarketOptions is provided, the marketType defaults to "Spot".
 	// +optional
 	MarketType MarketType `json:"marketType,omitempty"`
+
+	// HostAffinity specifies the dedicated host affinity setting for the instance.
+	// When hostAffinity is set to host, an instance started onto a specific host always restarts on the same host if stopped.
+	// When hostAffinity is set to default, and you stop and restart the instance, it can be restarted on any available host.
+	// When HostAffinity is defined, HostID is required.
+	// +optional
+	// +kubebuilder:validation:Enum:=default;host
+	HostAffinity *string `json:"hostAffinity,omitempty"`
+
+	// HostID specifies the dedicated host on which the instance should be started.
+	// +optional
+	HostID *string `json:"hostID,omitempty"`
+
+	// CapacityReservationPreference specifies the preference for use of Capacity Reservations by the instance. Valid values include:
+	// "Open": The instance may make use of open Capacity Reservations that match its AZ and InstanceType
+	// "None": The instance may not make use of any Capacity Reservations. This is to conserve open reservations for desired workloads
+	// "CapacityReservationsOnly": The instance will only run if matched or targeted to a Capacity Reservation. Note that this is incompatible with a MarketType of `Spot`
+	// +kubebuilder:validation:Enum="";None;CapacityReservationsOnly;Open
+	// +optional
+	CapacityReservationPreference CapacityReservationPreference `json:"capacityReservationPreference,omitempty"`
 }
+
+// CapacityReservationPreference describes the preferred use of capacity reservations
+// of an instance
+// +kubebuilder:validation:Enum:="";None;CapacityReservationsOnly;Open
+type CapacityReservationPreference string
+
+const (
+	// CapacityReservationPreferenceNone the instance may not make use of any Capacity Reservations. This is to conserve open reservations for desired workloads
+	CapacityReservationPreferenceNone CapacityReservationPreference = "None"
+
+	// CapacityReservationPreferenceOnly the instance will only run if matched or targeted to a Capacity Reservation. Note that this is incompatible with a MarketType of `Spot`
+	CapacityReservationPreferenceOnly CapacityReservationPreference = "CapacityReservationsOnly"
+
+	// CapacityReservationPreferenceOpen the instance may make use of open Capacity Reservations that match its AZ and InstanceType.
+	CapacityReservationPreferenceOpen CapacityReservationPreference = "Open"
+)
 
 // MarketType describes the market type of an Instance
 // +kubebuilder:validation:Enum:=OnDemand;Spot;CapacityBlock
