@@ -77,6 +77,10 @@ unit: ## Run unit tests
 build-e2e:
 	$(DOCKER_CMD) go test -c -o "$(BUILD_DEST)" github.com/openshift/cluster-api-actuator-pkg/pkg/
 
+.PHONY: build-ext
+build-ext:  ## Build tests extension binary
+	$(DOCKER_CMD) go build -o bin/cluster-api-actuator-pkg-tests-ext ./cmd/cluster-api-actuator-pkg-tests-ext
+
 .PHONY: test-e2e
 test-e2e: ## Run openshift specific e2e test
 	hack/ci-integration.sh $(GINKGO_ARGS) --label-filter='!periodic&&!qe-only&&!autoscaler' -p

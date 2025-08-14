@@ -2,11 +2,11 @@ package infra
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
-	"os"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -38,6 +38,9 @@ const (
 	// Maximum retries when provisioning a spot machineSet.
 	spotMachineSetMaxProvisioningRetryCount = 3
 )
+
+//go:embed mock/metadata_mock.go
+var metadataMock []byte
 
 var _ = Describe("[sig-cluster-lifecycle] Machine API Running on Spot", framework.LabelMAPI, framework.LabelDisruptive, framework.LabelPeriodic, func() {
 	var ctx = context.Background()
@@ -239,8 +242,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Running on Spot", framewor
 
 		By("should terminate a Machine if a termination event is observed", func() {
 			By("Deploying a mock metadata application", func() {
-				configMap, err := getMetadataMockConfigMap()
-				Expect(err).ToNot(HaveOccurred(), "Should load the desired metadata ConfigMap")
+				configMap := getMetadataMockConfigMap()
 				Expect(client.Create(ctx, configMap)).To(Succeed(), "Should be able to create metadata ConfigMap")
 				delObjects[configMap.Name] = configMap
 
@@ -506,13 +508,7 @@ func getMetadataMockNetworkPolicy() *networkingv1.NetworkPolicy {
 	}
 }
 
-func getMetadataMockConfigMap() (*corev1.ConfigMap, error) {
-	// Load relative to the test execution directory
-	data, err := os.ReadFile("./infra/mock/metadata_mock.go")
-	if err != nil {
-		return nil, err
-	}
-
+func getMetadataMockConfigMap() *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      metadataServiceMockConfigMapName,
@@ -520,9 +516,9 @@ func getMetadataMockConfigMap() (*corev1.ConfigMap, error) {
 			Labels:    getMetadataMockLabels(),
 		},
 		BinaryData: map[string][]byte{
-			"metadata_mock.go": data,
+			"metadata_mock.go": metadataMock,
 		},
-	}, nil
+	}
 }
 
 const (
