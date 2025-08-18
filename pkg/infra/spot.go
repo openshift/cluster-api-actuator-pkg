@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"path/filepath"
+	"runtime"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -493,7 +495,17 @@ func getMetadataMockNetworkPolicy() *networkingv1.NetworkPolicy {
 
 func getMetadataMockConfigMap() (*corev1.ConfigMap, error) {
 	// Load relative to the test execution directory
-	data, err := os.ReadFile("./infra/mock/metadata_mock.go")
+	//data, err := os.ReadFile("./infra/mock/metadata_mock.go")
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		return nil, fmt.Errorf("unable to get current file path")
+	}
+
+	basepath := filepath.Dir(filename)
+
+	filepath := filepath.Join(basepath, "..", "infra", "mock", "metadata_mock.go")
+
+	data, err := os.ReadFile(filepath)
 	if err != nil {
 		return nil, err
 	}
