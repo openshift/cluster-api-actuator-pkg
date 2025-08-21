@@ -20,10 +20,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	capov1 "sigs.k8s.io/cluster-api-provider-openstack/api/v1beta1"
+	errors "sigs.k8s.io/cluster-api-provider-openstack/pkg/utils/errors"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-
-	//nolint:staticcheck // Ignore SA1019 (deprecation) until capi v1beta2.
-	"sigs.k8s.io/cluster-api/errors"
 )
 
 // OpenStackMachine creates a new OpenStackMachine builder.
@@ -63,7 +61,7 @@ type OpenStackMachineBuilder struct {
 	addresses      []corev1.NodeAddress
 	conditions     clusterv1.Conditions
 	failureMessage *string
-	failureReason  *errors.MachineStatusError
+	failureReason  *errors.DeprecatedCAPIMachineStatusError
 	instanceID     *string
 	instanceState  *capov1.InstanceState
 	ready          bool
@@ -267,7 +265,7 @@ func (a OpenStackMachineBuilder) WithFailureMessage(failureMessage *string) Open
 }
 
 // WithFailureReason sets the failureReason for the OpenStackMachine builder.
-func (a OpenStackMachineBuilder) WithFailureReason(failureReason *errors.MachineStatusError) OpenStackMachineBuilder {
+func (a OpenStackMachineBuilder) WithFailureReason(failureReason *errors.DeprecatedCAPIMachineStatusError) OpenStackMachineBuilder {
 	a.failureReason = failureReason
 	return a
 }
