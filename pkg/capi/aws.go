@@ -292,7 +292,6 @@ func newAWSMachineTemplate(name string, mapiProviderSpec *mapiv1.AWSMachineProvi
 		}
 	}
 
-	uncompressedUserData := true
 	ami := awsv1.AMIReference{
 		ID: mapiProviderSpec.AMI.ID,
 	}
@@ -320,7 +319,6 @@ func newAWSMachineTemplate(name string, mapiProviderSpec *mapiv1.AWSMachineProvi
 	}
 
 	awsMachineSpec := awsv1.AWSMachineSpec{
-		UncompressedUserData:     &uncompressedUserData,
 		IAMInstanceProfile:       *mapiProviderSpec.IAMInstanceProfile.ID,
 		InstanceType:             mapiProviderSpec.InstanceType,
 		AMI:                      ami,
