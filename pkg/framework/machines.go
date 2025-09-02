@@ -136,7 +136,8 @@ func GetMachineFromNode(client runtimeclient.Client, node *corev1.Node) (*machin
 func DeleteMachines(ctx context.Context, client runtimeclient.Client, machines ...*machinev1.Machine) error {
 	return wait.PollUntilContextTimeout(ctx, RetryShort, time.Minute, true, func(ctx context.Context) (bool, error) {
 		for _, machine := range machines {
-			if err := client.Delete(ctx, machine); err != nil {
+			err := client.Delete(ctx, machine)
+			if err != nil && !apierrors.IsNotFound(err) {
 				klog.Errorf("Error querying api for machine object %q: %v, retrying...", machine.Name, err)
 				return false, err
 			}
