@@ -312,6 +312,9 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 			By("Waiting for the machineSet replicas to become nodes")
 			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
 
+			By(fmt.Sprintf("Waiting for %d workload pods to be running", expectedReplicas))
+			framework.WaitForWorkload(ctx, client, machineSet, expectedReplicas, workload.GetName())
+
 			expectedReplicas = 0
 			By("Deleting the workload")
 			Expect(deleteObject(workload.Name, cleanupObjects[workload.Name])).Should(Succeed(), "Failed to delete scale-out workload %s", workload.Name)
@@ -424,6 +427,9 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 
 					return g.Expect(ms.Spec.Replicas).To(HaveValue(Equal(expectedReplicas)))
 				})
+
+			By(fmt.Sprintf("Waiting for %d/%d workload pods to be running", expectedReplicas, expectedReplicas+1))
+			framework.WaitForWorkload(ctx, client, expectedScaledMachineSet, expectedReplicas, workload.GetName())
 		})
 
 		// Machines required for test: 2
@@ -470,6 +476,9 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 
 			By("Waiting for all Machines in the MachineSet to enter Running phase")
 			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
+
+			By(fmt.Sprintf("Waiting for %d workload pods to be running", jobReplicas))
+			framework.WaitForWorkload(ctx, client, machineSet, jobReplicas, workload.GetName())
 
 			By("Deleting the workload")
 			Expect(deleteObject(workload.Name, cleanupObjects[workload.Name])).Should(Succeed(), "Failed to delete workload object %s", workload.Name)
@@ -735,12 +744,16 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 
 				return allreplicas, nil
 			}, framework.WaitOverMedium, pollingInterval).Should(HaveEach(expectedReplicas), "Failed to balance properly")
+
+			By(fmt.Sprintf("Waiting for %d workload pods to be running", jobReplicas))
+			framework.WaitForWorkloadOverMachineSets(ctx, client, []*machinev1.MachineSet{transientMachineSets[0], transientMachineSets[1]}, jobReplicas, workload.GetName())
 		})
 	})
 
 	Context("use a ClusterAutoscaler with maximum total nodes", framework.LabelPeriodic, func() {
 		var clusterAutoscaler *caov1.ClusterAutoscaler
 		var machinesNumBaseleline, caMaxNodesTotal int
+		const additionalMachines = 2
 
 		BeforeEach(func() {
 			gatherer, err = framework.NewGatherer()
@@ -761,7 +774,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 			Expect(err).ToNot(HaveOccurred(), "Should be able to get machines")
 			machinesNumBaseleline = len(machines)
 			// Use a maximum of 2 additional nodes
-			caMaxNodesTotal = machinesNumBaseleline + 2
+			caMaxNodesTotal = machinesNumBaseleline + additionalMachines
 
 			By("Creating ClusterAutoscaler")
 			clusterAutoscaler = clusterAutoscalerResource(caMaxNodesTotal)
@@ -863,6 +876,10 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 			// are in the process of being added.
 			By("Waiting for all Machines in MachineSet to enter Running phase")
 			framework.WaitForMachineSet(ctx, client, transientMachineSet.GetName())
+
+			// Wait for the expected number of workload pods to actually be scheduled and running.
+			By(fmt.Sprintf("Waiting for only %d/%d workload pods to be running since caMaxNodesTotal is %d and %d nodes are unschedulable", additionalMachines, jobReplicas, caMaxNodesTotal, machinesNumBaseleline))
+			framework.WaitForWorkload(ctx, client, transientMachineSet, int32(additionalMachines), workload.GetName())
 
 			// Now that the cluster has reached maximum size, we want to ensure
 			// that it doesn't try to grow larger.
@@ -1012,6 +1029,9 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 			machineP20, err := framework.GetLatestMachineFromMachineSet(ctx, client, transientMachineSets[1])
 			Expect(err).ToNot(HaveOccurred(), "Failed to get the last provisioned machine %s", machineP20)
 			Expect(machineP20.CreationTimestamp.Time).To(BeTemporally("<", machineP10.CreationTimestamp.Time))
+
+			By(fmt.Sprintf("Waiting for %d workload pods to be running", jobReplicas))
+			framework.WaitForWorkloadOverMachineSets(ctx, client, []*machinev1.MachineSet{transientMachineSets[0], transientMachineSets[1]}, jobReplicas, workload.GetName())
 		})
 	})
 })
