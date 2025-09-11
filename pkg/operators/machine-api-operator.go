@@ -270,12 +270,14 @@ var _ = Describe(
 	Serial,
 	func() {
 		var gatherer *gatherer.StateGatherer
-		client, err := framework.LoadClient()
+		var client runtimeclient.Client
+
 		ctx := framework.GetContext()
-		Expect(err).NotTo(HaveOccurred(), "Failed to load client")
 
 		BeforeEach(func() {
 			var err error
+			client, err = framework.LoadClient()
+			Expect(err).NotTo(HaveOccurred(), "Failed to load client")
 			gatherer, err = framework.NewGatherer()
 			Expect(err).ToNot(HaveOccurred(), "Failed to load gatherer")
 
