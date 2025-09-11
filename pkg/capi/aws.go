@@ -2,6 +2,8 @@ package capi
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -148,13 +150,9 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 
 	//OCP-78677 - [CAPI] Dedicated tenancy should be exposed on aws providerspec.
 	It("should be able to run a machine with dedicated instance", func() {
-		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
-		awsMachineTemplate.Spec.Template.Spec.Tenancy = "dedicated"
-		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
-		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-78677", machineSetParams)
-		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
-		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
-		framework.WaitForCAPIMachinesRunning(ctx, cl, machineSet.Name)
+		machineSet, awsMachineTemplate = createAWSCAPIMachineSetWithRetry(ctx, cl, "aws-machineset-78677", clusterName, mapiDefaultProviderSpec, 4, func(template *awsv1.AWSMachineTemplate, instanceType string) {
+			template.Spec.Template.Spec.Tenancy = "dedicated"
+		})
 	})
 
 	//huliu-OCP-75662 - [CAPI] AWS Machine API Support of more than one block device.
@@ -233,13 +231,9 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 
 	//OCP-79026 - [CAPI] Spot instance can be created successfully with CAPI on aws.
 	It("should be able to run a machine with SpotMarketOptions", func() {
-		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
-		awsMachineTemplate.Spec.Template.Spec.SpotMarketOptions = &awsv1.SpotMarketOptions{}
-		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
-		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-79026", machineSetParams)
-		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
-		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
-		framework.WaitForCAPIMachinesRunning(ctx, cl, machineSet.Name)
+		machineSet, awsMachineTemplate = createAWSCAPIMachineSetWithRetry(ctx, cl, "aws-machineset-79026", clusterName, mapiDefaultProviderSpec, 4, func(template *awsv1.AWSMachineTemplate, instanceType string) {
+			template.Spec.Template.Spec.SpotMarketOptions = &awsv1.SpotMarketOptions{}
+		})
 	})
 })
 
@@ -340,4 +334,91 @@ func newAWSMachineTemplate(name string, mapiProviderSpec *mapiv1.AWSMachineProvi
 	}
 
 	return awsMachineTemplate
+}
+
+// createAWSCAPIMachineSetWithRetry creates a CAPI MachineSet with retry logic for capacity constraints.
+// It tries different instance types when encountering insufficient capacity errors.
+func createAWSCAPIMachineSetWithRetry(ctx context.Context, cl client.Client, machineSetName string, clusterName string, mapiDefaultProviderSpec *mapiv1.AWSMachineProviderConfig, maxRetries int, templateConfigurator func(*awsv1.AWSMachineTemplate, string)) (*clusterv1.MachineSet, *awsv1.AWSMachineTemplate) {
+	machineSetReady := false
+
+	// Get the current cluster architecture
+	workers, err := framework.GetWorkerMachineSets(ctx, cl)
+	Expect(err).ToNot(HaveOccurred(), "listing Worker MachineSets should not error.")
+	Expect(len(workers)).To(BeNumerically(">=", 1), "expected at least one worker MachineSet to exist")
+
+	arch, err := framework.GetArchitectureFromMachineSetNodes(ctx, cl, workers[0])
+	Expect(err).NotTo(HaveOccurred(), "unable to get the architecture for the machine set")
+
+	// Select alternative instance types based on architecture
+	var alternativeInstanceTypes []string
+
+	switch arch {
+	case "arm64":
+		alternativeInstanceTypes = []string{"m6g.large", "m6g.xlarge", "c6g.large", "c6g.xlarge"}
+	default: // x86_64/amd64
+		alternativeInstanceTypes = []string{"m6i.large", "m5.large", "m6i.xlarge", "m5.xlarge"}
+	}
+
+	var machineSet *clusterv1.MachineSet
+
+	var awsMachineTemplate *awsv1.AWSMachineTemplate
+
+	for i, instanceType := range alternativeInstanceTypes {
+		if i >= maxRetries {
+			// If there are many alternatives, only try the specified number of times
+			break
+		}
+
+		By(fmt.Sprintf("Attempting creation of CAPI MachineSet/AWSMachineTemplate with instance type %s for %s architecture", instanceType, arch))
+
+		// Create AWS machine template
+		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
+		awsMachineTemplate.Spec.Template.Spec.InstanceType = instanceType
+
+		// Apply specific configuration (spot, dedicated, etc.)
+		templateConfigurator(awsMachineTemplate, instanceType)
+
+		Eventually(func() error {
+			return cl.Create(ctx, awsMachineTemplate)
+		}, framework.WaitShort, framework.RetryShort).Should(Succeed(), "Failed to create awsmachinetemplate")
+
+		machineSetParams := framework.NewCAPIMachineSetParams(
+			machineSetName,
+			clusterName,
+			mapiDefaultProviderSpec.Placement.AvailabilityZone,
+			1,
+			corev1.ObjectReference{
+				Kind:       "AWSMachineTemplate",
+				APIVersion: infraAPIVersion,
+				Name:       awsMachineTemplateName,
+			},
+		)
+
+		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
+		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
+
+		// Define AWS-specific capacity error keys
+		awsCapacityErrorKeys := []string{"InsufficientInstanceCapacity"}
+		err = framework.WaitForCAPIMachinesRunningWithRetry(ctx, cl, machineSet.Name, awsCapacityErrorKeys)
+
+		if errors.Is(err, framework.ErrMachineNotProvisionedInsufficientCloudCapacity) {
+			By("Cleaning up failed CAPI MachineSet/AWSMachineTemplate creation attempt because of failed provisioning due to insufficient capacity")
+			// If machineSet cannot scale up due to insufficient capacity, try again with different instance type
+			framework.DeleteCAPIMachineSets(ctx, cl, machineSet)
+			framework.WaitForCAPIMachineSetsDeleted(ctx, cl, machineSet)
+			framework.DeleteObjects(ctx, cl, awsMachineTemplate)
+
+			continue
+		}
+
+		Expect(err).ToNot(HaveOccurred(), "Error while waiting for CAPI MachineSet Machines to be ready")
+
+		machineSetReady = true
+
+		break // MachineSet created successfully
+	}
+
+	Expect(machineSetReady).To(BeTrue(), "Failed to create CAPI MachineSet with capacity retry")
+
+	return machineSet, awsMachineTemplate
 }
