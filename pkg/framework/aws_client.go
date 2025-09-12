@@ -58,13 +58,13 @@ func newAwsSession(accessKeyID []byte, secureKey []byte, clusterRegion string) *
 }
 
 // CreateCapacityReservation Create CapacityReservation.
-func (a *AwsClient) CreateCapacityReservation(instanceType string, instancePlatform string, availabilityZone string, instanceCount int64) (string, error) {
+func (a *AwsClient) CreateCapacityReservation(instanceType string, instancePlatform string, availabilityZone string, instanceCount int64, instanceMatchCriteria string) (string, error) {
 	input := &ec2.CreateCapacityReservationInput{
 		InstanceType:          aws.String(instanceType),
 		InstancePlatform:      aws.String(instancePlatform),
 		AvailabilityZone:      aws.String(availabilityZone),
 		InstanceCount:         aws.Int64(instanceCount),
-		InstanceMatchCriteria: aws.String("targeted"),
+		InstanceMatchCriteria: aws.String(instanceMatchCriteria),
 		EndDateType:           aws.String("limited"),
 		EndDate:               timePtr(time.Now().Add(35 * time.Minute)),
 	}
@@ -169,6 +169,24 @@ func (akms *AwsKmsClient) DeleteKey(key string) error {
 	})
 
 	return err
+}
+
+// DescribeInstance describes an EC2 instance by instance ID.
+func (a *AwsClient) DescribeInstance(instanceID string) (*ec2.Instance, error) {
+	input := &ec2.DescribeInstancesInput{
+		InstanceIds: []*string{aws.String(instanceID)},
+	}
+
+	result, err := a.svc.DescribeInstances(input)
+	if err != nil {
+		return nil, fmt.Errorf("error describing instance %s: %w", instanceID, err)
+	}
+
+	if len(result.Reservations) == 0 || len(result.Reservations[0].Instances) == 0 {
+		return nil, fmt.Errorf("instance %s not found", instanceID)
+	}
+
+	return result.Reservations[0].Instances[0], nil
 }
 
 func timePtr(t time.Time) *time.Time {
