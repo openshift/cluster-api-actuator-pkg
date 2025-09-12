@@ -102,8 +102,10 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 		Expect(err).ToNot(HaveOccurred(), "Failed to create placementgroup")
 		Expect(placementGroupID).ToNot(Equal(""), "expected the placementGroupID to not be empty string")
 		DeferCleanup(func() {
-			_, err = awsClient.DeletePlacementGroup(placementGroupName)
-			Expect(err).ToNot(HaveOccurred(), "Failed to delete placementgroup")
+			Eventually(func() error {
+				_, err = awsClient.DeletePlacementGroup(placementGroupName)
+				return err
+			}, framework.WaitShort, framework.RetryMedium).Should(Succeed(), "Failed to delete placementgroup after retries")
 		})
 
 		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
