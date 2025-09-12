@@ -221,8 +221,13 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 
 	//OCP-81293 - [CAPI][AWS] Support AWS EFA network interface type in CAPI.
 	It("should be able to run a machine with EFA network interface type", func() {
+		// c5n.9xlarge with EFA may not be available in all regions
+		if mapiDefaultProviderSpec.Placement.Region != "us-east-2" && mapiDefaultProviderSpec.Placement.Region != "us-west-2" {
+			Skip("c5n.9xlarge instances with EFA support may not be available in all regions, limiting this test to us-east-2 and us-west-2")
+		}
+
 		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
-		awsMachineTemplate.Spec.Template.Spec.InstanceType = "m5dn.24xlarge"
+		awsMachineTemplate.Spec.Template.Spec.InstanceType = "c5n.9xlarge"
 		awsMachineTemplate.Spec.Template.Spec.NetworkInterfaceType = awsv1.NetworkInterfaceTypeEFAWithENAInterface
 		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
 		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-81293", machineSetParams)
