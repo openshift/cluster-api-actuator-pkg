@@ -121,7 +121,11 @@ func DeleteCAPIMachineSets(ctx context.Context, cl client.Client, machineSets ..
 	for _, ms := range machineSets {
 		By(fmt.Sprintf("Deleting MachineSet %q", ms.GetName()))
 		Eventually(func() error {
-			return cl.Delete(ctx, ms)
+			if err := cl.Delete(ctx, ms); err != nil && !apierrors.IsNotFound(err) {
+				return err
+			}
+
+			return nil
 		}, WaitLong, RetryShort).Should(Succeed(), "the CAPI MachineSets should have been deleted")
 	}
 }
