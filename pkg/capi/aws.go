@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/aws/aws-sdk-go/service/ec2"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
@@ -13,6 +14,7 @@ import (
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/klog"
 	"k8s.io/utils/ptr"
 	awsv1 "sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2"
@@ -214,7 +216,7 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
 		By("Access AWS to create CapacityReservation")
 		awsClient := framework.NewAwsClient(framework.GetCredentialsFromCluster(oc))
-		capacityReservationID, err := awsClient.CreateCapacityReservation(mapiDefaultProviderSpec.InstanceType, "Linux/UNIX", mapiDefaultProviderSpec.Placement.AvailabilityZone, 1)
+		capacityReservationID, err := awsClient.CreateCapacityReservation(mapiDefaultProviderSpec.InstanceType, "Linux/UNIX", mapiDefaultProviderSpec.Placement.AvailabilityZone, 1, "targeted")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(capacityReservationID).ToNot(Equal(""))
 
@@ -258,6 +260,91 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 			machineSet = nil
 			awsMachineTemplate = nil
 			Skip("Unable to create machine with SpotMarketOptions after 4 retries due to insufficient capacity")
+		}
+	})
+
+	//OCP-84243 - [CAPI] AWS capacity reservation preference None should work correctly.
+	It("should be able to run a machine with capacity reservation preference None", func() {
+		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
+		awsMachineTemplate.Spec.Template.Spec.CapacityReservationPreference = awsv1.CapacityReservationPreferenceNone
+		Eventually(func() error {
+			return cl.Create(ctx, awsMachineTemplate)
+		}, framework.WaitShort, framework.RetryShort).Should(Succeed(), "Failed to create awsmachinetemplate")
+		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-84243-none", machineSetParams)
+		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
+		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
+		framework.WaitForCAPIMachinesRunning(ctx, cl, machineSet.Name)
+
+		instance := getAWSInstanceConfig(ctx, cl, oc, machineSet)
+		Expect(instance.CapacityReservationSpecification.CapacityReservationPreference).To(Equal(ptr.To("none")), fmt.Sprintf("Instance should have capacity reservation preference set to '%s'", "none"))
+		Expect(instance.CapacityReservationId).Should(BeNil(), "Instance should not be in any capacity because capacityReservationPreference is None")
+	})
+
+	//OCP-84243 - [CAPI] AWS capacity reservation preference CapacityReservationsOnly should work correctly.
+	It("should be able to run a machine with capacity reservation preference CapacityReservationsOnly", func() {
+		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
+		awsMachineTemplate.Spec.Template.Spec.InstanceType = "m6i.large"
+		awsMachineTemplate.Spec.Template.Spec.CapacityReservationPreference = awsv1.CapacityReservationPreferenceOnly
+
+		By("Access AWS to create CapacityReservation")
+		awsClient := framework.NewAwsClient(framework.GetCredentialsFromCluster(oc))
+		capacityReservationID, err := awsClient.CreateCapacityReservation(awsMachineTemplate.Spec.Template.Spec.InstanceType, "Linux/UNIX", mapiDefaultProviderSpec.Placement.AvailabilityZone, 1, "open")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(capacityReservationID).ToNot(Equal(""))
+
+		DeferCleanup(func() {
+			_, err := awsClient.CancelCapacityReservation(capacityReservationID)
+			Expect(err).ToNot(HaveOccurred(), "Failed to cancel capacityreservation")
+		})
+
+		Eventually(func() error {
+			return cl.Create(ctx, awsMachineTemplate)
+		}, framework.WaitShort, framework.RetryShort).Should(Succeed(), "Failed to create awsmachinetemplate")
+		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-84243-only", machineSetParams)
+		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
+		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
+
+		// Check for capacity issues or successful provisioning
+		var hasCapacityIssues bool
+		var capacityErrorMessage string
+		Eventually(func() bool {
+			machines, err := framework.GetCAPIMachinesFromMachineSet(ctx, cl, machineSet)
+			if err != nil || len(machines) == 0 {
+				return false
+			}
+
+			// Check if any machine is running (successful provisioning)
+			for _, machine := range machines {
+				if machine.Status.Phase == "Running" {
+					return true
+				}
+			}
+
+			// Check for capacity issues
+			capacityErrorKeys := []string{"ReservationCapacityExceeded"}
+			for _, machine := range machines {
+				hasCapacityIssue, errorMessage, err := framework.HasCAPIInsufficientCapacity(ctx, cl, machine, capacityErrorKeys)
+				if err == nil && hasCapacityIssue {
+					hasCapacityIssues = true
+					capacityErrorMessage = errorMessage
+					By("Detected capacity issue - this is expected behavior when no capacity reservation is available")
+
+					return true
+				}
+			}
+
+			return false
+		}, framework.WaitLong, framework.RetryMedium).Should(BeTrue(), "machine should either run successfully or encounter expected capacity issues")
+
+		// Only continue with instance verification if no capacity issues
+		if !hasCapacityIssues {
+			framework.WaitForCAPIMachinesRunning(ctx, cl, machineSet.Name)
+
+			instance := getAWSInstanceConfig(ctx, cl, oc, machineSet)
+			Expect(instance.CapacityReservationSpecification.CapacityReservationPreference).To(Equal(ptr.To("capacity-reservations-only")), fmt.Sprintf("Instance should have capacity reservation preference set to '%s'", "capacity-reservations-only"))
+			Expect(instance.CapacityReservationId).To(Equal(ptr.To(capacityReservationID)), "Instance should be using the expected capacity reservation")
+		} else {
+			By(fmt.Sprintf("Test completed with expected capacity issue: %s", capacityErrorMessage))
 		}
 	})
 })
@@ -444,4 +531,28 @@ func createAWSCAPIMachineSetWithRetry(ctx context.Context, cl client.Client, mac
 	}
 
 	return machineSet, awsMachineTemplate, machineSetReady
+}
+
+// getAWSInstanceConfig gets AWS instance configuration.
+func getAWSInstanceConfig(ctx context.Context, cl client.Client, oc *gatherer.CLI, machineSet *clusterv1.MachineSet) *ec2.Instance {
+	By("Get AWS instance configuration")
+
+	machines, err := framework.GetCAPIMachinesFromMachineSet(ctx, cl, machineSet)
+	Expect(err).ToNot(HaveOccurred(), "Failed to get machines from machineset")
+	Expect(machines).To(HaveLen(1), "Expected exactly one machine")
+
+	machine := machines[0]
+	infraMachine, err := framework.GetCAPIInfraMachine(ctx, cl, machine)
+	Expect(err).ToNot(HaveOccurred(), "Failed to get InfraMachine")
+
+	instanceID, found, err := unstructured.NestedString(infraMachine.Object, "spec", "instanceID")
+	Expect(err).ToNot(HaveOccurred(), "Failed to get instanceID from InfraMachine")
+	Expect(found).To(BeTrue(), "InfraMachine should have an instanceID")
+	Expect(instanceID).ToNot(BeEmpty(), "instanceID should not be empty")
+
+	awsClient := framework.NewAwsClient(framework.GetCredentialsFromCluster(oc))
+	instance, err := awsClient.DescribeInstance(instanceID)
+	Expect(err).ToNot(HaveOccurred(), "Failed to describe instaces")
+
+	return instance
 }

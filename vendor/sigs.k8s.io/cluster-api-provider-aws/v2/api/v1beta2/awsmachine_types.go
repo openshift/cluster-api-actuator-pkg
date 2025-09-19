@@ -233,6 +233,26 @@ type AWSMachineSpec struct {
 	// If marketType is not specified and spotMarketOptions is provided, the marketType defaults to "Spot".
 	// +optional
 	MarketType MarketType `json:"marketType,omitempty"`
+
+	// HostID specifies the Dedicated Host on which the instance must be started.
+	// +optional
+	HostID *string `json:"hostID,omitempty"`
+
+	// HostAffinity specifies the dedicated host affinity setting for the instance.
+	// When hostAffinity is set to host, an instance started onto a specific host always restarts on the same host if stopped.
+	// When hostAffinity is set to default, and you stop and restart the instance, it can be restarted on any available host.
+	// When HostAffinity is defined, HostID is required.
+	// +optional
+	// +kubebuilder:validation:Enum:=default;host
+	HostAffinity *string `json:"hostAffinity,omitempty"`
+
+	// CapacityReservationPreference specifies the preference for use of Capacity Reservations by the instance. Valid values include:
+	// "Open": The instance may make use of open Capacity Reservations that match its AZ and InstanceType
+	// "None": The instance may not make use of any Capacity Reservations. This is to conserve open reservations for desired workloads
+	// "CapacityReservationsOnly": The instance will only run if matched or targeted to a Capacity Reservation. Note that this is incompatible with a MarketType of `Spot`
+	// +kubebuilder:validation:Enum="";None;CapacityReservationsOnly;Open
+	// +optional
+	CapacityReservationPreference CapacityReservationPreference `json:"capacityReservationPreference,omitempty"`
 }
 
 // CloudInit defines options related to the bootstrapping systems where

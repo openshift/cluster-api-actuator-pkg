@@ -238,7 +238,7 @@ var _ = Describe("CapacityReservationID", framework.LabelDisruptive, framework.L
 		By("Access AWS to create CapacityReservation")
 		oc, _ := framework.NewCLI()
 		awsClient := framework.NewAwsClient(framework.GetCredentialsFromCluster(oc))
-		capacityReservationID, err := awsClient.CreateCapacityReservation(awsProviderConfig.InstanceType, "Linux/UNIX", awsProviderConfig.Placement.AvailabilityZone, 1)
+		capacityReservationID, err := awsClient.CreateCapacityReservation(awsProviderConfig.InstanceType, "Linux/UNIX", awsProviderConfig.Placement.AvailabilityZone, 1, "targeted")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(capacityReservationID).ToNot(Equal(""))
 
