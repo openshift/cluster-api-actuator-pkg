@@ -81,9 +81,13 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 	})
 
 	AfterEach(func() {
-		framework.DeleteCAPIMachineSets(ctx, cl, machineSet)
-		framework.WaitForCAPIMachineSetsDeleted(ctx, cl, machineSet)
-		framework.DeleteObjects(ctx, cl, awsMachineTemplate)
+		if machineSet != nil {
+			framework.DeleteCAPIMachineSets(ctx, cl, machineSet)
+			framework.WaitForCAPIMachineSetsDeleted(ctx, cl, machineSet)
+		}
+		if awsMachineTemplate != nil {
+			framework.DeleteObjects(ctx, cl, awsMachineTemplate)
+		}
 	})
 
 	//huliu-OCP-51071 - [CAPI] Create machineset with CAPI on aws
@@ -152,9 +156,16 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 
 	//OCP-78677 - [CAPI] Dedicated tenancy should be exposed on aws providerspec.
 	It("should be able to run a machine with dedicated instance", func() {
-		machineSet, awsMachineTemplate = createAWSCAPIMachineSetWithRetry(ctx, cl, "aws-machineset-78677", clusterName, mapiDefaultProviderSpec, 4, func(template *awsv1.AWSMachineTemplate, instanceType string) {
+		var success bool
+		machineSet, awsMachineTemplate, success = createAWSCAPIMachineSetWithRetry(ctx, cl, "aws-machineset-78677", clusterName, mapiDefaultProviderSpec, 4, func(template *awsv1.AWSMachineTemplate, instanceType string) {
 			template.Spec.Template.Spec.Tenancy = "dedicated"
 		})
+		if !success {
+			// Resources have been cleaned up during retry, set to nil to avoid duplicate cleanup in AfterEach
+			machineSet = nil
+			awsMachineTemplate = nil
+			Skip("Unable to create machine with dedicated instance after 4 retries due to insufficient capacity")
+		}
 	})
 
 	//huliu-OCP-75662 - [CAPI] AWS Machine API Support of more than one block device.
@@ -238,9 +249,16 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 
 	//OCP-79026 - [CAPI] Spot instance can be created successfully with CAPI on aws.
 	It("should be able to run a machine with SpotMarketOptions", func() {
-		machineSet, awsMachineTemplate = createAWSCAPIMachineSetWithRetry(ctx, cl, "aws-machineset-79026", clusterName, mapiDefaultProviderSpec, 4, func(template *awsv1.AWSMachineTemplate, instanceType string) {
+		var success bool
+		machineSet, awsMachineTemplate, success = createAWSCAPIMachineSetWithRetry(ctx, cl, "aws-machineset-79026a", clusterName, mapiDefaultProviderSpec, 4, func(template *awsv1.AWSMachineTemplate, instanceType string) {
 			template.Spec.Template.Spec.SpotMarketOptions = &awsv1.SpotMarketOptions{}
 		})
+		if !success {
+			// Resources have been cleaned up during retry, set to nil to avoid duplicate cleanup in AfterEach
+			machineSet = nil
+			awsMachineTemplate = nil
+			Skip("Unable to create machine with SpotMarketOptions after 4 retries due to insufficient capacity")
+		}
 	})
 })
 
@@ -345,7 +363,7 @@ func newAWSMachineTemplate(name string, mapiProviderSpec *mapiv1.AWSMachineProvi
 
 // createAWSCAPIMachineSetWithRetry creates a CAPI MachineSet with retry logic for capacity constraints.
 // It tries different instance types when encountering insufficient capacity errors.
-func createAWSCAPIMachineSetWithRetry(ctx context.Context, cl client.Client, machineSetName string, clusterName string, mapiDefaultProviderSpec *mapiv1.AWSMachineProviderConfig, maxRetries int, templateConfigurator func(*awsv1.AWSMachineTemplate, string)) (*clusterv1.MachineSet, *awsv1.AWSMachineTemplate) {
+func createAWSCAPIMachineSetWithRetry(ctx context.Context, cl client.Client, machineSetName string, clusterName string, mapiDefaultProviderSpec *mapiv1.AWSMachineProviderConfig, maxRetries int, templateConfigurator func(*awsv1.AWSMachineTemplate, string)) (*clusterv1.MachineSet, *awsv1.AWSMachineTemplate, bool) {
 	machineSetReady := false
 
 	// Get the current cluster architecture
@@ -425,7 +443,5 @@ func createAWSCAPIMachineSetWithRetry(ctx context.Context, cl client.Client, mac
 		break // MachineSet created successfully
 	}
 
-	Expect(machineSetReady).To(BeTrue(), "Failed to create CAPI MachineSet with capacity retry")
-
-	return machineSet, awsMachineTemplate
+	return machineSet, awsMachineTemplate, machineSetReady
 }
