@@ -160,6 +160,31 @@ github.com/aws/aws-sdk-go/service/sso/ssoiface
 github.com/aws/aws-sdk-go/service/ssooidc
 github.com/aws/aws-sdk-go/service/sts
 github.com/aws/aws-sdk-go/service/sts/stsiface
+# github.com/aws/aws-sdk-go-v2 v1.38.0
+## explicit; go 1.22
+github.com/aws/aws-sdk-go-v2/aws
+github.com/aws/aws-sdk-go-v2/internal/rand
+github.com/aws/aws-sdk-go-v2/internal/sdk
+github.com/aws/aws-sdk-go-v2/internal/sync/singleflight
+# github.com/aws/aws-sdk-go-v2/service/ec2 v1.233.0
+## explicit; go 1.22
+github.com/aws/aws-sdk-go-v2/service/ec2/types
+# github.com/aws/smithy-go v1.22.5
+## explicit; go 1.22
+github.com/aws/smithy-go
+github.com/aws/smithy-go/auth
+github.com/aws/smithy-go/auth/bearer
+github.com/aws/smithy-go/context
+github.com/aws/smithy-go/document
+github.com/aws/smithy-go/internal/sync/singleflight
+github.com/aws/smithy-go/logging
+github.com/aws/smithy-go/metrics
+github.com/aws/smithy-go/middleware
+github.com/aws/smithy-go/ptr
+github.com/aws/smithy-go/time
+github.com/aws/smithy-go/tracing
+github.com/aws/smithy-go/transport/http
+github.com/aws/smithy-go/transport/http/internal/io
 # github.com/beorn7/perks v1.0.1
 ## explicit; go 1.11
 github.com/beorn7/perks/quantile
@@ -2053,8 +2078,8 @@ sigs.k8s.io/cluster-api/util/conditions
 sigs.k8s.io/cluster-api/util/contract
 sigs.k8s.io/cluster-api/util/labels/format
 sigs.k8s.io/cluster-api/util/topology
-# sigs.k8s.io/cluster-api-provider-aws/v2 v2.8.4 => sigs.k8s.io/cluster-api-provider-aws/v2 v2.8.2-0.20250716162825-8d4c7f249717
-## explicit; go 1.23.0
+# sigs.k8s.io/cluster-api-provider-aws/v2 v2.9.0
+## explicit; go 1.23.1
 sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2
 sigs.k8s.io/cluster-api-provider-aws/v2/feature
 # sigs.k8s.io/cluster-api-provider-azure v1.20.1
@@ -2216,4 +2241,3 @@ sigs.k8s.io/structured-merge-diff/v4/value
 sigs.k8s.io/yaml
 sigs.k8s.io/yaml/goyaml.v2
 sigs.k8s.io/yaml/goyaml.v3
-# sigs.k8s.io/cluster-api-provider-aws/v2 => sigs.k8s.io/cluster-api-provider-aws/v2 v2.8.2-0.20250716162825-8d4c7f249717
