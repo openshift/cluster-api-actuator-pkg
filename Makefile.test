@@ -1,0 +1,58 @@
+# Test-specific Makefile
+# For running unified framework tests with different backend configurations
+# Supports 3 test scenarios: pure MAPI, pure CAPI, and conversion layer testing
+
+.PHONY: test-mapi test-capi test-mapi-with-capi-auth test-all show-config help
+
+# MAPI testing: MAPI as authoritative API (CAPI mirrors created by OpenShift)
+test-mapi:
+	@echo "Running tests with MAPI backend and MAPI authoritative API (MAPI authoritative, CAPI mirrors)"
+	TEST_BACKEND_TYPE=MAPI TEST_AUTHORITATIVE_API=MAPI go test -v ./pkg/unified/ -ginkgo.v
+
+# Pure CAPI testing: native CAPI behavior (no MAPI involvement)
+test-capi:
+	@echo "Running tests with CAPI backend (pure CAPI, no MAPI involved)"
+	TEST_BACKEND_TYPE=CAPI TEST_AUTHORITATIVE_API=CAPI go test -v ./pkg/unified/ -ginkgo.v
+
+# Conversion layer testing: tests OpenShift conversion layer functionality
+test-mapi-with-capi-auth:
+	@echo "Running tests with MAPI backend but CAPI authoritative API (OpenShift conversion layer)"
+	TEST_BACKEND_TYPE=MAPI TEST_AUTHORITATIVE_API=CAPI go test -v ./pkg/unified/ -ginkgo.v
+
+# Run all test configurations
+test-all: test-mapi test-capi test-mapi-with-capi-auth
+	@echo "All test configurations completed"
+
+# Show test configuration
+show-config:
+	@echo "Current test configuration:"
+	@echo "TEST_BACKEND_TYPE: $(or $(TEST_BACKEND_TYPE),MAPI)"
+	@echo "TEST_AUTHORITATIVE_API: $(or $(TEST_AUTHORITATIVE_API),MAPI)"
+	
+# Help information
+help:
+	@echo "Unified Test Framework - Makefile for testing MAPI/CAPI backends"
+	@echo ""
+	@echo "Available test targets:"
+	@echo "  test-mapi                    - MAPI authoritative testing (MAPI auth, CAPI mirrors)"
+	@echo "  test-capi                    - Pure CAPI testing (no MAPI involvement)"
+	@echo "  test-mapi-with-capi-auth    - Conversion layer testing (CAPI becomes authoritative)"
+	@echo "  test-all                     - Run all supported test configurations"
+	@echo "  show-config                  - Show current test configuration"
+	@echo "  help                         - Show this help message"
+	@echo ""
+	@echo "Test scenarios explained:"
+	@echo "  1. MAPI + MAPI Auth:        MAPI MachineSets with authoritativeAPI: MachineAPI"
+	@echo "                              (MAPI remains authoritative, CAPI mirrors created)"
+	@echo "  2. CAPI + CAPI Auth:        Pure CAPI MachineSets (no MAPI involved)"
+	@echo "  3. MAPI + CAPI Auth:        MAPI MachineSets with authoritativeAPI: ClusterAPI"
+	@echo "                              (CAPI becomes authoritative via conversion layer)"
+	@echo ""
+	@echo "Environment variables:"
+	@echo "  TEST_BACKEND_TYPE           - Set backend type (MAPI or CAPI)"
+	@echo "  TEST_AUTHORITATIVE_API      - Set authoritative API type (MAPI or CAPI)"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make test-mapi-with-capi-auth   # Test conversion layer"
+	@echo "  make test-all                   # Run all 3 scenarios"
+	@echo "  make show-config                # Check current settings"
