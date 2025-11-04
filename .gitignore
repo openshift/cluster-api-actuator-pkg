@@ -3,3 +3,6 @@
 .cache
 
 _out/
+
+# Test binaries
+*.test
