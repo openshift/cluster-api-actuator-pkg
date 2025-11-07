@@ -1,11 +1,13 @@
 package operators
 
 import (
+	"context"
 	"strconv"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	configv1 "github.com/openshift/api/config/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -24,12 +26,20 @@ const (
 	cmaMetricsPort     = 9193
 )
 
+var (
+	ctx    context.Context
+	client runtimeclient.Client
+)
+
+var _ = BeforeEach(func() {
+	var err error
+	ctx = framework.GetContext()
+	client, err = framework.LoadClient()
+	Expect(err).NotTo(HaveOccurred(), "Failed to load client")
+})
+
 var _ = Describe("Cluster Machine Approver deployment", framework.LabelMachineApprover, framework.LabelLEVEL0, func() {
 	It("should be available", func() {
-		ctx := framework.GetContext()
-
-		client, err := framework.LoadClient()
-		Expect(err).NotTo(HaveOccurred(), "Failed to load client")
 
 		Expect(framework.IsDeploymentAvailable(ctx, client, cmaDeployment, cmaNamespace)).To(BeTrue(),
 			"Failed to wait for cluster-machine-approver Deployment to become available")
@@ -38,22 +48,13 @@ var _ = Describe("Cluster Machine Approver deployment", framework.LabelMachineAp
 
 var _ = Describe("Cluster Machine Approver Cluster Operator Status", framework.LabelMachineApprover, framework.LabelLEVEL0, func() {
 	It("should be available", func() {
-		client, err := framework.LoadClient()
-		Expect(err).NotTo(HaveOccurred(), "Failed to load client")
-
-		ctx := framework.GetContext()
-
 		Expect(framework.WaitForStatusAvailableShort(ctx, client, cmaClusterOperator)).To(BeTrue(),
 			"Failed to wait for cluster-machine-approver Cluster Operator to be available")
 	})
 })
 
-var _ = Describe("Cluster Machine Approver CAPI Integration", framework.LabelMachineApprover, framework.LabelLEVEL0, func() {
-	It("cluster-machine-approver must have endpoint slices for open ports the operator uses", func() {
-		ctx := framework.GetContext()
-		client, err := framework.LoadClient()
-		Expect(err).NotTo(HaveOccurred(), "Failed to load client")
-
+var _ = Describe("Cluster Machine Approver CAPI Integration", framework.LabelMachineApprover, func() {
+	BeforeEach(func() {
 		// Pre-check: Skip if cluster doesn't have TechPreviewNoUpgrade or CustomNoUpgrade featuregate enabled
 		oc, err := framework.NewCLI()
 		Expect(err).NotTo(HaveOccurred(), "Failed to create CLI")
@@ -61,9 +62,13 @@ var _ = Describe("Cluster Machine Approver CAPI Integration", framework.LabelMac
 		featureSet, err := oc.WithoutNamespace().Run("get").Args("featuregate", "cluster", "-o=jsonpath={.spec.featureSet}").Output()
 		Expect(err).NotTo(HaveOccurred(), "Failed to get featureSet")
 
-		if featureSet != "TechPreviewNoUpgrade" && featureSet != "CustomNoUpgrade" {
+		// Check against the same constants used by SkipIfNotTechPreviewNoUpgrade and SkipIfNotCustomNoUpgrade
+		if featureSet != string(configv1.TechPreviewNoUpgrade) && featureSet != string(configv1.CustomNoUpgrade) {
 			Skip("Cluster does not have TechPreviewNoUpgrade or CustomNoUpgrade featuregate enabled. Not a valid cluster for this test.")
 		}
+	})
+
+	It("cluster-machine-approver must have endpoint slices for open ports the operator uses", func() {
 
 		// Test Case 1: Verify machine-approver-capi deployment has port 9193 configured with internal IP 127.0.0.1
 		deployment, err := framework.GetDeployment(ctx, client, cmaDeploymentcapi, cmaNamespace)
@@ -121,41 +126,43 @@ var _ = Describe("Cluster Machine Approver CAPI Integration", framework.LabelMac
 			"Service machine-approver-capi should have port 9194")
 
 		// Test Case 3: Verify endpoint slices exist for above ports
-		endpointSlices := &discoveryv1.EndpointSliceList{}
-		err = client.List(ctx, endpointSlices, runtimeclient.InNamespace(cmaNamespace))
-		Expect(err).NotTo(HaveOccurred(), "Failed to list endpoint slices")
+		Eventually(func() bool {
+			endpointSlices := &discoveryv1.EndpointSliceList{}
+			err := client.List(ctx, endpointSlices, runtimeclient.InNamespace(cmaNamespace))
+			if err != nil {
+				return false
+			}
 
-		// Find endpoint slices for machine-approver (port 9192)
-		foundMaEndpoint := false
-		foundCapiEndpoint := false
+			// Find endpoint slices for machine-approver (port 9192)
+			foundMaEndpoint := false
+			foundCapiEndpoint := false
 
-		for _, slice := range endpointSlices.Items {
-			serviceName := slice.Labels["kubernetes.io/service-name"]
+			for _, slice := range endpointSlices.Items {
+				serviceName := slice.Labels["kubernetes.io/service-name"]
 
-			// Check for machine-approver endpoint slice with port 9192
-			if serviceName == cmaService {
-				for _, port := range slice.Ports {
-					if port.Port != nil && *port.Port == cmaServicePort {
-						foundMaEndpoint = true
-						break
+				// Check for machine-approver endpoint slice with port 9192
+				if serviceName == cmaService {
+					for _, port := range slice.Ports {
+						if port.Port != nil && *port.Port == cmaServicePort {
+							foundMaEndpoint = true
+							break
+						}
+					}
+				}
+
+				// Check for machine-approver-capi endpoint slice with port 9194
+				if serviceName == cmaServicecapi {
+					for _, port := range slice.Ports {
+						if port.Port != nil && *port.Port == cmaServicePortcapi {
+							foundCapiEndpoint = true
+							break
+						}
 					}
 				}
 			}
 
-			// Check for machine-approver-capi endpoint slice with port 9194
-			if serviceName == cmaServicecapi {
-				for _, port := range slice.Ports {
-					if port.Port != nil && *port.Port == cmaServicePortcapi {
-						foundCapiEndpoint = true
-						break
-					}
-				}
-			}
-		}
-
-		Expect(foundMaEndpoint).To(BeTrue(),
-			"EndpointSlice for machine-approver service (port 9192) should exist")
-		Expect(foundCapiEndpoint).To(BeTrue(),
-			"EndpointSlice for machine-approver-capi service (port 9194) should exist")
+			return foundMaEndpoint && foundCapiEndpoint
+		}, framework.WaitShort, framework.RetryMedium).Should(BeTrue(),
+			"EndpointSlices for machine-approver (port 9192) and machine-approver-capi (port 9194) should exist")
 	})
 })
