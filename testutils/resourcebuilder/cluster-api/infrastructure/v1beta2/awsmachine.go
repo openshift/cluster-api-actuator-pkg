@@ -44,6 +44,8 @@ type AWSMachineBuilder struct {
 	capacityReservationID    *string
 	cloudInit                capav1.CloudInit
 	elasticIPPool            *capav1.ElasticIPPool
+	hostID                   *string
+	hostAffinity             *string
 	iamInstanceProfile       string
 	ignition                 *capav1.Ignition
 	imageLookupBaseOS        string
@@ -100,6 +102,8 @@ func (a AWSMachineBuilder) Build() *capav1.AWSMachine {
 			CapacityReservationID:    a.capacityReservationID,
 			CloudInit:                a.cloudInit,
 			ElasticIPPool:            a.elasticIPPool,
+			HostAffinity:             a.hostAffinity,
+			HostID:                   a.hostID,
 			IAMInstanceProfile:       a.iamInstanceProfile,
 			Ignition:                 a.ignition,
 			ImageLookupBaseOS:        a.imageLookupBaseOS,
@@ -393,5 +397,15 @@ func (a AWSMachineBuilder) WithInterruptible(interruptible bool) AWSMachineBuild
 // WithReady sets the ready for the AWSMachine builder.
 func (a AWSMachineBuilder) WithReady(ready bool) AWSMachineBuilder {
 	a.ready = ready
+	return a
+}
+
+func (a AWSMachineBuilder) WithHostAffinity(affinity *string) AWSMachineBuilder {
+	a.hostAffinity = affinity
+	return a
+}
+
+func (a AWSMachineBuilder) WithHostID(id *string) AWSMachineBuilder {
+	a.hostID = id
 	return a
 }

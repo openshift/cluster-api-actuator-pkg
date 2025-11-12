@@ -106,6 +106,7 @@ type AWSProviderSpecBuilder struct {
 	blockDevices           *[]machinev1beta1.BlockDeviceMappingSpec
 	credentialsSecret      **corev1.LocalObjectReference
 	deviceIndex            *int64
+	hostPlacement          *machinev1beta1.HostPlacement
 	iamInstanceProfile     **machinev1beta1.AWSResourceReference
 	instanceType           *string
 	keyName                **string
@@ -288,5 +289,10 @@ func (m AWSProviderSpecBuilder) WithTags(tags []machinev1beta1.TagSpecification)
 // WithUserDataSecret sets the UserDataSecret for the AWS machine config builder.
 func (m AWSProviderSpecBuilder) WithUserDataSecret(userDataSecret *corev1.LocalObjectReference) AWSProviderSpecBuilder {
 	m.userDataSecret = &userDataSecret
+	return m
+}
+
+func (m AWSProviderSpecBuilder) WithHostPlacement(hostPlacement *machinev1beta1.HostPlacement) AWSProviderSpecBuilder {
+	m.hostPlacement = hostPlacement
 	return m
 }
