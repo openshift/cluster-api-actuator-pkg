@@ -306,6 +306,16 @@ func SkipIfNotCustomNoUpgrade(oc *gatherer.CLI, cl runtimeclient.Client) {
 	}
 }
 
+// SkipIfNotTechPreviewNoUpgradeOrCustomNoUpgrade skip test if a cluster does not have TechPreviewNoUpgrade or CustomNoUpgrade featuregate enabled.
+func SkipIfNotTechPreviewNoUpgradeOrCustomNoUpgrade(oc *gatherer.CLI, cl runtimeclient.Client) {
+	featureSet, err := oc.WithoutNamespace().Run("get").Args("featuregate", "cluster", "-o=jsonpath={.spec.featureSet}").Output()
+	Expect(err).NotTo(HaveOccurred(), "Failed to get featureSet")
+
+	if featureSet != string(configv1.TechPreviewNoUpgrade) && featureSet != string(configv1.CustomNoUpgrade) {
+		Skip("Cluster does not have TechPreviewNoUpgrade or CustomNoUpgrade featuregate enabled. Not a valid cluster for this test.")
+	}
+}
+
 // GetCredentialsFromCluster get credentials from cluster.
 func GetCredentialsFromCluster(oc *gatherer.CLI) ([]byte, []byte, string) {
 	awscreds, err := oc.WithoutNamespace().Run("get").Args("secret/aws-creds", "-n", "kube-system", "-o", "json").Output()
