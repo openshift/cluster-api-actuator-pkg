@@ -406,8 +406,8 @@ github.com/openshift/cluster-autoscaler-operator v0.0.1-0.20250702183526-4eb64d5
 github.com/openshift/cluster-autoscaler-operator v0.0.1-0.20250702183526-4eb64d553940/go.mod h1:zCklcJwbnaNx46KvR38Rh86uZdow5gvub4ATcNDopTM=
 github.com/openshift/cluster-control-plane-machine-set-operator v0.0.0-20250424110138-1dbf0c7a5d51 h1:WaM4FDg2BzGAHjZr/JlKxREIqBALiYBpdBqjAxXj49U=
 github.com/openshift/cluster-control-plane-machine-set-operator v0.0.0-20250424110138-1dbf0c7a5d51/go.mod h1:cp9GawS6eRLeQFvnAu0NVuh3grPSaVS5vRGdydle2HQ=
-github.com/openshift/library-go v0.0.0-20251107090138-0de9712313a5 h1:Gq8jCFgSrilZ2ZHjQleFZWlblikc1aaRZ0hqs+yvrP4=
-github.com/openshift/library-go v0.0.0-20251107090138-0de9712313a5/go.mod h1:OlFFws1AO51uzfc48MsStGE4SFMWlMZD0+f5a/zCtKI=
+github.com/openshift/library-go v0.0.0-20251112091634-ab97ebb73f0f h1:r1pLosA7z3+t+lzW29FU54sg4/pAWu+lsKD0L5Gx3wg=
+github.com/openshift/library-go v0.0.0-20251112091634-ab97ebb73f0f/go.mod h1:ErDfiIrPHH+menTP/B4LKd0nxFDdvCbTamAc6SWMIh8=
 github.com/openshift/machine-api-operator v0.2.1-0.20250721183005-388c07321caf h1:KhtN61d6XNZsfZusHcItrwMqIoT3Ck4lFk/bRUiMxqo=
 github.com/openshift/machine-api-operator v0.2.1-0.20250721183005-388c07321caf/go.mod h1:IUXR/fHzKALjJ2M7IAAWS76UEVMig3qYATD6omexi10=
 github.com/otiai10/copy v1.2.0/go.mod h1:rrF5dJ5F0t/EWSYODDu4j9/vEeYHMkc8jt0zJChqQWw=
@@ -800,8 +800,8 @@ sigs.k8s.io/cluster-api-provider-azure v1.20.1 h1:X/jQ4ZnR9gA2psZ1hiTT3Elvaguzrw
 sigs.k8s.io/cluster-api-provider-azure v1.20.1/go.mod h1:OF/p9RZy+GQ9Vc8L6dgnUnTwlBh6iWrD0cDsbBxogEk=
 sigs.k8s.io/cluster-api-provider-gcp v1.10.0 h1:gngUxo9bz8l+otpdw9v3ULEXwAvijyqiBx2v8HSoRwA=
 sigs.k8s.io/cluster-api-provider-gcp v1.10.0/go.mod h1:VkmOqBgi3Jj+VR+YTZEHAlMMmyjqcKl4lXhpLsYnYok=
-sigs.k8s.io/controller-runtime v0.20.4 h1:X3c+Odnxz+iPTRobG4tp092+CvBU9UK0t/bRf+n0DGU=
-sigs.k8s.io/controller-runtime v0.20.4/go.mod h1:xg2XB0K5ShQzAgsoujxuKN4LNXR2LfwwHsPj7Iaw+XY=
+sigs.k8s.io/controller-runtime v0.22.4 h1:GEjV7KV3TY8e+tJ2LCTxUTanW4z/FmNB7l327UfMq9A=
+sigs.k8s.io/controller-runtime v0.22.4/go.mod h1:+QX1XUpTXN4mLoblf4tqr5CQcyHPAki2HLXqQMY6vh8=
 sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20240927101401-4381fa0aeee4 h1:Y6/OyKMyJzeYM4eStqGxFOplVLu3tgXu79VOfxZnTH4=
 sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20240927101401-4381fa0aeee4/go.mod h1:IaDsO8xSPRxRG1/rm9CP7+jPmj0nMNAuNi/yiHnLX8k=
 sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 h1:gBQPwqORJ8d8/YNZWEjoZs7npUVDpVXUUOFfW6CgAqE=
