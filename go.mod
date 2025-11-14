@@ -11,7 +11,7 @@ require (
 	github.com/openshift/api v0.0.0-20251111193948-50e2ece149d7
 	github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20250722085021-1536291c48c6
 	github.com/openshift/cluster-autoscaler-operator v0.0.1-0.20250702183526-4eb64d553940
-	github.com/openshift/library-go v0.0.0-20251107090138-0de9712313a5
+	github.com/openshift/library-go v0.0.0-20251112091634-ab97ebb73f0f
 	github.com/openshift/machine-api-operator v0.2.1-0.20250721183005-388c07321caf
 	github.com/tidwall/gjson v1.18.0
 	k8s.io/api v0.34.1
@@ -23,7 +23,7 @@ require (
 	sigs.k8s.io/cluster-api-provider-aws/v2 v2.9.0
 	sigs.k8s.io/cluster-api-provider-azure v1.20.1
 	sigs.k8s.io/cluster-api-provider-gcp v1.10.0
-	sigs.k8s.io/controller-runtime v0.20.4
+	sigs.k8s.io/controller-runtime v0.22.4
 	sigs.k8s.io/yaml v1.6.0
 )
 
