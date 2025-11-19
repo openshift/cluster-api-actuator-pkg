@@ -550,6 +550,162 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 				}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "Node %s has a deletion taint and it should not", machine.Status.NodeRef.Name)
 			}
 		})
+
+		// Machines required for test: 2
+		// Reason: Needs to verify cordon happens before drain during scale down. Scales 1 -> 2 -> 1.
+		It("cordons node before draining during scale-down [Slow]", func() {
+			By("Creating MachineSet with 1 replica")
+			targetedNodeLabel := fmt.Sprintf("%v-cordon-before-drain", autoscalerWorkerNodeRoleLabel)
+			machineSetParams := framework.BuildMachineSetParams(ctx, client, 1)
+			machineSetParams.Labels[targetedNodeLabel] = ""
+			machineSet, err := framework.CreateMachineSet(client, machineSetParams)
+			Expect(err).ToNot(HaveOccurred(), "Failed to create MachineSet with 1 replica")
+			cleanupObjects[machineSet.GetName()] = machineSet
+
+			By("Waiting for the machineSet to enter Running phase")
+			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
+
+			// Enable cordon-before-drain in ClusterAutoscaler
+			By("Updating ClusterAutoscaler to enable cordon-node-before-terminating")
+			currentCA, err := framework.GetClusterAutoscaler(client, clusterAutoscaler.GetName())
+			Expect(err).ToNot(HaveOccurred(), "Failed to get ClusterAutoscaler")
+			cordonMode := caov1.CordonNodeBeforeTerminatingModeEnabled
+			if currentCA.Spec.ScaleDown == nil {
+				currentCA.Spec.ScaleDown = &caov1.ScaleDownConfig{
+					Enabled: true,
+				}
+			}
+			currentCA.Spec.ScaleDown.CordonNodeBeforeTerminating = &cordonMode
+			Expect(client.Update(ctx, currentCA)).Should(Succeed(), "Failed to update ClusterAutoscaler with cordon-node-before-terminating")
+
+			// Create the autoscaler resource
+			expectedReplicas := int32(2)
+			By(fmt.Sprintf("Creating a MachineAutoscaler backed by MachineSet %s - min: 1, max: %d",
+				machineSet.GetName(), expectedReplicas))
+			asr := machineAutoscalerResource(machineSet, 1, expectedReplicas)
+			Expect(client.Create(ctx, asr)).Should(Succeed(), "Failed to create MachineAutoscaler with min 1/max %d replicas", expectedReplicas)
+			cleanupObjects[asr.GetName()] = asr
+
+			// Create the workload
+			jobReplicas := expectedReplicas
+			uniqueJobName := fmt.Sprintf("%s-cordon-before-drain", workloadJobName)
+			By(fmt.Sprintf("Creating scale-out workload %s: jobs: %v, memory: %s",
+				uniqueJobName, jobReplicas, workloadMemRequest.String()))
+			workload := framework.NewWorkLoad(jobReplicas, workloadMemRequest, uniqueJobName, autoscalingTestLabel, "", corev1.NodeSelectorRequirement{
+				Key:      targetedNodeLabel,
+				Operator: corev1.NodeSelectorOpExists,
+			})
+			cleanupObjects[workload.GetName()] = workload
+			Expect(client.Create(ctx, workload)).Should(Succeed(), "Failed to create scale-out workload %s", uniqueJobName)
+
+			// Wait for the scaleout
+			By(fmt.Sprintf("Waiting for MachineSet %s replicas to scale out to %d", machineSet.GetName(), expectedReplicas))
+			Eventually(func() (int32, error) {
+				current, err := framework.GetMachineSet(ctx, client, machineSet.GetName())
+				if err != nil {
+					return 0, err
+				}
+
+				return *current.Spec.Replicas, nil
+			}, framework.WaitMedium, pollingInterval).Should(BeEquivalentTo(expectedReplicas), "MachineSet %s failed to scale out to %d replicas", machineSet.GetName(), expectedReplicas)
+
+			By("Waiting for all Machines in the MachineSet to enter Running phase")
+			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
+
+			By(fmt.Sprintf("Waiting for %d workload pods to be running", jobReplicas))
+			framework.WaitForWorkload(ctx, client, machineSet, jobReplicas, workload.GetName())
+
+			// Remove the workload so we scale down
+			By("Deleting the workload to trigger scale-down")
+			Expect(deleteObject(workload.Name, cleanupObjects[workload.Name])).Should(Succeed(), "Failed to delete workload object %s", workload.Name)
+			delete(cleanupObjects, workload.Name)
+
+			// Make sure one of the nodes get cordoned before deletion, remember which one it is
+			By("Watching for node to be cordoned BEFORE drain begins")
+			var cordonedNodeName string
+			var targetMachine *machinev1.Machine
+			Eventually(func() (bool, error) {
+				machines, err := framework.GetMachinesFromMachineSet(ctx, client, machineSet)
+				if err != nil || len(machines) != 2 {
+					return false, err
+				}
+
+				// Check for machines being targeted for deletion (has deletion candidate taint or annotation)
+				for _, machine := range machines {
+					node, err := framework.GetNodeForMachine(ctx, client, machine)
+					if err != nil {
+						continue
+					}
+
+					// Check for deletion candidate taint
+					hasDeletionCandidateTaint := false
+					for _, taint := range node.Spec.Taints {
+						if taint.Key == deletionCandidateTaintKey {
+							hasDeletionCandidateTaint = true
+							break
+						}
+					}
+
+					// If machine has deletion candidate taint, verify it's cordoned (cordon should show up before deletion candidate taint)
+					if hasDeletionCandidateTaint {
+						if !node.Spec.Unschedulable {
+							return false, fmt.Errorf("node %s has deletion candidate taint but is not cordoned", node.Name)
+						}
+
+						// Node is cordoned! Save for later verification
+						cordonedNodeName = node.Name
+						targetMachine = machine
+						klog.Infof("Node %s successfully cordoned before drain (has deletion candidate taint)", cordonedNodeName)
+
+						return true, nil
+					}
+
+					// Also check for delete annotation on machine (cordon should show up before delete taint)
+					if machine.ObjectMeta.Annotations != nil {
+						if _, hasDeleteAnnotation := machine.ObjectMeta.Annotations[machineDeleteAnnotationKey]; hasDeleteAnnotation {
+							if !node.Spec.Unschedulable {
+								return false, fmt.Errorf("machine %s has delete annotation but node %s is not cordoned", machine.Name, node.Name)
+							}
+
+							cordonedNodeName = node.Name
+							targetMachine = machine
+							klog.Infof("Node %s successfully cordoned before drain (has delete annotation)", cordonedNodeName)
+
+							return true, nil
+						}
+					}
+				}
+
+				return false, nil
+			}, framework.WaitLong, pollingInterval).Should(BeTrue(), "Failed to observe node being cordoned before drain")
+
+			By(fmt.Sprintf("Verifying node %s stays cordoned throughout drain until scale-in completes", cordonedNodeName))
+			expectedMachineSetSize := 1
+			Eventually(func() (int, error) {
+				// Try to get our node - if it still exists, verify it's still cordoned, if it doesn't
+				// exist, that's what we want anyway
+				node, err := framework.GetNodeForMachine(ctx, client, targetMachine)
+				if err == nil {
+					// Node still exists, verify it's cordoned
+					if !node.Spec.Unschedulable {
+						return 0, fmt.Errorf("node %s lost cordon status during drain", cordonedNodeName)
+					}
+					// Any errors aside from not found get returned (not found is okay, we just continue, we're deleting it)
+				} else if err != nil && !apierrors.IsNotFound(err) {
+					return 0, err
+				}
+
+				// Check if scale-in is complete (the event we're waiting for)
+				machines, err := framework.GetMachinesFromMachineSet(ctx, client, machineSet)
+				if err != nil {
+
+					return 0, err
+				}
+
+				return len(machines), nil
+			}, framework.WaitLong, pollingInterval).Should(BeEquivalentTo(expectedMachineSetSize), "MachineSet %s failed to scale in to %d replica", machineSet.GetName(), expectedMachineSetSize)
+
+		})
 	})
 
 	Context("use a ClusterAutoscaler that has balance similar nodes enabled and 100 maximum total nodes", func() {
