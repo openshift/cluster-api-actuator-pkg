@@ -75,6 +75,13 @@ unit: ## Run unit tests
 build-e2e:
 	$(DOCKER_CMD) go test -c -o "$(BUILD_DEST)" github.com/openshift/cluster-api-actuator-pkg/pkg/
 
+.PHONY: tests-ext
+tests-ext:  ## Build tests extension binary
+	cd openshift-tests-extension && $(DOCKER_CMD) GOWORK=off go build -mod=mod -o ../bin/cluster-api-actuator-pkg-tests-ext ./cmd
+
+.PHONY: update-tests-ext-vendor
+update-tests-ext-vendor:  ## Update tests-ext vendor directory
+	cd openshift-tests-extension && go mod tidy && go mod vendor && go mod verify
 
 .PHONY: test-e2e
 test-e2e: ## Run openshift specific e2e test
