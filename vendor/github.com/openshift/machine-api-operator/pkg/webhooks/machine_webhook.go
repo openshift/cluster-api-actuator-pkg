@@ -50,6 +50,11 @@ type systemSpecifications struct {
 type machineArch string
 
 var (
+	// AWS Variables / Defaults
+
+	// awsDedicatedHostNamePattern is used to validate the id of a dedicated host
+	awsDedicatedHostNamePattern = regexp.MustCompile(`^h-[0-9a-f]{17}$`)
+
 	// Azure Defaults
 	defaultAzureVnet = func(clusterID string) string {
 		return fmt.Sprintf("%s-vnet", clusterID)
@@ -615,6 +620,8 @@ func (a awsDefaulter) defaultAWS(m *machinev1beta1.Machine, config *admissionCon
 
 	if providerSpec.UserDataSecret == nil {
 		providerSpec.UserDataSecret = &corev1.LocalObjectReference{Name: defaultUserDataSecret}
+	} else if providerSpec.UserDataSecret.Name == "" {
+		providerSpec.UserDataSecret.Name = defaultUserDataSecret
 	}
 
 	if providerSpec.CredentialsSecret == nil {
@@ -724,13 +731,9 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 	}
 
 	if providerSpec.UserDataSecret == nil {
-		errs = append(
-			errs,
-			field.Required(
-				field.NewPath("providerSpec", "userDataSecret"),
-				"expected providerSpec.userDataSecret to be populated",
-			),
-		)
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret"), "expected providerSpec.userDataSecret to be populated"))
+	} else if providerSpec.UserDataSecret.Name == "" {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret", "name"), "expected providerSpec.userDataSecret.name to be provided"))
 	}
 
 	if providerSpec.CredentialsSecret == nil {
@@ -868,6 +871,67 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 				fmt.Sprintf("Allowed values are either '%s' or '%s'", machinev1beta1.MetadataServiceAuthenticationOptional, machinev1beta1.MetadataServiceAuthenticationRequired),
 			),
 		)
+	}
+
+	if providerSpec.CPUOptions != nil {
+		if *providerSpec.CPUOptions == (machinev1beta1.CPUOptions{}) {
+			errs = append(
+				errs,
+				field.Invalid(
+					field.NewPath("providerSpec", "CPUOptions"),
+					"{}",
+					"At least one field must be set if cpuOptions is provided",
+				),
+			)
+		}
+
+		if providerSpec.CPUOptions.ConfidentialCompute != nil {
+			switch *providerSpec.CPUOptions.ConfidentialCompute {
+			case machinev1beta1.AWSConfidentialComputePolicyDisabled, machinev1beta1.AWSConfidentialComputePolicySEVSNP:
+				// Valid values
+			default:
+				errs = append(
+					errs,
+					field.Invalid(
+						field.NewPath("providerSpec", "CPUOptions", "ConfidentialCompute"),
+						providerSpec.CPUOptions.ConfidentialCompute,
+						fmt.Sprintf("Allowed values are %s, %s and omitted", machinev1beta1.AWSConfidentialComputePolicyDisabled, machinev1beta1.AWSConfidentialComputePolicySEVSNP),
+					),
+				)
+			}
+		}
+	}
+
+	// Dedicated host support.
+	// Check if host placement is configured.  If so, then we need to determine placement affinity and validate configs.
+	if providerSpec.HostPlacement != nil {
+		klog.V(4).Infof("Validating AWS Host Placement")
+		placement := *providerSpec.HostPlacement
+		if placement.Affinity == nil {
+			errs = append(errs, field.Required(field.NewPath("spec.hostPlacement.affinity"), "affinity is required and must be set to either AnyAvailable or DedicatedHost"))
+		} else {
+			switch *placement.Affinity {
+			case machinev1beta1.HostAffinityAnyAvailable:
+				// Cannot have DedicatedHost set
+				if placement.DedicatedHost != nil {
+					errs = append(errs, field.Forbidden(field.NewPath("spec.hostPlacement.dedicatedHost"), "dedicatedHost is required when affinity is DedicatedHost, and forbidden otherwise"))
+				}
+			case machinev1beta1.HostAffinityDedicatedHost:
+				// We need to make sure DedicatedHost is set with a HostID
+				if placement.DedicatedHost == nil {
+					errs = append(errs, field.Required(field.NewPath("spec.hostPlacement.dedicatedHost"), "dedicatedHost is required when affinity is DedicatedHost, and forbidden otherwise"))
+				} else {
+					// If not set, return required error.  If it does not match pattern, return pattern failure message.
+					if placement.DedicatedHost.ID == "" {
+						errs = append(errs, field.Required(field.NewPath("spec.hostPlacement.dedicatedHost.id"), "id is required and must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)"))
+					} else if awsDedicatedHostNamePattern.FindStringSubmatch(placement.DedicatedHost.ID) == nil {
+						errs = append(errs, field.Invalid(field.NewPath("spec.hostPlacement.dedicatedHost.id"), placement.DedicatedHost.ID, "id must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)"))
+					}
+				}
+			default:
+				errs = append(errs, field.Invalid(field.NewPath("spec.hostPlacement.affinity"), placement.Affinity, "affinity must be either AnyAvailable or DedicatedHost"))
+			}
+		}
 	}
 
 	if len(errs) > 0 {
@@ -1251,6 +1315,14 @@ func validateGCP(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 
 	if providerSpec.RestartPolicy != "" && providerSpec.RestartPolicy != machinev1beta1.RestartPolicyAlways && providerSpec.RestartPolicy != machinev1beta1.RestartPolicyNever {
 		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "restartPolicy"), providerSpec.RestartPolicy, fmt.Sprintf("restartPolicy must be either %s or %s.", machinev1beta1.RestartPolicyNever, machinev1beta1.RestartPolicyAlways)))
+	}
+
+	if providerSpec.ProvisioningModel != nil && *providerSpec.ProvisioningModel != machinev1beta1.GCPSpotInstance {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "provisioningModel"), *providerSpec.ProvisioningModel, fmt.Sprintf("provisioningModel must be %q or omit for standard provisioning", machinev1beta1.GCPSpotInstance)))
+	}
+
+	if providerSpec.Preemptible && providerSpec.ProvisioningModel != nil && *providerSpec.ProvisioningModel == machinev1beta1.GCPSpotInstance {
+		errs = append(errs, field.Forbidden(field.NewPath("providerSpec", "provisioningModel"), fmt.Sprintf("preemptible cannot be used together with %q provisioning model", machinev1beta1.GCPSpotInstance)))
 	}
 
 	if len(providerSpec.GPUs) != 0 || strings.HasPrefix(providerSpec.MachineType, "a2-") {
