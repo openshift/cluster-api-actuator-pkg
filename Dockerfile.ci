@@ -1,3 +1,12 @@
-FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.24-openshift-4.20
+FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.24-openshift-4.20 AS builder
 WORKDIR /go/src/github.com/openshift/cluster-api-actuator-pkg
 COPY . .
+RUN make build-ext && \
+    gzip bin/cluster-api-actuator-pkg-tests-ext
+
+FROM registry.ci.openshift.org/ocp/4.20:base-rhel9
+COPY --from=builder /go/src/github.com/openshift/cluster-api-actuator-pkg/bin/cluster-api-actuator-pkg-tests-ext.gz .
+
+LABEL io.k8s.display-name="OpenShift Cluster API Actuator Pkg Operator" \
+    io.openshift.release.operator=true \
+    io.openshift.tags="openshift,tests,e2e,e2e-extension"
