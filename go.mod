@@ -2,6 +2,9 @@ module github.com/openshift/cluster-api-actuator-pkg
 
 go 1.24.0
 
+replace sigs.k8s.io/cluster-api-provider-azure => github.com/damdo/cluster-api-provider-azure v0.0.0-20251202084521-c2e0e38d1e0e
+replace github.com/openshift/cluster-api-actuator-pkg/testutils => ./testutils
+
 require (
 	github.com/aws/aws-sdk-go v1.55.7
 	github.com/golangci/golangci-lint v1.64.8
@@ -9,7 +12,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.27.2
 	github.com/onsi/gomega v1.38.2
 	github.com/openshift/api v0.0.0-20251111193948-50e2ece149d7
-	github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20250910145856-21d03d30056d
+	github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0
 	github.com/openshift/cluster-autoscaler-operator v0.0.1-0.20250702183526-4eb64d553940
 	github.com/openshift/library-go v0.0.0-20251112091634-ab97ebb73f0f
 	github.com/openshift/machine-api-operator v0.2.1-0.20251121134325-1d78f2ebcae5
@@ -19,10 +22,10 @@ require (
 	k8s.io/client-go v0.34.1
 	k8s.io/klog v1.0.0
 	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397
-	sigs.k8s.io/cluster-api v1.10.7
-	sigs.k8s.io/cluster-api-provider-aws/v2 v2.9.0
-	sigs.k8s.io/cluster-api-provider-azure v1.20.1
-	sigs.k8s.io/cluster-api-provider-gcp v1.10.0
+	sigs.k8s.io/cluster-api v1.11.3
+	sigs.k8s.io/cluster-api-provider-aws/v2 v2.10.0
+	sigs.k8s.io/cluster-api-provider-azure v0.0.0-20251202084521-c2e0e38d1e0e
+	sigs.k8s.io/cluster-api-provider-gcp v1.11.0-beta.0
 	sigs.k8s.io/controller-runtime v0.22.4
 	sigs.k8s.io/yaml v1.6.0
 )

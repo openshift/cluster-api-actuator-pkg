@@ -12,10 +12,10 @@ require (
 	k8s.io/apimachinery v0.34.1
 	k8s.io/client-go v0.34.1
 	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397
-	sigs.k8s.io/cluster-api v1.10.4
-	sigs.k8s.io/cluster-api-provider-aws/v2 v2.9.0
-	sigs.k8s.io/cluster-api-provider-ibmcloud v0.11.0
-	sigs.k8s.io/cluster-api-provider-openstack v0.12.4
+	sigs.k8s.io/cluster-api v1.11.3
+	sigs.k8s.io/cluster-api-provider-aws/v2 v2.10.0
+	sigs.k8s.io/cluster-api-provider-ibmcloud v0.12.0
+	sigs.k8s.io/cluster-api-provider-openstack v0.13.1
 	sigs.k8s.io/controller-runtime v0.22.4
 	sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20240923090159-236e448db12c
 )
