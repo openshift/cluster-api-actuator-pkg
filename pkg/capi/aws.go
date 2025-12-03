@@ -18,7 +18,7 @@ import (
 	"k8s.io/klog"
 	"k8s.io/utils/ptr"
 	awsv1 "sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
@@ -41,7 +41,7 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 		oc                      *gatherer.CLI
 		awsMachineTemplate      *awsv1.AWSMachineTemplate
 		machineSetParams        framework.CAPIMachineSetParams
-		machineSet              *clusterv1.MachineSet
+		machineSet              *clusterv1beta1.MachineSet
 		mapiDefaultProviderSpec *mapiv1.AWSMachineProviderConfig
 		err                     error
 	)
@@ -450,7 +450,7 @@ func newAWSMachineTemplate(name string, mapiProviderSpec *mapiv1.AWSMachineProvi
 
 // createAWSCAPIMachineSetWithRetry creates a CAPI MachineSet with retry logic for capacity constraints.
 // It tries different instance types when encountering insufficient capacity errors.
-func createAWSCAPIMachineSetWithRetry(ctx context.Context, cl client.Client, machineSetName string, clusterName string, mapiDefaultProviderSpec *mapiv1.AWSMachineProviderConfig, maxRetries int, templateConfigurator func(*awsv1.AWSMachineTemplate, string)) (*clusterv1.MachineSet, *awsv1.AWSMachineTemplate, bool) {
+func createAWSCAPIMachineSetWithRetry(ctx context.Context, cl client.Client, machineSetName string, clusterName string, mapiDefaultProviderSpec *mapiv1.AWSMachineProviderConfig, maxRetries int, templateConfigurator func(*awsv1.AWSMachineTemplate, string)) (*clusterv1beta1.MachineSet, *awsv1.AWSMachineTemplate, bool) {
 	machineSetReady := false
 
 	// Get the current cluster architecture
@@ -471,7 +471,7 @@ func createAWSCAPIMachineSetWithRetry(ctx context.Context, cl client.Client, mac
 		alternativeInstanceTypes = []string{"m6i.large", "m5.large", "m6i.xlarge", "m5.xlarge"}
 	}
 
-	var machineSet *clusterv1.MachineSet
+	var machineSet *clusterv1beta1.MachineSet
 
 	var awsMachineTemplate *awsv1.AWSMachineTemplate
 
@@ -534,7 +534,7 @@ func createAWSCAPIMachineSetWithRetry(ctx context.Context, cl client.Client, mac
 }
 
 // getAWSInstanceConfig gets AWS instance configuration.
-func getAWSInstanceConfig(ctx context.Context, cl client.Client, oc *gatherer.CLI, machineSet *clusterv1.MachineSet) *ec2.Instance {
+func getAWSInstanceConfig(ctx context.Context, cl client.Client, oc *gatherer.CLI, machineSet *clusterv1beta1.MachineSet) *ec2.Instance {
 	By("Get AWS instance configuration")
 
 	machines, err := framework.GetCAPIMachinesFromMachineSet(ctx, cl, machineSet)

@@ -15,7 +15,7 @@ import (
 	awsv1 "sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2"
 	azurev1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	gcpv1 "sigs.k8s.io/cluster-api-provider-gcp/api/v1beta1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/komega"
 )
@@ -27,7 +27,7 @@ var _ = Describe("Cluster API MachineSet", framework.LabelCAPI, framework.LabelD
 	var awsMapiMachineSpec *mapiv1.AWSMachineProviderConfig
 	var azureMapiMachineSpec *mapiv1.AzureMachineProviderSpec
 	var gcpMapiMachineSpec *mapiv1.GCPMachineProviderSpec
-	var machineSet *clusterv1.MachineSet
+	var machineSet *clusterv1beta1.MachineSet
 	var client runtimeclient.Client
 	var ctx context.Context
 	var platform configv1.PlatformType
