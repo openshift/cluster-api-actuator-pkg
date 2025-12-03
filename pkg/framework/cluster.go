@@ -8,8 +8,8 @@ import (
 	capiv1resourcebuilder "github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/cluster-api/core/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -48,7 +48,7 @@ func CreateCoreCluster(ctx context.Context, cl client.Client, clusterName, infra
 			return false, err
 		}
 
-		return conditions.IsTrue(patchedCluster, clusterv1beta1.ControlPlaneInitializedCondition), nil
+		return v1beta1conditions.IsTrue(patchedCluster, clusterv1beta1.ControlPlaneInitializedCondition), nil
 	}, WaitMedium).Should(BeTrue(), "it should be able to create cluster")
 
 	return cluster
