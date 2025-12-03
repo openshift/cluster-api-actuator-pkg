@@ -265,6 +265,7 @@ func minimalAzureProviderSpec(ps *machinev1beta1.ProviderSpec) (*machinev1beta1.
 		Value: &runtime.RawExtension{
 			Object: &machinev1beta1.AzureMachineProviderSpec{
 				Location: fullProviderSpec.Location,
+				Image:    fullProviderSpec.Image, // Required after machine-api-operator PR #1440
 				OSDisk: machinev1beta1.OSDisk{
 					DiskSizeGB: fullProviderSpec.OSDisk.DiskSizeGB,
 				},
