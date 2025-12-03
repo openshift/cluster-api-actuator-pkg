@@ -30,6 +30,32 @@ var _ = Describe("Machine API GCP MachineSet", framework.LabelMAPI, framework.La
 	var platform configv1.PlatformType
 	var err error
 
+	// buildMachineSetParamsAndProviderSpec builds MachineSet parameters and unmarshals the provider spec
+	// for use in test cases. It returns the machineSetParams and providerSpec.
+	buildMachineSetParamsAndProviderSpec := func(replicas int, nameSuffix string) (framework.MachineSetParams, *mapiv1.GCPMachineProviderSpec) {
+		machineSetParams := framework.BuildMachineSetParams(ctx, cl, replicas)
+
+		infra, err := framework.GetInfrastructure(ctx, cl)
+		Expect(err).NotTo(HaveOccurred(), "Failed to get cluster infrastructure object")
+		Expect(infra.Status.InfrastructureName).ShouldNot(BeEmpty(), "infrastructure name was empty on Infrastructure.Status.")
+		machineSetParams.Name = infra.Status.InfrastructureName + "-" + nameSuffix + "-" + uuid.New().String()[0:5]
+
+		providerSpec := &mapiv1.GCPMachineProviderSpec{}
+		Expect(json.Unmarshal(machineSetParams.ProviderSpec.Value.Raw, providerSpec)).To(Succeed(), "Should be able to unmarshal provider spec")
+
+		return machineSetParams, providerSpec
+	}
+
+	// marshalProviderSpec marshals the provider spec and updates the machineSetParams with it.
+	marshalProviderSpec := func(machineSetParams *framework.MachineSetParams, providerSpec *mapiv1.GCPMachineProviderSpec) {
+		rawProviderSpec, err := json.Marshal(providerSpec)
+		Expect(err).ToNot(HaveOccurred(), "Should be able to marshal provider spec")
+
+		machineSetParams.ProviderSpec.Value = &runtime.RawExtension{
+			Raw: rawProviderSpec,
+		}
+	}
+
 	BeforeAll(func() {
 		cl, err = framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred(), "Failed to create Kubernetes client for test")
@@ -57,31 +83,15 @@ var _ = Describe("Machine API GCP MachineSet", framework.LabelMAPI, framework.La
 
 	It("should have all Shielded VM options disabled when using nonUefi image", func() {
 		// Get MAPI machineset parameters
-		machineSetParams := framework.BuildMachineSetParams(ctx, cl, 1)
-
-		// Override the name to include testcaseid 83064
-		infra, err := framework.GetInfrastructure(ctx, cl)
-		Expect(err).NotTo(HaveOccurred(), "Failed to get cluster infrastructure object")
-		Expect(infra.Status.InfrastructureName).ShouldNot(BeEmpty(), "infrastructure name was empty on Infrastructure.Status.")
-		machineSetParams.Name = infra.Status.InfrastructureName + "-83064-" + uuid.New().String()[0:5]
+		machineSetParams, providerSpec := buildMachineSetParamsAndProviderSpec(1, "83064")
 
 		// Modify the provider spec to use the nonUefi image
 		nonUefiImage := "projects/redhat-marketplace-public/global/images/redhat-coreos-ocp-48-x86-64-202210040145"
 
-		// Unmarshal the provider spec to modify it
-		providerSpec := &mapiv1.GCPMachineProviderSpec{}
-		Expect(json.Unmarshal(machineSetParams.ProviderSpec.Value.Raw, providerSpec)).To(Succeed(), "Should be able to unmarshal provider spec")
-
 		// Set the specific image
 		providerSpec.Disks[0].Image = nonUefiImage
 
-		// Marshal back to raw bytes using JSON
-		rawProviderSpec, err := json.Marshal(providerSpec)
-		Expect(err).ToNot(HaveOccurred(), "Should be able to marshal provider spec")
-
-		machineSetParams.ProviderSpec.Value = &runtime.RawExtension{
-			Raw: rawProviderSpec,
-		}
+		marshalProviderSpec(&machineSetParams, providerSpec)
 
 		By("Creating a new MachineSet with Red Hat CoreOS(nonUefi) image")
 		mapiMachineSet, err = framework.CreateMachineSet(cl, machineSetParams)
@@ -112,17 +122,9 @@ var _ = Describe("Machine API GCP MachineSet", framework.LabelMAPI, framework.La
 	// Test for provisioningModel: Spot
 	It("should provision Spot instance with provisioningModel: Spot successfully", func() {
 		By("Building MachineSet parameters from existing cluster")
-		machineSetParams := framework.BuildMachineSetParams(ctx, cl, 1)
-
-		// Override the name to include testcaseid 85973
-		infra, err := framework.GetInfrastructure(ctx, cl)
-		Expect(err).NotTo(HaveOccurred(), "Failed to get cluster infrastructure object")
-		Expect(infra.Status.InfrastructureName).ShouldNot(BeEmpty(), "infrastructure name was empty on Infrastructure.Status.")
-		machineSetParams.Name = infra.Status.InfrastructureName + "-85973-spot-" + uuid.New().String()[0:5]
+		machineSetParams, providerSpec := buildMachineSetParamsAndProviderSpec(1, "85973-spot")
 
 		By("Modifying providerSpec to use provisioningModel: Spot")
-		providerSpec := &mapiv1.GCPMachineProviderSpec{}
-		Expect(json.Unmarshal(machineSetParams.ProviderSpec.Value.Raw, providerSpec)).To(Succeed(), "Should be able to unmarshal provider spec")
 
 		// Set provisioningModel to Spot
 		providerSpec.ProvisioningModel = ptr.To(mapiv1.GCPSpotInstance)
@@ -130,13 +132,7 @@ var _ = Describe("Machine API GCP MachineSet", framework.LabelMAPI, framework.La
 		// Spot instances require OnHostMaintenance = Terminate
 		providerSpec.OnHostMaintenance = mapiv1.TerminateHostMaintenanceType
 
-		// Marshal back to raw bytes using JSON
-		rawProviderSpec, err := json.Marshal(providerSpec)
-		Expect(err).ToNot(HaveOccurred(), "Should be able to marshal provider spec")
-
-		machineSetParams.ProviderSpec.Value = &runtime.RawExtension{
-			Raw: rawProviderSpec,
-		}
+		marshalProviderSpec(&machineSetParams, providerSpec)
 
 		By("Creating MachineSet with Spot provisioning model")
 		mapiMachineSet, err = framework.CreateMachineSet(cl, machineSetParams)
@@ -163,30 +159,16 @@ var _ = Describe("Machine API GCP MachineSet", framework.LabelMAPI, framework.La
 	// Webhook validation test: preemptible and provisioningModel should not be used together
 	It("should reject when both preemptible: true and provisioningModel: Spot are set", func() {
 		By("Building MachineSet parameters from existing cluster")
-		machineSetParams := framework.BuildMachineSetParams(ctx, cl, 0)
-
-		// Override the name to include testcaseid 85973
-		infra, err := framework.GetInfrastructure(ctx, cl)
-		Expect(err).NotTo(HaveOccurred(), "Failed to get cluster infrastructure object")
-		Expect(infra.Status.InfrastructureName).ShouldNot(BeEmpty(), "infrastructure name was empty on Infrastructure.Status.")
-		machineSetParams.Name = infra.Status.InfrastructureName + "-85973-conflict-" + uuid.New().String()[0:5]
+		machineSetParams, providerSpec := buildMachineSetParamsAndProviderSpec(0, "85973-conflict")
 
 		By("Setting both preemptible: true and provisioningModel: Spot")
-		providerSpec := &mapiv1.GCPMachineProviderSpec{}
-		Expect(json.Unmarshal(machineSetParams.ProviderSpec.Value.Raw, providerSpec)).To(Succeed(), "Should be able to unmarshal provider spec")
 
 		// Set BOTH fields - this should be rejected by webhook
 		providerSpec.Preemptible = true
 		providerSpec.ProvisioningModel = ptr.To(mapiv1.GCPSpotInstance)
 		providerSpec.OnHostMaintenance = mapiv1.TerminateHostMaintenanceType
 
-		// Marshal back to raw bytes using JSON
-		rawProviderSpec, err := json.Marshal(providerSpec)
-		Expect(err).ToNot(HaveOccurred(), "Should be able to marshal provider spec")
-
-		machineSetParams.ProviderSpec.Value = &runtime.RawExtension{
-			Raw: rawProviderSpec,
-		}
+		marshalProviderSpec(&machineSetParams, providerSpec)
 
 		By("Attempting to create MachineSet - expecting webhook rejection")
 		mapiMachineSet, err = framework.CreateMachineSet(cl, machineSetParams)
@@ -201,28 +183,15 @@ var _ = Describe("Machine API GCP MachineSet", framework.LabelMAPI, framework.La
 	// Test: webhook should allow MachineSet update when preemptible is set and provisioningModel is not set
 	It("should allow MachineSet update to set preemptible when provisioningModel is not set", func() {
 		By("Building MachineSet parameters from existing cluster")
-		machineSetParams := framework.BuildMachineSetParams(ctx, cl, 0)
-
-		// Override the name to include testcaseid 85973
-		infra, err := framework.GetInfrastructure(ctx, cl)
-		Expect(err).NotTo(HaveOccurred(), "Failed to get cluster infrastructure object")
-		Expect(infra.Status.InfrastructureName).ShouldNot(BeEmpty(), "infrastructure name was empty on Infrastructure.Status.")
-		machineSetParams.Name = infra.Status.InfrastructureName + "-85973-update-" + uuid.New().String()[0:5]
+		machineSetParams, providerSpec := buildMachineSetParamsAndProviderSpec(0, "85973-update")
 
 		By("Creating initial MachineSet with provisioningModel: Spot and 0 replicas")
-		providerSpec := &mapiv1.GCPMachineProviderSpec{}
-		Expect(json.Unmarshal(machineSetParams.ProviderSpec.Value.Raw, providerSpec)).To(Succeed(), "Should be able to unmarshal provider spec")
 
 		// Set provisioningModel to Spot initially
 		providerSpec.ProvisioningModel = ptr.To(mapiv1.GCPSpotInstance)
 		providerSpec.OnHostMaintenance = mapiv1.TerminateHostMaintenanceType
 
-		rawProviderSpec, err := json.Marshal(providerSpec)
-		Expect(err).ToNot(HaveOccurred(), "Should be able to marshal provider spec")
-
-		machineSetParams.ProviderSpec.Value = &runtime.RawExtension{
-			Raw: rawProviderSpec,
-		}
+		marshalProviderSpec(&machineSetParams, providerSpec)
 
 		mapiMachineSet, err = framework.CreateMachineSet(cl, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "MachineSet should be able to be created")
