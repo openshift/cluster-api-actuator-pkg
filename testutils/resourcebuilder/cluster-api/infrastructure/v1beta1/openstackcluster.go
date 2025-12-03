@@ -19,7 +19,7 @@ package v1beta1
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	capov1 "sigs.k8s.io/cluster-api-provider-openstack/api/v1beta1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 )
 
 // OpenStackCluster creates a new OpenStackClusterBuilder.
@@ -46,7 +46,7 @@ type OpenStackClusterBuilder struct {
 	bastion                          *capov1.Bastion
 	controlPlaneAvailabilityZones    []string
 	controlPlaneOmitAvailabilityZone *bool
-	controlPlaneEndpoint             *clusterv1.APIEndpoint
+	controlPlaneEndpoint             *clusterv1beta1.APIEndpoint
 	disableAPIServerFloatingIP       *bool
 	disableExternalNetwork           *bool
 	disablePortSecurity              *bool
@@ -64,7 +64,7 @@ type OpenStackClusterBuilder struct {
 	// Status fields.
 	bastionStatus         *capov1.BastionStatus
 	externalNetworkStatus *capov1.NetworkStatus
-	failureDomains        clusterv1.FailureDomains
+	failureDomains        clusterv1beta1.FailureDomains
 	networkStatus         *capov1.NetworkStatusWithSubnets
 	ready                 bool
 }
@@ -209,7 +209,7 @@ func (a OpenStackClusterBuilder) WithControlPlaneAvailabilityZones(azs []string)
 }
 
 // WithControlPlaneEndpoint sets the controlPlaneEndpoint for the OpenStackCluster builder.
-func (a OpenStackClusterBuilder) WithControlPlaneEndpoint(endpoint *clusterv1.APIEndpoint) OpenStackClusterBuilder {
+func (a OpenStackClusterBuilder) WithControlPlaneEndpoint(endpoint *clusterv1beta1.APIEndpoint) OpenStackClusterBuilder {
 	a.controlPlaneEndpoint = endpoint
 	return a
 }
@@ -307,7 +307,7 @@ func (a OpenStackClusterBuilder) WithExternalNetworkStatus(networkStatus *capov1
 }
 
 // WithFailureDomains sets the failureDomains for the OpenStackCluster builder.
-func (a OpenStackClusterBuilder) WithFailureDomains(failureDomains clusterv1.FailureDomains) OpenStackClusterBuilder {
+func (a OpenStackClusterBuilder) WithFailureDomains(failureDomains clusterv1beta1.FailureDomains) OpenStackClusterBuilder {
 	a.failureDomains = failureDomains
 	return a
 }

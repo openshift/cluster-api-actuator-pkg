@@ -19,7 +19,7 @@ package v1beta2
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	capibmv1 "sigs.k8s.io/cluster-api-provider-ibmcloud/api/v1beta2"
-	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 )
 
 // PowerVSCluster creates a new PowerVSClusterBuilder.
@@ -39,7 +39,7 @@ type PowerVSClusterBuilder struct {
 	namespace         string
 
 	// Spec fields.
-	controlPlaneEndpoint clusterv1.APIEndpoint
+	controlPlaneEndpoint clusterv1beta1.APIEndpoint
 	loadBalancers        []capibmv1.VPCLoadBalancerSpec
 	network              capibmv1.IBMPowerVSResourceReference
 	resourceGroup        *capibmv1.IBMPowerVSResourceReference
@@ -47,7 +47,7 @@ type PowerVSClusterBuilder struct {
 	zone                 *string
 
 	// Status fields.
-	conditions clusterv1.Conditions
+	conditions clusterv1beta1.Conditions
 	ready      bool
 }
 
@@ -129,7 +129,7 @@ func (p PowerVSClusterBuilder) WithNamespace(namespace string) PowerVSClusterBui
 // Spec fields.
 
 // WithControlPlaneEndpoint sets the controlPlaneEndpoint for the IBMPowerVSCluster builder.
-func (p PowerVSClusterBuilder) WithControlPlaneEndpoint(endpoint clusterv1.APIEndpoint) PowerVSClusterBuilder {
+func (p PowerVSClusterBuilder) WithControlPlaneEndpoint(endpoint clusterv1beta1.APIEndpoint) PowerVSClusterBuilder {
 	p.controlPlaneEndpoint = endpoint
 	return p
 }
@@ -167,7 +167,7 @@ func (p PowerVSClusterBuilder) WithZone(zone *string) PowerVSClusterBuilder {
 // Status fields.
 
 // WithConditions sets the conditions for the IBMPowerVSCluster builder.
-func (p PowerVSClusterBuilder) WithConditions(conditions clusterv1.Conditions) PowerVSClusterBuilder {
+func (p PowerVSClusterBuilder) WithConditions(conditions clusterv1beta1.Conditions) PowerVSClusterBuilder {
 	p.conditions = conditions
 	return p
 }

@@ -21,7 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	capibmv1 "sigs.k8s.io/cluster-api-provider-ibmcloud/api/v1beta2"
-	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 )
 
 // PowerVSMachine creates a new PowerVSMachine builder.
@@ -53,7 +53,7 @@ type PowerVSMachineBuilder struct {
 
 	// Status fields.
 	addresses      []corev1.NodeAddress
-	conditions     clusterv1.Conditions
+	conditions     clusterv1beta1.Conditions
 	failureMessage *string
 	failureReason  *string
 	instanceID     string
@@ -208,7 +208,7 @@ func (p PowerVSMachineBuilder) WithAddresses(addresses []corev1.NodeAddress) Pow
 }
 
 // WithConditions sets the conditions for the PowerVSMachine builder.
-func (p PowerVSMachineBuilder) WithConditions(conditions clusterv1.Conditions) PowerVSMachineBuilder {
+func (p PowerVSMachineBuilder) WithConditions(conditions clusterv1beta1.Conditions) PowerVSMachineBuilder {
 	p.conditions = conditions
 	return p
 }

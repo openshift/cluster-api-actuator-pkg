@@ -19,7 +19,7 @@ package v1beta2
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	capav1 "sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2"
-	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 )
 
 // AWSCluster creates a new AWSClusterBuilder.
@@ -41,7 +41,7 @@ type AWSClusterBuilder struct {
 	// Spec fields.
 	additionalTags                    capav1.Tags
 	bastion                           capav1.Bastion
-	controlPlaneEndpoint              clusterv1.APIEndpoint
+	controlPlaneEndpoint              clusterv1beta1.APIEndpoint
 	controlPlaneLoadBalancer          *capav1.AWSLoadBalancerSpec
 	identityRef                       *capav1.AWSIdentityReference
 	imageLookupBaseOS                 string
@@ -56,8 +56,8 @@ type AWSClusterBuilder struct {
 
 	// Status fields.
 	bastionInstance *capav1.Instance
-	conditions      clusterv1.Conditions
-	failureDomains  clusterv1.FailureDomains
+	conditions      clusterv1beta1.Conditions
+	failureDomains  clusterv1beta1.FailureDomains
 	network         capav1.NetworkStatus
 	ready           bool
 }
@@ -165,7 +165,7 @@ func (a AWSClusterBuilder) WithBastion(bastion capav1.Bastion) AWSClusterBuilder
 }
 
 // WithControlPlaneEndpoint sets the controlPlaneEndpoint for the AWSCluster builder.
-func (a AWSClusterBuilder) WithControlPlaneEndpoint(endpoint clusterv1.APIEndpoint) AWSClusterBuilder {
+func (a AWSClusterBuilder) WithControlPlaneEndpoint(endpoint clusterv1beta1.APIEndpoint) AWSClusterBuilder {
 	a.controlPlaneEndpoint = endpoint
 	return a
 }
@@ -245,13 +245,13 @@ func (a AWSClusterBuilder) WithBastionStatus(bastionInstance *capav1.Instance) A
 }
 
 // WithConditions sets the conditions for the AWSCluster builder.
-func (a AWSClusterBuilder) WithConditions(conditions clusterv1.Conditions) AWSClusterBuilder {
+func (a AWSClusterBuilder) WithConditions(conditions clusterv1beta1.Conditions) AWSClusterBuilder {
 	a.conditions = conditions
 	return a
 }
 
 // WithFailureDomains sets the failureDomains for the AWSCluster builder.
-func (a AWSClusterBuilder) WithFailureDomains(failureDomains clusterv1.FailureDomains) AWSClusterBuilder {
+func (a AWSClusterBuilder) WithFailureDomains(failureDomains clusterv1beta1.FailureDomains) AWSClusterBuilder {
 	a.failureDomains = failureDomains
 	return a
 }

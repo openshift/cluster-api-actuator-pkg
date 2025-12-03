@@ -22,7 +22,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 
 	//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
 	capierrors "sigs.k8s.io/cluster-api/errors"
@@ -171,8 +171,8 @@ var _ = Describe("MachineSet", func() {
 
 	Describe("WithTemplate", func() {
 		It("should return the custom value when specified", func() {
-			template := capiv1.MachineTemplateSpec{
-				ObjectMeta: capiv1.ObjectMeta{
+			template := clusterv1beta1.MachineTemplateSpec{
+				ObjectMeta: clusterv1beta1.ObjectMeta{
 					Labels: map[string]string{"key": "value"},
 				},
 			}
@@ -193,7 +193,7 @@ var _ = Describe("MachineSet", func() {
 
 	Describe("WithStatusConditions", func() {
 		It("should return the custom value when specified and not nil", func() {
-			conditions := capiv1.Conditions{
+			conditions := clusterv1beta1.Conditions{
 				{Type: "Ready", Status: corev1.ConditionTrue},
 			}
 			machineSet := MachineSet().WithStatusConditions(conditions).Build()

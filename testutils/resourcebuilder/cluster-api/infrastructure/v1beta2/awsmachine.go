@@ -19,7 +19,7 @@ package v1beta2
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	capav1 "sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2"
-	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 )
 
 // AWSMachine creates a new AWSMachine builder.
@@ -71,8 +71,8 @@ type AWSMachineBuilder struct {
 	uncompressedUserData     *bool
 
 	// Status fields.
-	addresses      []clusterv1.MachineAddress
-	conditions     clusterv1.Conditions
+	addresses      []clusterv1beta1.MachineAddress
+	conditions     clusterv1beta1.Conditions
 	failureMessage *string
 	failureReason  *string
 	instanceState  *capav1.InstanceState
@@ -359,13 +359,13 @@ func (a AWSMachineBuilder) WithUncompressedUserData(uncompressedUserData *bool) 
 // Status fields.
 
 // WithAddresses sets the addresses for the AWSMachine builder.
-func (a AWSMachineBuilder) WithAddresses(addresses []clusterv1.MachineAddress) AWSMachineBuilder {
+func (a AWSMachineBuilder) WithAddresses(addresses []clusterv1beta1.MachineAddress) AWSMachineBuilder {
 	a.addresses = addresses
 	return a
 }
 
 // WithConditions sets the conditions for the AWSMachine builder.
-func (a AWSMachineBuilder) WithConditions(conditions clusterv1.Conditions) AWSMachineBuilder {
+func (a AWSMachineBuilder) WithConditions(conditions clusterv1beta1.Conditions) AWSMachineBuilder {
 	a.conditions = conditions
 	return a
 }

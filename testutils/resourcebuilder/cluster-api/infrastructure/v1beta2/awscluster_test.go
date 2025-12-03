@@ -22,7 +22,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	capav1 "sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2"
-	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 )
 
 var _ = Describe("AWSCluster", func() {
@@ -111,7 +111,7 @@ var _ = Describe("AWSCluster", func() {
 
 	Describe("WithControlPlaneEndpoint", func() {
 		It("should return the custom value when specified", func() {
-			endpoint := clusterv1.APIEndpoint{Host: "example.com", Port: 6443}
+			endpoint := clusterv1beta1.APIEndpoint{Host: "example.com", Port: 6443}
 			awsCluster := AWSCluster().WithControlPlaneEndpoint(endpoint).Build()
 			Expect(awsCluster.Spec.ControlPlaneEndpoint).To(Equal(endpoint))
 		})
@@ -215,7 +215,7 @@ var _ = Describe("AWSCluster", func() {
 
 	Describe("WithConditions", func() {
 		It("should return the custom value when specified", func() {
-			conditions := clusterv1.Conditions{{Type: "Ready", Status: "True"}}
+			conditions := clusterv1beta1.Conditions{{Type: "Ready", Status: "True"}}
 			awsCluster := AWSCluster().WithConditions(conditions).Build()
 			Expect(awsCluster.Status.Conditions).To(Equal(conditions))
 		})
@@ -223,7 +223,7 @@ var _ = Describe("AWSCluster", func() {
 
 	Describe("WithFailureDomains", func() {
 		It("should return the custom value when specified", func() {
-			failureDomains := clusterv1.FailureDomains{"us-west-2a": clusterv1.FailureDomainSpec{ControlPlane: true}}
+			failureDomains := clusterv1beta1.FailureDomains{"us-west-2a": clusterv1beta1.FailureDomainSpec{ControlPlane: true}}
 			awsCluster := AWSCluster().WithFailureDomains(failureDomains).Build()
 			Expect(awsCluster.Status.FailureDomains).To(Equal(failureDomains))
 		})

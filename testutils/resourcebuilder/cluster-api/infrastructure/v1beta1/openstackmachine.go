@@ -21,7 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	capov1 "sigs.k8s.io/cluster-api-provider-openstack/api/v1beta1"
 	errors "sigs.k8s.io/cluster-api-provider-openstack/pkg/utils/errors"
-	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 )
 
 // OpenStackMachine creates a new OpenStackMachine builder.
@@ -59,7 +59,7 @@ type OpenStackMachineBuilder struct {
 
 	// Status fields.
 	addresses      []corev1.NodeAddress
-	conditions     clusterv1.Conditions
+	conditions     clusterv1beta1.Conditions
 	failureMessage *string
 	failureReason  *errors.DeprecatedCAPIMachineStatusError
 	instanceID     *string
@@ -253,7 +253,7 @@ func (a OpenStackMachineBuilder) WithAddresses(addresses []corev1.NodeAddress) O
 }
 
 // WithConditions sets the conditions for the OpenStackMachine builder.
-func (a OpenStackMachineBuilder) WithConditions(conditions clusterv1.Conditions) OpenStackMachineBuilder {
+func (a OpenStackMachineBuilder) WithConditions(conditions clusterv1beta1.Conditions) OpenStackMachineBuilder {
 	a.conditions = conditions
 	return a
 }
