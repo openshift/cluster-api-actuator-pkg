@@ -33,19 +33,23 @@ func Node() NodeBuilder {
 
 // NodeBuilder is used to build out a node object.
 type NodeBuilder struct {
-	generateName string
-	name         string
-	labels       map[string]string
-	conditions   []corev1.NodeCondition
+	creationTimestamp metav1.Time
+	deletionTimestamp *metav1.Time
+	generateName      string
+	name              string
+	labels            map[string]string
+	conditions        []corev1.NodeCondition
 }
 
 // Build builds a new node based on the configuration provided.
 func (m NodeBuilder) Build() *corev1.Node {
 	node := &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: m.generateName,
-			Name:         m.name,
-			Labels:       m.labels,
+			CreationTimestamp: m.creationTimestamp,
+			DeletionTimestamp: m.deletionTimestamp,
+			GenerateName:      m.generateName,
+			Name:              m.name,
+			Labels:            m.labels,
 		},
 		Status: corev1.NodeStatus{
 			Conditions: m.conditions,
@@ -88,6 +92,20 @@ func (m NodeBuilder) AsReady() NodeBuilder {
 // WithConditions sets the conditions for the node builder.
 func (m NodeBuilder) WithConditions(conditions []corev1.NodeCondition) NodeBuilder {
 	m.conditions = conditions
+	return m
+}
+
+// WithCreationTimestamp sets the creationTimestamp for the node builder.
+// Note: This can only be used in unit testing as the API server will drop this
+// field if a create/update request tries to set it.
+func (m NodeBuilder) WithCreationTimestamp(time metav1.Time) NodeBuilder {
+	m.creationTimestamp = time
+	return m
+}
+
+// WithDeletionTimestamp sets the deletionTimestamp for the node builder.
+func (m NodeBuilder) WithDeletionTimestamp(time *metav1.Time) NodeBuilder {
+	m.deletionTimestamp = time
 	return m
 }
 

@@ -25,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
 	capibmv1 "sigs.k8s.io/cluster-api-provider-ibmcloud/api/v1beta2"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 )
 
 var _ = Describe("PowerVSMachine", func() {
@@ -181,7 +181,7 @@ var _ = Describe("PowerVSMachine", func() {
 
 	Describe("WithConditions", func() {
 		It("should return the custom value when specified", func() {
-			conditions := clusterv1.Conditions{{Type: clusterv1.ReadyCondition, Status: corev1.ConditionTrue}}
+			conditions := clusterv1beta1.Conditions{{Type: clusterv1beta1.ReadyCondition, Status: corev1.ConditionTrue}}
 			powerVSMachine := PowerVSMachine().WithConditions(conditions).Build()
 			Expect(powerVSMachine.Status.Conditions).To(Equal(conditions))
 		})

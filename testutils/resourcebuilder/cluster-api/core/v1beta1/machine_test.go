@@ -25,7 +25,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 
 	//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
 	capierrors "sigs.k8s.io/cluster-api/errors"
@@ -106,7 +106,7 @@ var _ = Describe("Machine", func() {
 
 	Describe("Bootstrap", func() {
 		It("should have the correct bootstrap settings when set", func() {
-			bootstrap := capiv1.Bootstrap{}
+			bootstrap := clusterv1beta1.Bootstrap{}
 			machine := Machine().WithBootstrap(bootstrap).Build()
 			Expect(machine.Spec.Bootstrap).To(Equal(bootstrap))
 		})
@@ -203,7 +203,7 @@ var _ = Describe("Machine", func() {
 
 	Describe("Phase", func() {
 		It("should have the correct phase when set", func() {
-			phase := capiv1.MachinePhaseRunning
+			phase := clusterv1beta1.MachinePhaseRunning
 			machine := Machine().WithPhase(phase).Build()
 			Expect(machine.Status.Phase).To(Equal(string(phase)))
 		})
@@ -233,8 +233,8 @@ var _ = Describe("Machine", func() {
 
 	Describe("Conditions", func() {
 		It("should have the correct conditions when set", func() {
-			condition := capiv1.Condition{Type: "Ready", Status: corev1.ConditionTrue}
-			machine := Machine().WithConditions([]capiv1.Condition{condition}).Build()
+			condition := clusterv1beta1.Condition{Type: "Ready", Status: corev1.ConditionTrue}
+			machine := Machine().WithConditions([]clusterv1beta1.Condition{condition}).Build()
 			Expect(machine.Status.Conditions).To(HaveLen(1))
 		})
 	})
