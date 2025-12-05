@@ -13,6 +13,7 @@ import (
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/klog"
@@ -89,6 +90,15 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 		}
 		if awsMachineTemplate != nil {
 			framework.DeleteObjects(ctx, cl, awsMachineTemplate)
+			// Wait for AWSMachineTemplate to be fully deleted to avoid race conditions with the next test
+			Eventually(func() bool {
+				err := cl.Get(ctx, client.ObjectKey{
+					Name:      awsMachineTemplate.Name,
+					Namespace: awsMachineTemplate.Namespace,
+				}, &awsv1.AWSMachineTemplate{})
+
+				return apierrors.IsNotFound(err)
+			}, framework.WaitMedium, framework.RetryMedium).Should(BeTrue())
 		}
 	})
 
@@ -519,6 +529,15 @@ func createAWSCAPIMachineSetWithRetry(ctx context.Context, cl client.Client, mac
 			framework.DeleteCAPIMachineSets(ctx, cl, machineSet)
 			framework.WaitForCAPIMachineSetsDeleted(ctx, cl, machineSet)
 			framework.DeleteObjects(ctx, cl, awsMachineTemplate)
+			// Wait for AWSMachineTemplate to be fully deleted before retrying with a new template
+			Eventually(func() bool {
+				err := cl.Get(ctx, client.ObjectKey{
+					Name:      awsMachineTemplateName,
+					Namespace: framework.ClusterAPINamespace,
+				}, &awsv1.AWSMachineTemplate{})
+
+				return apierrors.IsNotFound(err)
+			}, framework.WaitMedium, framework.RetryMedium).Should(BeTrue())
 
 			continue
 		}
