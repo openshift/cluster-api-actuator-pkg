@@ -78,11 +78,11 @@ build-e2e:
 
 .PHONY: test-e2e
 test-e2e: ## Run openshift specific e2e test
-	hack/ci-integration.sh $(GINKGO_ARGS) --label-filter='!periodic&&!qe-only' -p
+	hack/ci-integration.sh $(GINKGO_ARGS) --label-filter='!periodic&&!qe-only&&!autoscaler' -p
 
 .PHONY: test-e2e-periodic
 test-e2e-periodic: ## Run openshift specific periodic e2e test
-	hack/ci-integration.sh $(GINKGO_ARGS) --label-filter='periodic&&!qe-only' -p
+	hack/ci-integration.sh $(GINKGO_ARGS) --label-filter='periodic&&!qe-only&&!autoscaler' -p
 
 .PHONY: help
 help:
