@@ -40,7 +40,6 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 		clusterName             string
 		oc                      *gatherer.CLI
 		awsMachineTemplate      *awsv1.AWSMachineTemplate
-		machineSetParams        framework.CAPIMachineSetParams
 		machineSet              *clusterv1.MachineSet
 		mapiDefaultProviderSpec *mapiv1.AWSMachineProviderConfig
 		err                     error
@@ -68,17 +67,6 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 		Expect(err).ToNot(HaveOccurred(), "Failed to new CLI")
 		framework.SkipIfNotTechPreviewNoUpgrade(oc, cl)
 		mapiDefaultProviderSpec = getDefaultAWSMAPIProviderSpec(cl)
-		machineSetParams = framework.NewCAPIMachineSetParams(
-			"aws-machineset",
-			clusterName,
-			mapiDefaultProviderSpec.Placement.AvailabilityZone,
-			1,
-			corev1.ObjectReference{
-				Kind:       "AWSMachineTemplate",
-				APIVersion: infraAPIVersion,
-				Name:       awsMachineTemplateName,
-			},
-		)
 		framework.CreateCoreCluster(ctx, cl, clusterName, "AWSCluster")
 	})
 
@@ -94,10 +82,20 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 
 	//huliu-OCP-51071 - [CAPI] Create machineset with CAPI on aws
 	It("should be able to run a machine with a default provider spec", func() {
-		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
+		templateName := awsMachineTemplateName + "-51071"
+		awsMachineTemplate = newAWSMachineTemplate(templateName, mapiDefaultProviderSpec)
 		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
-		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-51071", machineSetParams)
-		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
+		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, framework.NewCAPIMachineSetParams(
+			"aws-machineset-51071",
+			clusterName,
+			mapiDefaultProviderSpec.Placement.AvailabilityZone,
+			1,
+			corev1.ObjectReference{
+				Kind:       "AWSMachineTemplate",
+				APIVersion: infraAPIVersion,
+				Name:       templateName,
+			},
+		))
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
 		framework.WaitForCAPIMachinesRunning(ctx, cl, machineSet.Name)
 	})
@@ -116,18 +114,29 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 			}, framework.WaitShort, framework.RetryMedium).Should(Succeed(), "Failed to delete placementgroup after retries")
 		})
 
-		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
+		templateName := awsMachineTemplateName + "-75395"
+		awsMachineTemplate = newAWSMachineTemplate(templateName, mapiDefaultProviderSpec)
 		awsMachineTemplate.Spec.Template.Spec.PlacementGroupName = placementGroupName
 		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
-		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-75395", machineSetParams)
-		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
+		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, framework.NewCAPIMachineSetParams(
+			"aws-machineset-75395",
+			clusterName,
+			mapiDefaultProviderSpec.Placement.AvailabilityZone,
+			1,
+			corev1.ObjectReference{
+				Kind:       "AWSMachineTemplate",
+				APIVersion: infraAPIVersion,
+				Name:       templateName,
+			},
+		))
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
 		framework.WaitForCAPIMachinesRunning(ctx, cl, machineSet.Name)
 	})
 
 	//huliu-OCP-75396 - [CAPI] Creating machines using KMS keys from AWS.
 	It("should be able to run a machine using KMS keys", framework.LabelQEOnly, func() {
-		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
+		templateName := awsMachineTemplateName + "-75396"
+		awsMachineTemplate = newAWSMachineTemplate(templateName, mapiDefaultProviderSpec)
 		awskmsClient := framework.NewAwsKmsClient(framework.GetCredentialsFromCluster(oc))
 		key, err := awskmsClient.CreateKey(infrastructureName + " key 75396")
 		if err != nil {
@@ -150,8 +159,17 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 			},
 		}
 		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
-		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-75396", machineSetParams)
-		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
+		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, framework.NewCAPIMachineSetParams(
+			"aws-machineset-75396",
+			clusterName,
+			mapiDefaultProviderSpec.Placement.AvailabilityZone,
+			1,
+			corev1.ObjectReference{
+				Kind:       "AWSMachineTemplate",
+				APIVersion: infraAPIVersion,
+				Name:       templateName,
+			},
+		))
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
 		framework.WaitForCAPIMachinesRunning(ctx, cl, machineSet.Name)
 	})
@@ -159,7 +177,8 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 	//OCP-78677 - [CAPI] Dedicated tenancy should be exposed on aws providerspec.
 	It("should be able to run a machine with dedicated instance", func() {
 		var success bool
-		machineSet, awsMachineTemplate, success = createAWSCAPIMachineSetWithRetry(ctx, cl, "aws-machineset-78677", clusterName, mapiDefaultProviderSpec, 4, func(template *awsv1.AWSMachineTemplate, instanceType string) {
+		templateName := awsMachineTemplateName + "-78677"
+		machineSet, awsMachineTemplate, success = createAWSCAPIMachineSetWithRetry(ctx, cl, "aws-machineset-78677", templateName, clusterName, mapiDefaultProviderSpec, 4, func(template *awsv1.AWSMachineTemplate, instanceType string) {
 			template.Spec.Template.Spec.Tenancy = "dedicated"
 		})
 		if !success {
@@ -172,7 +191,8 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 
 	//huliu-OCP-75662 - [CAPI] AWS Machine API Support of more than one block device.
 	It("should be able to run a machine with more than one block device", func() {
-		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
+		templateName := awsMachineTemplateName + "-75662"
+		awsMachineTemplate = newAWSMachineTemplate(templateName, mapiDefaultProviderSpec)
 		awsMachineTemplate.Spec.Template.Spec.NonRootVolumes = []awsv1.Volume{
 			{
 				DeviceName: "/dev/xvda",
@@ -189,15 +209,25 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 			},
 		}
 		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
-		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-75662", machineSetParams)
-		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
+		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, framework.NewCAPIMachineSetParams(
+			"aws-machineset-75662",
+			clusterName,
+			mapiDefaultProviderSpec.Placement.AvailabilityZone,
+			1,
+			corev1.ObjectReference{
+				Kind:       "AWSMachineTemplate",
+				APIVersion: infraAPIVersion,
+				Name:       templateName,
+			},
+		))
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
 		framework.WaitForCAPIMachinesRunning(ctx, cl, machineSet.Name)
 	})
 
 	//huliu-OCP-75663 - [CAPI] User defined tags can be applied to AWS EC2 Instances.
 	It("should be able to run a machine with user defined tags", func() {
-		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
+		templateName := awsMachineTemplateName + "-75663"
+		awsMachineTemplate = newAWSMachineTemplate(templateName, mapiDefaultProviderSpec)
 		awsMachineTemplate.Spec.Template.Spec.AdditionalTags = map[string]string{
 			"adminContact": "qe",
 			"costCenter":   "1981",
@@ -205,15 +235,25 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 			"Email":        "qe@redhat.com",
 		}
 		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
-		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-75663", machineSetParams)
-		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
+		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, framework.NewCAPIMachineSetParams(
+			"aws-machineset-75663",
+			clusterName,
+			mapiDefaultProviderSpec.Placement.AvailabilityZone,
+			1,
+			corev1.ObjectReference{
+				Kind:       "AWSMachineTemplate",
+				APIVersion: infraAPIVersion,
+				Name:       templateName,
+			},
+		))
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
 		framework.WaitForCAPIMachinesRunning(ctx, cl, machineSet.Name)
 	})
 
 	//OCP-76794 - [CAPI] Support AWS capacity-reservations in CAPA.
 	It("should be able to run a machine with capacity-reservations", func() {
-		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
+		templateName := awsMachineTemplateName + "-76794"
+		awsMachineTemplate = newAWSMachineTemplate(templateName, mapiDefaultProviderSpec)
 		By("Access AWS to create CapacityReservation")
 		awsClient := framework.NewAwsClient(framework.GetCredentialsFromCluster(oc))
 		capacityReservationID, err := awsClient.CreateCapacityReservation(mapiDefaultProviderSpec.InstanceType, "Linux/UNIX", mapiDefaultProviderSpec.Placement.AvailabilityZone, 1, "targeted")
@@ -226,8 +266,17 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 		})
 		awsMachineTemplate.Spec.Template.Spec.CapacityReservationID = &capacityReservationID
 		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
-		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-76794", machineSetParams)
-		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
+		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, framework.NewCAPIMachineSetParams(
+			"aws-machineset-76794",
+			clusterName,
+			mapiDefaultProviderSpec.Placement.AvailabilityZone,
+			1,
+			corev1.ObjectReference{
+				Kind:       "AWSMachineTemplate",
+				APIVersion: infraAPIVersion,
+				Name:       templateName,
+			},
+		))
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
 		framework.WaitForCAPIMachinesRunning(ctx, cl, machineSet.Name)
 	})
@@ -239,12 +288,22 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 			Skip("c5n.9xlarge instances with EFA support may not be available in all regions, limiting this test to us-east-2 and us-west-2")
 		}
 
-		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
+		templateName := awsMachineTemplateName + "-81293"
+		awsMachineTemplate = newAWSMachineTemplate(templateName, mapiDefaultProviderSpec)
 		awsMachineTemplate.Spec.Template.Spec.InstanceType = "c5n.9xlarge"
 		awsMachineTemplate.Spec.Template.Spec.NetworkInterfaceType = awsv1.NetworkInterfaceTypeEFAWithENAInterface
 		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
-		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-81293", machineSetParams)
-		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
+		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, framework.NewCAPIMachineSetParams(
+			"aws-machineset-81293",
+			clusterName,
+			mapiDefaultProviderSpec.Placement.AvailabilityZone,
+			1,
+			corev1.ObjectReference{
+				Kind:       "AWSMachineTemplate",
+				APIVersion: infraAPIVersion,
+				Name:       templateName,
+			},
+		))
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
 		framework.WaitForCAPIMachinesRunning(ctx, cl, machineSet.Name)
 	})
@@ -252,7 +311,8 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 	//OCP-79026 - [CAPI] Spot instance can be created successfully with CAPI on aws.
 	It("should be able to run a machine with SpotMarketOptions", func() {
 		var success bool
-		machineSet, awsMachineTemplate, success = createAWSCAPIMachineSetWithRetry(ctx, cl, "aws-machineset-79026a", clusterName, mapiDefaultProviderSpec, 4, func(template *awsv1.AWSMachineTemplate, instanceType string) {
+		templateName := awsMachineTemplateName + "-79026"
+		machineSet, awsMachineTemplate, success = createAWSCAPIMachineSetWithRetry(ctx, cl, "aws-machineset-79026a", templateName, clusterName, mapiDefaultProviderSpec, 4, func(template *awsv1.AWSMachineTemplate, instanceType string) {
 			template.Spec.Template.Spec.SpotMarketOptions = &awsv1.SpotMarketOptions{}
 		})
 		if !success {
@@ -265,13 +325,23 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 
 	//OCP-84243 - [CAPI] AWS capacity reservation preference None should work correctly.
 	It("should be able to run a machine with capacity reservation preference None", func() {
-		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
+		templateName := awsMachineTemplateName + "-84243-none"
+		awsMachineTemplate = newAWSMachineTemplate(templateName, mapiDefaultProviderSpec)
 		awsMachineTemplate.Spec.Template.Spec.CapacityReservationPreference = awsv1.CapacityReservationPreferenceNone
 		Eventually(func() error {
 			return cl.Create(ctx, awsMachineTemplate)
 		}, framework.WaitShort, framework.RetryShort).Should(Succeed(), "Failed to create awsmachinetemplate")
-		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-84243-none", machineSetParams)
-		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
+		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, framework.NewCAPIMachineSetParams(
+			"aws-machineset-84243-none",
+			clusterName,
+			mapiDefaultProviderSpec.Placement.AvailabilityZone,
+			1,
+			corev1.ObjectReference{
+				Kind:       "AWSMachineTemplate",
+				APIVersion: infraAPIVersion,
+				Name:       templateName,
+			},
+		))
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
 		framework.WaitForCAPIMachinesRunning(ctx, cl, machineSet.Name)
 
@@ -282,7 +352,8 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 
 	//OCP-84243 - [CAPI] AWS capacity reservation preference CapacityReservationsOnly should work correctly.
 	It("should be able to run a machine with capacity reservation preference CapacityReservationsOnly", func() {
-		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
+		templateName := awsMachineTemplateName + "-84243-only"
+		awsMachineTemplate = newAWSMachineTemplate(templateName, mapiDefaultProviderSpec)
 		awsMachineTemplate.Spec.Template.Spec.InstanceType = "m6i.large"
 		awsMachineTemplate.Spec.Template.Spec.CapacityReservationPreference = awsv1.CapacityReservationPreferenceOnly
 
@@ -300,8 +371,17 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 		Eventually(func() error {
 			return cl.Create(ctx, awsMachineTemplate)
 		}, framework.WaitShort, framework.RetryShort).Should(Succeed(), "Failed to create awsmachinetemplate")
-		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-84243-only", machineSetParams)
-		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
+		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, framework.NewCAPIMachineSetParams(
+			"aws-machineset-84243-only",
+			clusterName,
+			mapiDefaultProviderSpec.Placement.AvailabilityZone,
+			1,
+			corev1.ObjectReference{
+				Kind:       "AWSMachineTemplate",
+				APIVersion: infraAPIVersion,
+				Name:       templateName,
+			},
+		))
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
 
 		// Check for capacity issues or successful provisioning
@@ -450,7 +530,7 @@ func newAWSMachineTemplate(name string, mapiProviderSpec *mapiv1.AWSMachineProvi
 
 // createAWSCAPIMachineSetWithRetry creates a CAPI MachineSet with retry logic for capacity constraints.
 // It tries different instance types when encountering insufficient capacity errors.
-func createAWSCAPIMachineSetWithRetry(ctx context.Context, cl client.Client, machineSetName string, clusterName string, mapiDefaultProviderSpec *mapiv1.AWSMachineProviderConfig, maxRetries int, templateConfigurator func(*awsv1.AWSMachineTemplate, string)) (*clusterv1.MachineSet, *awsv1.AWSMachineTemplate, bool) {
+func createAWSCAPIMachineSetWithRetry(ctx context.Context, cl client.Client, machineSetName string, templateName string, clusterName string, mapiDefaultProviderSpec *mapiv1.AWSMachineProviderConfig, maxRetries int, templateConfigurator func(*awsv1.AWSMachineTemplate, string)) (*clusterv1.MachineSet, *awsv1.AWSMachineTemplate, bool) {
 	machineSetReady := false
 
 	// Get the current cluster architecture
@@ -483,8 +563,10 @@ func createAWSCAPIMachineSetWithRetry(ctx context.Context, cl client.Client, mac
 
 		By(fmt.Sprintf("Attempting creation of CAPI MachineSet/AWSMachineTemplate with instance type %s for %s architecture", instanceType, arch))
 
-		// Create AWS machine template
-		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
+		// Create AWS machine template with unique name for each retry
+		// This avoids potential timing issues with deleting and recreating the same resource
+		retryTemplateName := fmt.Sprintf("%s-retry-%d", templateName, i)
+		awsMachineTemplate = newAWSMachineTemplate(retryTemplateName, mapiDefaultProviderSpec)
 		awsMachineTemplate.Spec.Template.Spec.InstanceType = instanceType
 
 		// Apply specific configuration (spot, dedicated, etc.)
@@ -502,7 +584,7 @@ func createAWSCAPIMachineSetWithRetry(ctx context.Context, cl client.Client, mac
 			corev1.ObjectReference{
 				Kind:       "AWSMachineTemplate",
 				APIVersion: infraAPIVersion,
-				Name:       awsMachineTemplateName,
+				Name:       retryTemplateName,
 			},
 		)
 
