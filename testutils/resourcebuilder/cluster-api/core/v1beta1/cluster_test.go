@@ -23,7 +23,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 
 	//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
 	capierrors "sigs.k8s.io/cluster-api/errors"
@@ -112,7 +112,7 @@ var _ = Describe("Cluster", func() {
 
 	Describe("WithClusterNetwork", func() {
 		It("should return the custom value when specified", func() {
-			network := &capiv1.ClusterNetwork{
+			network := &clusterv1beta1.ClusterNetwork{
 				APIServerPort: ptr.To(int32(6443)),
 				ServiceDomain: "cluster.local",
 			}
@@ -123,7 +123,7 @@ var _ = Describe("Cluster", func() {
 
 	Describe("WithControlPlaneEndpoint", func() {
 		It("should return the custom value when specified", func() {
-			endpoint := capiv1.APIEndpoint{
+			endpoint := clusterv1beta1.APIEndpoint{
 				Host: "api.example.com",
 				Port: 6443,
 			}
@@ -163,7 +163,7 @@ var _ = Describe("Cluster", func() {
 
 	Describe("WithTopology", func() {
 		It("should return the custom value when specified", func() {
-			topology := &capiv1.Topology{
+			topology := &clusterv1beta1.Topology{
 				Class: "test-class",
 			}
 			cluster := Cluster().WithTopology(topology).Build()
@@ -175,9 +175,9 @@ var _ = Describe("Cluster", func() {
 
 	Describe("WithConditions", func() {
 		It("should return the custom value when specified", func() {
-			conditions := capiv1.Conditions{
+			conditions := clusterv1beta1.Conditions{
 				{
-					Type:   capiv1.ReadyCondition,
+					Type:   clusterv1beta1.ReadyCondition,
 					Status: corev1.ConditionTrue,
 				},
 			}
@@ -195,8 +195,8 @@ var _ = Describe("Cluster", func() {
 
 	Describe("WithFailureDomains", func() {
 		It("should return the custom value when specified", func() {
-			failureDomains := capiv1.FailureDomains{
-				"us-east-1a": capiv1.FailureDomainSpec{
+			failureDomains := clusterv1beta1.FailureDomains{
+				"us-east-1a": clusterv1beta1.FailureDomainSpec{
 					ControlPlane: true,
 				},
 			}

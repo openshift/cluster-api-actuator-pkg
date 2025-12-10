@@ -19,7 +19,7 @@ package v1beta1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 
 	//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
 	capierrors "sigs.k8s.io/cluster-api/errors"
@@ -43,17 +43,17 @@ type ClusterBuilder struct {
 	ownerReferences   []metav1.OwnerReference
 
 	// Spec fields.
-	clusterNetwork       *capiv1.ClusterNetwork
-	controlPlaneEndpoint capiv1.APIEndpoint
+	clusterNetwork       *clusterv1beta1.ClusterNetwork
+	controlPlaneEndpoint clusterv1beta1.APIEndpoint
 	controlPlaneRef      *corev1.ObjectReference
 	infrastructureRef    *corev1.ObjectReference
 	paused               bool
-	topology             *capiv1.Topology
+	topology             *clusterv1beta1.Topology
 
 	// Status fields.
-	conditions          capiv1.Conditions
+	conditions          clusterv1beta1.Conditions
 	controlPlaneReady   bool
-	failureDomains      capiv1.FailureDomains
+	failureDomains      clusterv1beta1.FailureDomains
 	failureMessage      *string
 	failureReason       *capierrors.ClusterStatusError
 	infrastructureReady bool
@@ -62,8 +62,8 @@ type ClusterBuilder struct {
 }
 
 // Build builds a new cluster based on the configuration provided.
-func (c ClusterBuilder) Build() *capiv1.Cluster {
-	cluster := &capiv1.Cluster{
+func (c ClusterBuilder) Build() *clusterv1beta1.Cluster {
+	cluster := &clusterv1beta1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations:       c.annotations,
 			CreationTimestamp: c.creationTimestamp,
@@ -74,7 +74,7 @@ func (c ClusterBuilder) Build() *capiv1.Cluster {
 			Namespace:         c.namespace,
 			OwnerReferences:   c.ownerReferences,
 		},
-		Spec: capiv1.ClusterSpec{
+		Spec: clusterv1beta1.ClusterSpec{
 			ClusterNetwork:       c.clusterNetwork,
 			ControlPlaneEndpoint: c.controlPlaneEndpoint,
 			ControlPlaneRef:      c.controlPlaneRef,
@@ -82,7 +82,7 @@ func (c ClusterBuilder) Build() *capiv1.Cluster {
 			Paused:               c.paused,
 			Topology:             c.topology,
 		},
-		Status: capiv1.ClusterStatus{
+		Status: clusterv1beta1.ClusterStatus{
 			Conditions:          c.conditions,
 			ControlPlaneReady:   c.controlPlaneReady,
 			FailureDomains:      c.failureDomains,
@@ -150,13 +150,13 @@ func (c ClusterBuilder) WithOwnerReferences(ownerRefs []metav1.OwnerReference) C
 // Spec fields.
 
 // WithClusterNetwork sets the cluster network for the cluster builder.
-func (c ClusterBuilder) WithClusterNetwork(network *capiv1.ClusterNetwork) ClusterBuilder {
+func (c ClusterBuilder) WithClusterNetwork(network *clusterv1beta1.ClusterNetwork) ClusterBuilder {
 	c.clusterNetwork = network
 	return c
 }
 
 // WithControlPlaneEndpoint sets the control plane endpoint for the cluster builder.
-func (c ClusterBuilder) WithControlPlaneEndpoint(endpoint capiv1.APIEndpoint) ClusterBuilder {
+func (c ClusterBuilder) WithControlPlaneEndpoint(endpoint clusterv1beta1.APIEndpoint) ClusterBuilder {
 	c.controlPlaneEndpoint = endpoint
 	return c
 }
@@ -180,7 +180,7 @@ func (c ClusterBuilder) WithPaused(paused bool) ClusterBuilder {
 }
 
 // WithTopology sets the topology for the cluster builder.
-func (c ClusterBuilder) WithTopology(topology *capiv1.Topology) ClusterBuilder {
+func (c ClusterBuilder) WithTopology(topology *clusterv1beta1.Topology) ClusterBuilder {
 	c.topology = topology
 	return c
 }
@@ -188,7 +188,7 @@ func (c ClusterBuilder) WithTopology(topology *capiv1.Topology) ClusterBuilder {
 // Status fields.
 
 // WithConditions sets the conditions for the cluster builder.
-func (c ClusterBuilder) WithConditions(conditions capiv1.Conditions) ClusterBuilder {
+func (c ClusterBuilder) WithConditions(conditions clusterv1beta1.Conditions) ClusterBuilder {
 	c.conditions = conditions
 	return c
 }
@@ -200,7 +200,7 @@ func (c ClusterBuilder) WithControlPlaneReady(ready bool) ClusterBuilder {
 }
 
 // WithFailureDomains sets the failure domains for the cluster builder.
-func (c ClusterBuilder) WithFailureDomains(failureDomains capiv1.FailureDomains) ClusterBuilder {
+func (c ClusterBuilder) WithFailureDomains(failureDomains clusterv1beta1.FailureDomains) ClusterBuilder {
 	c.failureDomains = failureDomains
 	return c
 }

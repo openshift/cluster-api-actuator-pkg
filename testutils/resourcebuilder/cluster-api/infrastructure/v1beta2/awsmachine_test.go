@@ -24,7 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	capav1 "sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 )
 
 var _ = Describe("AWSMachineBuilder", func() {
@@ -320,7 +320,7 @@ var _ = Describe("AWSMachineBuilder", func() {
 	// Status fields
 	Describe("WithAddresses", func() {
 		It("should return the custom value when specified", func() {
-			addresses := []clusterv1.MachineAddress{{Type: clusterv1.MachineInternalIP, Address: "192.168.1.1"}}
+			addresses := []clusterv1beta1.MachineAddress{{Type: clusterv1beta1.MachineInternalIP, Address: "192.168.1.1"}}
 			awsMachine := AWSMachine().WithAddresses(addresses).Build()
 			Expect(awsMachine.Status.Addresses).To(Equal(addresses))
 		})
@@ -328,7 +328,7 @@ var _ = Describe("AWSMachineBuilder", func() {
 
 	Describe("WithConditions", func() {
 		It("should return the custom value when specified", func() {
-			conditions := clusterv1.Conditions{{Type: clusterv1.ReadyCondition, Status: corev1.ConditionTrue}}
+			conditions := clusterv1beta1.Conditions{{Type: clusterv1beta1.ReadyCondition, Status: corev1.ConditionTrue}}
 			awsMachine := AWSMachine().WithConditions(conditions).Build()
 			Expect(awsMachine.Status.Conditions).To(Equal(conditions))
 		})

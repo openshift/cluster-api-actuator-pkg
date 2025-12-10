@@ -23,7 +23,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	capibmv1 "sigs.k8s.io/cluster-api-provider-ibmcloud/api/v1beta2"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 )
 
 var _ = Describe("IBMPowerVSCluster", func() {
@@ -96,7 +96,7 @@ var _ = Describe("IBMPowerVSCluster", func() {
 	// Spec fields.
 
 	Describe("WithControlPlaneEndpoint", func() {
-		endpoint := clusterv1.APIEndpoint{Host: "example.com", Port: 6443}
+		endpoint := clusterv1beta1.APIEndpoint{Host: "example.com", Port: 6443}
 		It("should return the custom value when specified", func() {
 			powerVSCluster := PowerVSCluster().WithControlPlaneEndpoint(endpoint).Build()
 			Expect(powerVSCluster.Spec.ControlPlaneEndpoint).To(Equal(endpoint))
@@ -147,7 +147,7 @@ var _ = Describe("IBMPowerVSCluster", func() {
 
 	Describe("WithConditions", func() {
 		It("should return the custom value when specified", func() {
-			conditions := clusterv1.Conditions{{Type: "Ready", Status: "True"}}
+			conditions := clusterv1beta1.Conditions{{Type: "Ready", Status: "True"}}
 			powerVSCluster := PowerVSCluster().WithConditions(conditions).Build()
 			Expect(powerVSCluster.Status.Conditions).To(Equal(conditions))
 		})

@@ -16,7 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ptr "k8s.io/utils/ptr"
 	azurev1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/komega"
 	yaml "sigs.k8s.io/yaml"
@@ -30,7 +30,7 @@ const (
 
 var _ = Describe("Cluster API Azure MachineSet", framework.LabelCAPI, framework.LabelDisruptive, Ordered, func() {
 	var azureMachineTemplate *azurev1.AzureMachineTemplate
-	var machineSet *clusterv1.MachineSet
+	var machineSet *clusterv1beta1.MachineSet
 	var mapiMachineSpec *mapiv1.AzureMachineProviderSpec
 	var client runtimeclient.Client
 	var ctx context.Context

@@ -14,7 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -122,7 +122,7 @@ func GetNodeForMachine(ctx context.Context, c runtimeclient.Client, m *machinev1
 }
 
 // GetCAPINodeForMachine retrieves the node backing the given Machine.
-func GetCAPINodeForMachine(ctx context.Context, c runtimeclient.Client, m *clusterv1.Machine) (*corev1.Node, error) {
+func GetCAPINodeForMachine(ctx context.Context, c runtimeclient.Client, m *clusterv1beta1.Machine) (*corev1.Node, error) {
 	if m.Status.NodeRef == nil {
 		return nil, fmt.Errorf("%s: machine has no NodeRef", m.Name)
 	}
