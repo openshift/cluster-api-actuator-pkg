@@ -17,9 +17,8 @@ limitations under the License.
 package v1beta1
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 
 	//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
 	capierrors "sigs.k8s.io/cluster-api/errors"
@@ -43,27 +42,28 @@ type ClusterBuilder struct {
 	ownerReferences   []metav1.OwnerReference
 
 	// Spec fields.
-	clusterNetwork       *clusterv1beta1.ClusterNetwork
-	controlPlaneEndpoint clusterv1beta1.APIEndpoint
-	controlPlaneRef      *corev1.ObjectReference
-	infrastructureRef    *corev1.ObjectReference
-	paused               bool
-	topology             *clusterv1beta1.Topology
+	clusterNetwork       clusterv1.ClusterNetwork
+	controlPlaneEndpoint clusterv1.APIEndpoint
+	controlPlaneRef      clusterv1.ContractVersionedObjectReference
+	infrastructureRef    clusterv1.ContractVersionedObjectReference
+	paused               *bool
+	topology             clusterv1.Topology
 
 	// Status fields.
-	conditions          clusterv1beta1.Conditions
-	controlPlaneReady   bool
-	failureDomains      clusterv1beta1.FailureDomains
-	failureMessage      *string
-	failureReason       *capierrors.ClusterStatusError
-	infrastructureReady bool
-	observedGeneration  int64
-	phase               string
+	conditions                []metav1.Condition
+	v1Beta1Conditions         clusterv1.Conditions
+	controlPlaneInitialized   *bool
+	failureDomains            []clusterv1.FailureDomain
+	v1Beta1FailureMessage     *string
+	v1Beta1FailureReason      *capierrors.ClusterStatusError
+	infrastructureProvisioned *bool
+	observedGeneration        int64
+	phase                     string
 }
 
 // Build builds a new cluster based on the configuration provided.
-func (c ClusterBuilder) Build() *clusterv1beta1.Cluster {
-	cluster := &clusterv1beta1.Cluster{
+func (c ClusterBuilder) Build() *clusterv1.Cluster {
+	cluster := &clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations:       c.annotations,
 			CreationTimestamp: c.creationTimestamp,
@@ -74,7 +74,7 @@ func (c ClusterBuilder) Build() *clusterv1beta1.Cluster {
 			Namespace:         c.namespace,
 			OwnerReferences:   c.ownerReferences,
 		},
-		Spec: clusterv1beta1.ClusterSpec{
+		Spec: clusterv1.ClusterSpec{
 			ClusterNetwork:       c.clusterNetwork,
 			ControlPlaneEndpoint: c.controlPlaneEndpoint,
 			ControlPlaneRef:      c.controlPlaneRef,
@@ -82,15 +82,22 @@ func (c ClusterBuilder) Build() *clusterv1beta1.Cluster {
 			Paused:               c.paused,
 			Topology:             c.topology,
 		},
-		Status: clusterv1beta1.ClusterStatus{
-			Conditions:          c.conditions,
-			ControlPlaneReady:   c.controlPlaneReady,
-			FailureDomains:      c.failureDomains,
-			FailureMessage:      c.failureMessage,
-			FailureReason:       c.failureReason,
-			InfrastructureReady: c.infrastructureReady,
-			ObservedGeneration:  c.observedGeneration,
-			Phase:               c.phase,
+		Status: clusterv1.ClusterStatus{
+			Conditions: c.conditions,
+			Deprecated: &clusterv1.ClusterDeprecatedStatus{
+				V1Beta1: &clusterv1.ClusterV1Beta1DeprecatedStatus{
+					Conditions:     c.v1Beta1Conditions,
+					FailureMessage: c.v1Beta1FailureMessage,
+					FailureReason:  c.v1Beta1FailureReason,
+				},
+			},
+			Initialization: clusterv1.ClusterInitializationStatus{
+				InfrastructureProvisioned: c.infrastructureProvisioned,
+				ControlPlaneInitialized:   c.controlPlaneInitialized,
+			},
+			FailureDomains:     c.failureDomains,
+			ObservedGeneration: c.observedGeneration,
+			Phase:              c.phase,
 		},
 	}
 
@@ -150,37 +157,37 @@ func (c ClusterBuilder) WithOwnerReferences(ownerRefs []metav1.OwnerReference) C
 // Spec fields.
 
 // WithClusterNetwork sets the cluster network for the cluster builder.
-func (c ClusterBuilder) WithClusterNetwork(network *clusterv1beta1.ClusterNetwork) ClusterBuilder {
+func (c ClusterBuilder) WithClusterNetwork(network clusterv1.ClusterNetwork) ClusterBuilder {
 	c.clusterNetwork = network
 	return c
 }
 
 // WithControlPlaneEndpoint sets the control plane endpoint for the cluster builder.
-func (c ClusterBuilder) WithControlPlaneEndpoint(endpoint clusterv1beta1.APIEndpoint) ClusterBuilder {
+func (c ClusterBuilder) WithControlPlaneEndpoint(endpoint clusterv1.APIEndpoint) ClusterBuilder {
 	c.controlPlaneEndpoint = endpoint
 	return c
 }
 
 // WithControlPlaneRef sets the control plane reference for the cluster builder.
-func (c ClusterBuilder) WithControlPlaneRef(ref *corev1.ObjectReference) ClusterBuilder {
+func (c ClusterBuilder) WithControlPlaneRef(ref clusterv1.ContractVersionedObjectReference) ClusterBuilder {
 	c.controlPlaneRef = ref
 	return c
 }
 
 // WithInfrastructureRef sets the infrastructure reference for the cluster builder.
-func (c ClusterBuilder) WithInfrastructureRef(ref *corev1.ObjectReference) ClusterBuilder {
+func (c ClusterBuilder) WithInfrastructureRef(ref clusterv1.ContractVersionedObjectReference) ClusterBuilder {
 	c.infrastructureRef = ref
 	return c
 }
 
 // WithPaused sets the paused state for the cluster builder.
 func (c ClusterBuilder) WithPaused(paused bool) ClusterBuilder {
-	c.paused = paused
+	c.paused = &paused
 	return c
 }
 
 // WithTopology sets the topology for the cluster builder.
-func (c ClusterBuilder) WithTopology(topology *clusterv1beta1.Topology) ClusterBuilder {
+func (c ClusterBuilder) WithTopology(topology clusterv1.Topology) ClusterBuilder {
 	c.topology = topology
 	return c
 }
@@ -188,38 +195,44 @@ func (c ClusterBuilder) WithTopology(topology *clusterv1beta1.Topology) ClusterB
 // Status fields.
 
 // WithConditions sets the conditions for the cluster builder.
-func (c ClusterBuilder) WithConditions(conditions clusterv1beta1.Conditions) ClusterBuilder {
+func (c ClusterBuilder) WithConditions(conditions []metav1.Condition) ClusterBuilder {
 	c.conditions = conditions
 	return c
 }
 
-// WithControlPlaneReady sets the control plane ready state for the cluster builder.
-func (c ClusterBuilder) WithControlPlaneReady(ready bool) ClusterBuilder {
-	c.controlPlaneReady = ready
+// WithV1Beta1Conditions sets the v1beta1 conditions for the cluster builder.
+func (c ClusterBuilder) WithV1Beta1Conditions(conditions clusterv1.Conditions) ClusterBuilder {
+	c.v1Beta1Conditions = conditions
+	return c
+}
+
+// WithControlPlaneInitialized sets the control plane initialized state for the cluster builder.
+func (c ClusterBuilder) WithControlPlaneInitialized(initialized bool) ClusterBuilder {
+	c.controlPlaneInitialized = &initialized
 	return c
 }
 
 // WithFailureDomains sets the failure domains for the cluster builder.
-func (c ClusterBuilder) WithFailureDomains(failureDomains clusterv1beta1.FailureDomains) ClusterBuilder {
+func (c ClusterBuilder) WithFailureDomains(failureDomains []clusterv1.FailureDomain) ClusterBuilder {
 	c.failureDomains = failureDomains
 	return c
 }
 
-// WithFailureMessage sets the failure message for the cluster builder.
-func (c ClusterBuilder) WithFailureMessage(message string) ClusterBuilder {
-	c.failureMessage = &message
+// WithV1Beta1FailureMessage sets the v1beta1 failure message for the cluster builder.
+func (c ClusterBuilder) WithV1Beta1FailureMessage(message string) ClusterBuilder {
+	c.v1Beta1FailureMessage = &message
 	return c
 }
 
-// WithFailureReason sets the failure reason for the cluster builder.
-func (c ClusterBuilder) WithFailureReason(reason capierrors.ClusterStatusError) ClusterBuilder {
-	c.failureReason = &reason
+// WithV1Beta1FailureReason sets the v1beta1 failure reason for the cluster builder.
+func (c ClusterBuilder) WithV1Beta1FailureReason(reason capierrors.ClusterStatusError) ClusterBuilder {
+	c.v1Beta1FailureReason = &reason
 	return c
 }
 
-// WithInfrastructureReady sets the infrastructure ready state for the cluster builder.
-func (c ClusterBuilder) WithInfrastructureReady(ready bool) ClusterBuilder {
-	c.infrastructureReady = ready
+// WithInfrastructureProvisioned sets the infrastructure ready state for the cluster builder.
+func (c ClusterBuilder) WithInfrastructureProvisioned(provisioned bool) ClusterBuilder {
+	c.infrastructureProvisioned = &provisioned
 	return c
 }
 

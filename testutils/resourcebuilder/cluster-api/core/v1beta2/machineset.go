@@ -18,7 +18,7 @@ package v1beta1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 
 	//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
 	capierrors "sigs.k8s.io/cluster-api/errors"
@@ -43,27 +43,32 @@ type MachineSetBuilder struct {
 
 	// Spec fields.
 	clusterName     string
-	deletePolicy    string
-	minReadySeconds int32
+	deleteionOrder  clusterv1.MachineSetDeletionOrder
+	minReadySeconds *int32
 	replicas        *int32
 	selector        metav1.LabelSelector
-	template        clusterv1beta1.MachineTemplateSpec
+	template        clusterv1.MachineTemplateSpec
 
 	// Status fields.
-	availableReplicas    int32
-	conditions           clusterv1beta1.Conditions
-	failureMessage       *string
-	failureReason        *capierrors.MachineSetStatusError
-	fullyLabeledReplicas int32
-	observedGeneration   int64
-	readyReplicas        int32
-	statusReplicas       int32
-	statusSelector       string
+	conditions                  []metav1.Condition
+	v1Beta1AvailableReplicas    int32
+	v1Beta1Conditions           clusterv1.Conditions
+	v1Beta1FailureMessage       *string
+	v1Beta1FailureReason        *capierrors.MachineSetStatusError
+	v1Beta1FullyLabeledReplicas int32
+	observedGeneration          int64
+	v1Beta1ReadyReplicas        int32
+	statusReplicas              *int32
+	statusSelector              string
 }
 
 // Build builds a new MachineSet based on the configuration provided.
-func (m MachineSetBuilder) Build() *clusterv1beta1.MachineSet {
-	machineSet := &clusterv1beta1.MachineSet{
+func (m MachineSetBuilder) Build() *clusterv1.MachineSet {
+	if m.minReadySeconds != nil {
+		m.template.Spec.MinReadySeconds = m.minReadySeconds
+	}
+
+	machineSet := &clusterv1.MachineSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations:       m.annotations,
 			CreationTimestamp: m.creationTimestamp,
@@ -74,24 +79,30 @@ func (m MachineSetBuilder) Build() *clusterv1beta1.MachineSet {
 			Namespace:         m.namespace,
 			OwnerReferences:   m.ownerReferences,
 		},
-		Spec: clusterv1beta1.MachineSetSpec{
-			ClusterName:     m.clusterName,
-			DeletePolicy:    m.deletePolicy,
-			MinReadySeconds: m.minReadySeconds,
-			Replicas:        m.replicas,
-			Selector:        m.selector,
-			Template:        m.template,
+		Spec: clusterv1.MachineSetSpec{
+			ClusterName: m.clusterName,
+			Deletion: clusterv1.MachineSetDeletionSpec{
+				Order: m.deleteionOrder,
+			},
+			Replicas: m.replicas,
+			Selector: m.selector,
+			Template: m.template,
 		},
-		Status: clusterv1beta1.MachineSetStatus{
-			AvailableReplicas:    m.availableReplicas,
-			Conditions:           m.conditions,
-			FailureMessage:       m.failureMessage,
-			FailureReason:        m.failureReason,
-			FullyLabeledReplicas: m.fullyLabeledReplicas,
-			ObservedGeneration:   m.observedGeneration,
-			ReadyReplicas:        m.readyReplicas,
-			Replicas:             m.statusReplicas,
-			Selector:             m.statusSelector,
+		Status: clusterv1.MachineSetStatus{
+			Conditions: m.conditions,
+			Deprecated: &clusterv1.MachineSetDeprecatedStatus{
+				V1Beta1: &clusterv1.MachineSetV1Beta1DeprecatedStatus{
+					AvailableReplicas:    m.v1Beta1AvailableReplicas,
+					Conditions:           m.v1Beta1Conditions,
+					FailureMessage:       m.v1Beta1FailureMessage,
+					FailureReason:        m.v1Beta1FailureReason,
+					FullyLabeledReplicas: m.v1Beta1FullyLabeledReplicas,
+					ReadyReplicas:        m.v1Beta1ReadyReplicas,
+				},
+			},
+			ObservedGeneration: m.observedGeneration,
+			Replicas:           m.statusReplicas,
+			Selector:           m.statusSelector,
 		},
 	}
 
@@ -156,15 +167,15 @@ func (m MachineSetBuilder) WithClusterName(clusterName string) MachineSetBuilder
 	return m
 }
 
-// WithDeletePolicy sets the deletePolicy for the MachineSet builder.
-func (m MachineSetBuilder) WithDeletePolicy(deletePolicy string) MachineSetBuilder {
-	m.deletePolicy = deletePolicy
+// WithDeletionOrder sets the deletionOrder for the MachineSet builder.
+func (m MachineSetBuilder) WithDeletionOrder(deletionOrder clusterv1.MachineSetDeletionOrder) MachineSetBuilder {
+	m.deleteionOrder = deletionOrder
 	return m
 }
 
 // WithMinReadySeconds sets the minReadySeconds for the MachineSet builder.
 func (m MachineSetBuilder) WithMinReadySeconds(minReadySeconds int32) MachineSetBuilder {
-	m.minReadySeconds = minReadySeconds
+	m.minReadySeconds = &minReadySeconds
 	return m
 }
 
@@ -181,40 +192,46 @@ func (m MachineSetBuilder) WithSelector(selector metav1.LabelSelector) MachineSe
 }
 
 // WithTemplate sets the template for the MachineSet builder.
-func (m MachineSetBuilder) WithTemplate(template clusterv1beta1.MachineTemplateSpec) MachineSetBuilder {
+func (m MachineSetBuilder) WithTemplate(template clusterv1.MachineTemplateSpec) MachineSetBuilder {
 	m.template = template
 	return m
 }
 
 // Status.
 
-// WithStatusAvailableReplicas sets the status availableReplicas for the MachineSet builder.
-func (m MachineSetBuilder) WithStatusAvailableReplicas(availableReplicas int32) MachineSetBuilder {
-	m.availableReplicas = availableReplicas
-	return m
-}
-
 // WithStatusConditions sets the status conditions for the MachineSet builder.
-func (m MachineSetBuilder) WithStatusConditions(conditions clusterv1beta1.Conditions) MachineSetBuilder {
+func (m MachineSetBuilder) WithStatusConditions(conditions []metav1.Condition) MachineSetBuilder {
 	m.conditions = conditions
 	return m
 }
 
-// WithStatusFailureMessage sets the status failureMessage for the MachineSet builder.
-func (m MachineSetBuilder) WithStatusFailureMessage(failureMessage string) MachineSetBuilder {
-	m.failureMessage = &failureMessage
+// WithStatusV1Beta1AvailableReplicas sets the status v1beta1 availableReplicas for the MachineSet builder.
+func (m MachineSetBuilder) WithStatusV1Beta1AvailableReplicas(availableReplicas int32) MachineSetBuilder {
+	m.v1Beta1AvailableReplicas = availableReplicas
 	return m
 }
 
-// WithStatusFailureReason sets the status failureReason for the MachineSet builder.
-func (m MachineSetBuilder) WithStatusFailureReason(failureReason capierrors.MachineSetStatusError) MachineSetBuilder {
-	m.failureReason = &failureReason
+// WithStatusV1Beta1Conditions sets the status v1beta1 conditions for the MachineSet builder.
+func (m MachineSetBuilder) WithStatusV1Beta1Conditions(conditions clusterv1.Conditions) MachineSetBuilder {
+	m.v1Beta1Conditions = conditions
 	return m
 }
 
-// WithStatusFullyLabeledReplicas sets the status fullyLabeledReplicas for the MachineSet builder.
-func (m MachineSetBuilder) WithStatusFullyLabeledReplicas(fullyLabeledReplicas int32) MachineSetBuilder {
-	m.fullyLabeledReplicas = fullyLabeledReplicas
+// WithStatusV1Beta1FailureMessage sets the status v1beta1 failureMessage for the MachineSet builder.
+func (m MachineSetBuilder) WithStatusV1Beta1FailureMessage(failureMessage string) MachineSetBuilder {
+	m.v1Beta1FailureMessage = &failureMessage
+	return m
+}
+
+// WithStatusV1Beta1FailureReason sets the status v1beta1 failureReason for the MachineSet builder.
+func (m MachineSetBuilder) WithStatusV1Beta1FailureReason(failureReason capierrors.MachineSetStatusError) MachineSetBuilder {
+	m.v1Beta1FailureReason = &failureReason
+	return m
+}
+
+// WithStatusV1Beta1FullyLabeledReplicas sets the status v1beta1 fullyLabeledReplicas for the MachineSet builder.
+func (m MachineSetBuilder) WithStatusV1Beta1FullyLabeledReplicas(fullyLabeledReplicas int32) MachineSetBuilder {
+	m.v1Beta1FullyLabeledReplicas = fullyLabeledReplicas
 	return m
 }
 
@@ -224,15 +241,15 @@ func (m MachineSetBuilder) WithStatusObservedGeneration(observedGeneration int64
 	return m
 }
 
-// WithStatusReadyReplicas sets the status readyReplicas for the MachineSet builder.
-func (m MachineSetBuilder) WithStatusReadyReplicas(readyReplicas int32) MachineSetBuilder {
-	m.readyReplicas = readyReplicas
+// WithStatusV1Beta1ReadyReplicas sets the status v1beta1 readyReplicas for the MachineSet builder.
+func (m MachineSetBuilder) WithStatusV1Beta1ReadyReplicas(readyReplicas int32) MachineSetBuilder {
+	m.v1Beta1ReadyReplicas = readyReplicas
 	return m
 }
 
 // WithStatusReplicas sets the status replicas for the MachineSet builder.
 func (m MachineSetBuilder) WithStatusReplicas(replicas int32) MachineSetBuilder {
-	m.statusReplicas = replicas
+	m.statusReplicas = &replicas
 	return m
 }
 
