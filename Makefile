@@ -84,6 +84,21 @@ test-e2e: ## Run openshift specific e2e test
 test-e2e-periodic: ## Run openshift specific periodic e2e test
 	hack/ci-integration.sh $(GINKGO_ARGS) --label-filter='periodic&&!qe-only&&!autoscaler' -p
 
+.PHONY: test-mapi
+test-mapi: ## Run MAPI authoritative testing (MAPI auth, CAPI mirrors)
+	TEST_BACKEND_TYPE=MAPI TEST_AUTHORITATIVE_API=MAPI hack/ci-integration.sh $(GINKGO_ARGS) --label-filter='unified||mapi'
+
+.PHONY: test-capi
+test-capi: ## Run pure CAPI testing (no MAPI involvement)
+	TEST_BACKEND_TYPE=CAPI TEST_AUTHORITATIVE_API=CAPI hack/ci-integration.sh $(GINKGO_ARGS) --label-filter='unified'
+
+.PHONY: test-mapi-with-capi-auth
+test-mapi-with-capi-auth: ## Run tests with MAPI backend and CAPI authority (conversion layer)
+	TEST_BACKEND_TYPE=MAPI TEST_AUTHORITATIVE_API=CAPI hack/ci-integration.sh $(GINKGO_ARGS) --label-filter='unified'
+
+.PHONY: test-all
+test-all: test-mapi test-capi test-mapi-with-capi-auth ## Run all unified framework test scenarios
+
 .PHONY: help
 help:
 	@grep -E '^[a-zA-Z/0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
