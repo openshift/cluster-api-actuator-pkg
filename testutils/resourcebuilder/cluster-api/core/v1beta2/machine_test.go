@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Red Hat, Inc.
+Copyright 2025 Red Hat, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -276,6 +276,37 @@ var _ = Describe("Machine", func() {
 			expiryDate := metav1.Time{Time: time.Now()}
 			machine := Machine().WithCertificatesExpiryDate(expiryDate).Build()
 			Expect(machine.Status.CertificatesExpiryDate).To(Equal(expiryDate))
+		})
+	})
+
+	Describe("MinReadySeconds", func() {
+		It("should have the correct min ready seconds when set", func() {
+			seconds := int32(30)
+			machine := Machine().WithMinReadySeconds(seconds).Build()
+			Expect(ptr.Deref(machine.Spec.MinReadySeconds, 0)).To(Equal(seconds))
+		})
+	})
+
+	Describe("ReadinessGates", func() {
+		It("should have the correct readiness gates when set", func() {
+			gates := []clusterv1.MachineReadinessGate{
+				{
+					ConditionType: "CustomCondition",
+				},
+			}
+			machine := Machine().WithReadinessGates(gates).Build()
+			Expect(machine.Spec.ReadinessGates).To(Equal(gates))
+		})
+	})
+
+	Describe("Deletion", func() {
+		It("should have the correct deletion status when set", func() {
+			now := metav1.Now()
+			deletion := &clusterv1.MachineDeletionStatus{
+				NodeDrainStartTime: now,
+			}
+			machine := Machine().WithDeletion(deletion).Build()
+			Expect(machine.Status.Deletion).To(Equal(deletion))
 		})
 	})
 

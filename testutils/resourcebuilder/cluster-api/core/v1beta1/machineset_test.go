@@ -260,4 +260,29 @@ var _ = Describe("MachineSet", func() {
 		})
 	})
 
+	Describe("WithMachineNamingStrategy", func() {
+		It("should return the custom value when specified", func() {
+			strategy := &clusterv1beta1.MachineNamingStrategy{
+				Template: "custom-{{ .cluster.name }}-{{ .random }}",
+			}
+			machineSet := MachineSet().WithMachineNamingStrategy(strategy).Build()
+			Expect(machineSet.Spec.MachineNamingStrategy).To(Equal(strategy))
+		})
+	})
+
+	Describe("WithV1Beta2Status", func() {
+		It("should return the custom value when specified", func() {
+			v1Beta2Status := &clusterv1beta1.MachineSetV1Beta2Status{
+				Conditions: []metav1.Condition{
+					{
+						Type:   "TestCondition",
+						Status: metav1.ConditionTrue,
+					},
+				},
+			}
+			machineSet := MachineSet().WithV1Beta2Status(v1Beta2Status).Build()
+			Expect(machineSet.Status.V1Beta2).To(Equal(v1Beta2Status))
+		})
+	})
+
 })

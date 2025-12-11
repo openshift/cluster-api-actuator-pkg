@@ -266,4 +266,42 @@ var _ = Describe("Machine", func() {
 		})
 	})
 
+	Describe("WithReadinessGates", func() {
+		It("should return the custom value when specified", func() {
+			gates := []clusterv1beta1.MachineReadinessGate{
+				{
+					ConditionType: "CustomCondition",
+				},
+			}
+			machine := Machine().WithReadinessGates(gates).Build()
+			Expect(machine.Spec.ReadinessGates).To(Equal(gates))
+		})
+	})
+
+	Describe("WithDeletion", func() {
+		It("should return the custom value when specified", func() {
+			now := metav1.Now()
+			deletion := &clusterv1beta1.MachineDeletionStatus{
+				NodeDrainStartTime: &now,
+			}
+			machine := Machine().WithDeletion(deletion).Build()
+			Expect(machine.Status.Deletion).To(Equal(deletion))
+		})
+	})
+
+	Describe("WithV1Beta2Status", func() {
+		It("should return the custom value when specified", func() {
+			v1Beta2Status := &clusterv1beta1.MachineV1Beta2Status{
+				Conditions: []metav1.Condition{
+					{
+						Type:   "TestCondition",
+						Status: metav1.ConditionTrue,
+					},
+				},
+			}
+			machine := Machine().WithV1Beta2Status(v1Beta2Status).Build()
+			Expect(machine.Status.V1Beta2).To(Equal(v1Beta2Status))
+		})
+	})
+
 })

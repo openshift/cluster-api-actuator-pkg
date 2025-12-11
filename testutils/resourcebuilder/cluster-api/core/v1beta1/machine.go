@@ -51,6 +51,7 @@ type MachineBuilder struct {
 	nodeDrainTimeout        *metav1.Duration
 	nodeVolumeDetachTimeout *metav1.Duration
 	providerID              *string
+	readinessGates          []clusterv1beta1.MachineReadinessGate
 	version                 *string
 
 	// Status fields.
@@ -58,6 +59,7 @@ type MachineBuilder struct {
 	bootstrapReady         bool
 	certificatesExpiryDate *metav1.Time
 	conditions             clusterv1beta1.Conditions
+	deletion               *clusterv1beta1.MachineDeletionStatus
 	failureMessage         *string
 	failureReason          *capierrors.MachineStatusError
 	infrastructureReady    bool
@@ -66,6 +68,7 @@ type MachineBuilder struct {
 	nodeRef                *corev1.ObjectReference
 	observedGeneration     int64
 	phase                  clusterv1beta1.MachinePhase
+	v1Beta2                *clusterv1beta1.MachineV1Beta2Status
 }
 
 // Build builds a new Machine based on the configuration provided.
@@ -90,6 +93,7 @@ func (m MachineBuilder) Build() *clusterv1beta1.Machine {
 			NodeDrainTimeout:        m.nodeDrainTimeout,
 			NodeVolumeDetachTimeout: m.nodeVolumeDetachTimeout,
 			ProviderID:              m.providerID,
+			ReadinessGates:          m.readinessGates,
 			Version:                 m.version,
 		},
 		Status: clusterv1beta1.MachineStatus{
@@ -97,6 +101,7 @@ func (m MachineBuilder) Build() *clusterv1beta1.Machine {
 			BootstrapReady:         m.bootstrapReady,
 			CertificatesExpiryDate: m.certificatesExpiryDate,
 			Conditions:             m.conditions,
+			Deletion:               m.deletion,
 			FailureMessage:         m.failureMessage,
 			FailureReason:          m.failureReason,
 			InfrastructureReady:    m.infrastructureReady,
@@ -105,6 +110,7 @@ func (m MachineBuilder) Build() *clusterv1beta1.Machine {
 			NodeRef:                m.nodeRef,
 			ObservedGeneration:     m.observedGeneration,
 			Phase:                  string(m.phase),
+			V1Beta2:                m.v1Beta2,
 		},
 	}
 
@@ -217,6 +223,12 @@ func (m MachineBuilder) WithProviderID(providerID *string) MachineBuilder {
 	return m
 }
 
+// WithReadinessGates sets the ReadinessGates for the machine builder.
+func (m MachineBuilder) WithReadinessGates(gates []clusterv1beta1.MachineReadinessGate) MachineBuilder {
+	m.readinessGates = gates
+	return m
+}
+
 // WithVersion sets the Version for the machine builder.
 func (m MachineBuilder) WithVersion(version *string) MachineBuilder {
 	m.version = version
@@ -288,5 +300,17 @@ func (m MachineBuilder) WithObservedGeneration(generation int64) MachineBuilder 
 // WithPhase sets the Phase for the machine builder.
 func (m MachineBuilder) WithPhase(phase clusterv1beta1.MachinePhase) MachineBuilder {
 	m.phase = phase
+	return m
+}
+
+// WithDeletion sets the Deletion status for the machine builder.
+func (m MachineBuilder) WithDeletion(deletion *clusterv1beta1.MachineDeletionStatus) MachineBuilder {
+	m.deletion = deletion
+	return m
+}
+
+// WithV1Beta2Status sets the v1beta2 status for the machine builder.
+func (m MachineBuilder) WithV1Beta2Status(v1Beta2 *clusterv1beta1.MachineV1Beta2Status) MachineBuilder {
+	m.v1Beta2 = v1Beta2
 	return m
 }

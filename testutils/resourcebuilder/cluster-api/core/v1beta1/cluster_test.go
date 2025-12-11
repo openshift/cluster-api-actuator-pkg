@@ -246,4 +246,31 @@ var _ = Describe("Cluster", func() {
 		})
 	})
 
+	Describe("WithAvailabilityGates", func() {
+		It("should return the custom value when specified", func() {
+			gates := []clusterv1beta1.ClusterAvailabilityGate{
+				{
+					ConditionType: "CustomCondition",
+				},
+			}
+			cluster := Cluster().WithAvailabilityGates(gates).Build()
+			Expect(cluster.Spec.AvailabilityGates).To(Equal(gates))
+		})
+	})
+
+	Describe("WithV1Beta2Status", func() {
+		It("should return the custom value when specified", func() {
+			v1Beta2Status := &clusterv1beta1.ClusterV1Beta2Status{
+				Conditions: []metav1.Condition{
+					{
+						Type:   "TestCondition",
+						Status: metav1.ConditionTrue,
+					},
+				},
+			}
+			cluster := Cluster().WithV1Beta2Status(v1Beta2Status).Build()
+			Expect(cluster.Status.V1Beta2).To(Equal(v1Beta2Status))
+		})
+	})
+
 })

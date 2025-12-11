@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Red Hat, Inc.
+Copyright 2025 Red Hat, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -271,6 +271,40 @@ var _ = Describe("MachineSet", func() {
 			statusSelector := "test-selector"
 			machineSet := MachineSet().WithStatusSelector(statusSelector).Build()
 			Expect(machineSet.Status.Selector).To(Equal(statusSelector))
+		})
+	})
+
+	Describe("WithMachineNaming", func() {
+		It("should return the custom value when specified", func() {
+			machineNaming := clusterv1.MachineNamingSpec{
+				Template: "custom-{{ .cluster.name }}-{{ .random }}",
+			}
+			machineSet := MachineSet().WithMachineNaming(machineNaming).Build()
+			Expect(machineSet.Spec.MachineNaming).To(Equal(machineNaming))
+		})
+	})
+
+	Describe("WithStatusReadyReplicas", func() {
+		It("should return the custom value when specified", func() {
+			readyReplicas := int32(3)
+			machineSet := MachineSet().WithStatusReadyReplicas(readyReplicas).Build()
+			Expect(ptr.Deref(machineSet.Status.ReadyReplicas, 0)).To(Equal(readyReplicas))
+		})
+	})
+
+	Describe("WithStatusAvailableReplicas", func() {
+		It("should return the custom value when specified", func() {
+			availableReplicas := int32(3)
+			machineSet := MachineSet().WithStatusAvailableReplicas(availableReplicas).Build()
+			Expect(ptr.Deref(machineSet.Status.AvailableReplicas, 0)).To(Equal(availableReplicas))
+		})
+	})
+
+	Describe("WithStatusUpToDateReplicas", func() {
+		It("should return the custom value when specified", func() {
+			upToDateReplicas := int32(3)
+			machineSet := MachineSet().WithStatusUpToDateReplicas(upToDateReplicas).Build()
+			Expect(ptr.Deref(machineSet.Status.UpToDateReplicas, 0)).To(Equal(upToDateReplicas))
 		})
 	})
 

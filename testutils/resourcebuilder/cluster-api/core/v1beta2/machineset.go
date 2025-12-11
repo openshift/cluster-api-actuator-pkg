@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Red Hat, Inc.
+Copyright 2025 Red Hat, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -44,12 +44,14 @@ type MachineSetBuilder struct {
 	// Spec fields.
 	clusterName     string
 	deleteionOrder  clusterv1.MachineSetDeletionOrder
+	machineNaming   clusterv1.MachineNamingSpec
 	minReadySeconds *int32
 	replicas        *int32
 	selector        metav1.LabelSelector
 	template        clusterv1.MachineTemplateSpec
 
 	// Status fields.
+	availableReplicas           *int32
 	conditions                  []metav1.Condition
 	v1Beta1AvailableReplicas    int32
 	v1Beta1Conditions           clusterv1.Conditions
@@ -57,9 +59,11 @@ type MachineSetBuilder struct {
 	v1Beta1FailureReason        *capierrors.MachineSetStatusError
 	v1Beta1FullyLabeledReplicas int32
 	observedGeneration          int64
+	readyReplicas               *int32
 	v1Beta1ReadyReplicas        int32
 	statusReplicas              *int32
 	statusSelector              string
+	upToDateReplicas            *int32
 }
 
 // Build builds a new MachineSet based on the configuration provided.
@@ -84,12 +88,14 @@ func (m MachineSetBuilder) Build() *clusterv1.MachineSet {
 			Deletion: clusterv1.MachineSetDeletionSpec{
 				Order: m.deleteionOrder,
 			},
-			Replicas: m.replicas,
-			Selector: m.selector,
-			Template: m.template,
+			MachineNaming: m.machineNaming,
+			Replicas:      m.replicas,
+			Selector:      m.selector,
+			Template:      m.template,
 		},
 		Status: clusterv1.MachineSetStatus{
-			Conditions: m.conditions,
+			AvailableReplicas: m.availableReplicas,
+			Conditions:        m.conditions,
 			Deprecated: &clusterv1.MachineSetDeprecatedStatus{
 				V1Beta1: &clusterv1.MachineSetV1Beta1DeprecatedStatus{
 					AvailableReplicas:    m.v1Beta1AvailableReplicas,
@@ -101,8 +107,10 @@ func (m MachineSetBuilder) Build() *clusterv1.MachineSet {
 				},
 			},
 			ObservedGeneration: m.observedGeneration,
+			ReadyReplicas:      m.readyReplicas,
 			Replicas:           m.statusReplicas,
 			Selector:           m.statusSelector,
+			UpToDateReplicas:   m.upToDateReplicas,
 		},
 	}
 
@@ -170,6 +178,12 @@ func (m MachineSetBuilder) WithClusterName(clusterName string) MachineSetBuilder
 // WithDeletionOrder sets the deletionOrder for the MachineSet builder.
 func (m MachineSetBuilder) WithDeletionOrder(deletionOrder clusterv1.MachineSetDeletionOrder) MachineSetBuilder {
 	m.deleteionOrder = deletionOrder
+	return m
+}
+
+// WithMachineNaming sets the machineNaming for the MachineSet builder.
+func (m MachineSetBuilder) WithMachineNaming(machineNaming clusterv1.MachineNamingSpec) MachineSetBuilder {
+	m.machineNaming = machineNaming
 	return m
 }
 
@@ -256,5 +270,23 @@ func (m MachineSetBuilder) WithStatusReplicas(replicas int32) MachineSetBuilder 
 // WithStatusSelector sets the status selector for the MachineSet builder.
 func (m MachineSetBuilder) WithStatusSelector(selector string) MachineSetBuilder {
 	m.statusSelector = selector
+	return m
+}
+
+// WithStatusReadyReplicas sets the status readyReplicas for the MachineSet builder.
+func (m MachineSetBuilder) WithStatusReadyReplicas(readyReplicas int32) MachineSetBuilder {
+	m.readyReplicas = &readyReplicas
+	return m
+}
+
+// WithStatusAvailableReplicas sets the status availableReplicas for the MachineSet builder.
+func (m MachineSetBuilder) WithStatusAvailableReplicas(availableReplicas int32) MachineSetBuilder {
+	m.availableReplicas = &availableReplicas
+	return m
+}
+
+// WithStatusUpToDateReplicas sets the status upToDateReplicas for the MachineSet builder.
+func (m MachineSetBuilder) WithStatusUpToDateReplicas(upToDateReplicas int32) MachineSetBuilder {
+	m.upToDateReplicas = &upToDateReplicas
 	return m
 }

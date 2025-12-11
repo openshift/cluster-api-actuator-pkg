@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Red Hat, Inc.
+Copyright 2025 Red Hat, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ type ClusterBuilder struct {
 	ownerReferences   []metav1.OwnerReference
 
 	// Spec fields.
+	availabilityGates    []clusterv1.ClusterAvailabilityGate
 	clusterNetwork       clusterv1.ClusterNetwork
 	controlPlaneEndpoint clusterv1.APIEndpoint
 	controlPlaneRef      clusterv1.ContractVersionedObjectReference
@@ -51,6 +52,7 @@ type ClusterBuilder struct {
 
 	// Status fields.
 	conditions                []metav1.Condition
+	controlPlane              *clusterv1.ClusterControlPlaneStatus
 	v1Beta1Conditions         clusterv1.Conditions
 	controlPlaneInitialized   *bool
 	failureDomains            []clusterv1.FailureDomain
@@ -59,6 +61,7 @@ type ClusterBuilder struct {
 	infrastructureProvisioned *bool
 	observedGeneration        int64
 	phase                     string
+	workers                   *clusterv1.WorkersStatus
 }
 
 // Build builds a new cluster based on the configuration provided.
@@ -75,6 +78,7 @@ func (c ClusterBuilder) Build() *clusterv1.Cluster {
 			OwnerReferences:   c.ownerReferences,
 		},
 		Spec: clusterv1.ClusterSpec{
+			AvailabilityGates:    c.availabilityGates,
 			ClusterNetwork:       c.clusterNetwork,
 			ControlPlaneEndpoint: c.controlPlaneEndpoint,
 			ControlPlaneRef:      c.controlPlaneRef,
@@ -83,7 +87,8 @@ func (c ClusterBuilder) Build() *clusterv1.Cluster {
 			Topology:             c.topology,
 		},
 		Status: clusterv1.ClusterStatus{
-			Conditions: c.conditions,
+			Conditions:   c.conditions,
+			ControlPlane: c.controlPlane,
 			Deprecated: &clusterv1.ClusterDeprecatedStatus{
 				V1Beta1: &clusterv1.ClusterV1Beta1DeprecatedStatus{
 					Conditions:     c.v1Beta1Conditions,
@@ -98,6 +103,7 @@ func (c ClusterBuilder) Build() *clusterv1.Cluster {
 			FailureDomains:     c.failureDomains,
 			ObservedGeneration: c.observedGeneration,
 			Phase:              c.phase,
+			Workers:            c.workers,
 		},
 	}
 
@@ -155,6 +161,12 @@ func (c ClusterBuilder) WithOwnerReferences(ownerRefs []metav1.OwnerReference) C
 }
 
 // Spec fields.
+
+// WithAvailabilityGates sets the availability gates for the cluster builder.
+func (c ClusterBuilder) WithAvailabilityGates(gates []clusterv1.ClusterAvailabilityGate) ClusterBuilder {
+	c.availabilityGates = gates
+	return c
+}
 
 // WithClusterNetwork sets the cluster network for the cluster builder.
 func (c ClusterBuilder) WithClusterNetwork(network clusterv1.ClusterNetwork) ClusterBuilder {
@@ -245,5 +257,17 @@ func (c ClusterBuilder) WithObservedGeneration(generation int64) ClusterBuilder 
 // WithPhase sets the phase for the cluster builder.
 func (c ClusterBuilder) WithPhase(phase string) ClusterBuilder {
 	c.phase = phase
+	return c
+}
+
+// WithControlPlaneStatus sets the control plane status for the cluster builder.
+func (c ClusterBuilder) WithControlPlaneStatus(controlPlane *clusterv1.ClusterControlPlaneStatus) ClusterBuilder {
+	c.controlPlane = controlPlane
+	return c
+}
+
+// WithWorkersStatus sets the workers status for the cluster builder.
+func (c ClusterBuilder) WithWorkersStatus(workers *clusterv1.WorkersStatus) ClusterBuilder {
+	c.workers = workers
 	return c
 }

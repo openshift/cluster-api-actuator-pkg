@@ -43,6 +43,7 @@ type ClusterBuilder struct {
 	ownerReferences   []metav1.OwnerReference
 
 	// Spec fields.
+	availabilityGates    []clusterv1beta1.ClusterAvailabilityGate
 	clusterNetwork       *clusterv1beta1.ClusterNetwork
 	controlPlaneEndpoint clusterv1beta1.APIEndpoint
 	controlPlaneRef      *corev1.ObjectReference
@@ -59,6 +60,7 @@ type ClusterBuilder struct {
 	infrastructureReady bool
 	observedGeneration  int64
 	phase               string
+	v1Beta2             *clusterv1beta1.ClusterV1Beta2Status
 }
 
 // Build builds a new cluster based on the configuration provided.
@@ -75,6 +77,7 @@ func (c ClusterBuilder) Build() *clusterv1beta1.Cluster {
 			OwnerReferences:   c.ownerReferences,
 		},
 		Spec: clusterv1beta1.ClusterSpec{
+			AvailabilityGates:    c.availabilityGates,
 			ClusterNetwork:       c.clusterNetwork,
 			ControlPlaneEndpoint: c.controlPlaneEndpoint,
 			ControlPlaneRef:      c.controlPlaneRef,
@@ -91,6 +94,7 @@ func (c ClusterBuilder) Build() *clusterv1beta1.Cluster {
 			InfrastructureReady: c.infrastructureReady,
 			ObservedGeneration:  c.observedGeneration,
 			Phase:               c.phase,
+			V1Beta2:             c.v1Beta2,
 		},
 	}
 
@@ -148,6 +152,12 @@ func (c ClusterBuilder) WithOwnerReferences(ownerRefs []metav1.OwnerReference) C
 }
 
 // Spec fields.
+
+// WithAvailabilityGates sets the availability gates for the cluster builder.
+func (c ClusterBuilder) WithAvailabilityGates(gates []clusterv1beta1.ClusterAvailabilityGate) ClusterBuilder {
+	c.availabilityGates = gates
+	return c
+}
 
 // WithClusterNetwork sets the cluster network for the cluster builder.
 func (c ClusterBuilder) WithClusterNetwork(network *clusterv1beta1.ClusterNetwork) ClusterBuilder {
@@ -232,5 +242,11 @@ func (c ClusterBuilder) WithObservedGeneration(generation int64) ClusterBuilder 
 // WithPhase sets the phase for the cluster builder.
 func (c ClusterBuilder) WithPhase(phase string) ClusterBuilder {
 	c.phase = phase
+	return c
+}
+
+// WithV1Beta2Status sets the v1beta2 status for the cluster builder.
+func (c ClusterBuilder) WithV1Beta2Status(v1Beta2 *clusterv1beta1.ClusterV1Beta2Status) ClusterBuilder {
+	c.v1Beta2 = v1Beta2
 	return c
 }

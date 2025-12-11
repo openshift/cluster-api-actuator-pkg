@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Red Hat, Inc.
+Copyright 2025 Red Hat, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -47,10 +47,12 @@ type MachineBuilder struct {
 	clusterName                    string
 	failureDomain                  string
 	infrastructureRef              clusterv1.ContractVersionedObjectReference
+	minReadySeconds                *int32
 	nodeDeletionTimeoutSeconds     *int32
 	nodeDrainTimeoutSeconds        *int32
 	nodeVolumeDetachTimeoutSeconds *int32
 	providerID                     string
+	readinessGates                 []clusterv1.MachineReadinessGate
 	version                        string
 
 	// Status fields.
@@ -58,6 +60,7 @@ type MachineBuilder struct {
 	bootstrapDataSecretCreated *bool
 	certificatesExpiryDate     metav1.Time
 	conditions                 []metav1.Condition
+	deletion                   *clusterv1.MachineDeletionStatus
 	v1Beta1Conditions          clusterv1.Conditions
 	v1Beta1FailureMessage      *string
 	v1Beta1FailureReason       *capierrors.MachineStatusError
@@ -87,18 +90,21 @@ func (m MachineBuilder) Build() *clusterv1.Machine {
 			ClusterName:       m.clusterName,
 			FailureDomain:     m.failureDomain,
 			InfrastructureRef: m.infrastructureRef,
+			MinReadySeconds:   m.minReadySeconds,
 			Deletion: clusterv1.MachineDeletionSpec{
 				NodeDeletionTimeoutSeconds:     m.nodeDeletionTimeoutSeconds,
 				NodeDrainTimeoutSeconds:        m.nodeDrainTimeoutSeconds,
 				NodeVolumeDetachTimeoutSeconds: m.nodeVolumeDetachTimeoutSeconds,
 			},
-			ProviderID: m.providerID,
-			Version:    m.version,
+			ProviderID:     m.providerID,
+			ReadinessGates: m.readinessGates,
+			Version:        m.version,
 		},
 		Status: clusterv1.MachineStatus{
 			Addresses:              m.addresses,
 			CertificatesExpiryDate: m.certificatesExpiryDate,
 			Conditions:             m.conditions,
+			Deletion:               m.deletion,
 			Deprecated: &clusterv1.MachineDeprecatedStatus{
 				V1Beta1: &clusterv1.MachineV1Beta1DeprecatedStatus{
 					Conditions:     m.v1Beta1Conditions,
@@ -197,6 +203,12 @@ func (m MachineBuilder) WithInfrastructureRef(infraRef clusterv1.ContractVersion
 	return m
 }
 
+// WithMinReadySeconds sets the MinReadySeconds for the machine builder.
+func (m MachineBuilder) WithMinReadySeconds(seconds int32) MachineBuilder {
+	m.minReadySeconds = &seconds
+	return m
+}
+
 // WithNodeDeletionTimeout sets the NodeDeletionTimeout for the machine builder.
 func (m MachineBuilder) WithNodeDeletionTimeoutSeconds(timeoutSeconds int32) MachineBuilder {
 	m.nodeDeletionTimeoutSeconds = &timeoutSeconds
@@ -224,6 +236,12 @@ func (m MachineBuilder) WithNodeRef(nodeRef clusterv1.MachineNodeReference) Mach
 // WithProviderID sets the ProviderID for the machine builder.
 func (m MachineBuilder) WithProviderID(providerID string) MachineBuilder {
 	m.providerID = providerID
+	return m
+}
+
+// WithReadinessGates sets the ReadinessGates for the machine builder.
+func (m MachineBuilder) WithReadinessGates(gates []clusterv1.MachineReadinessGate) MachineBuilder {
+	m.readinessGates = gates
 	return m
 }
 
@@ -304,5 +322,11 @@ func (m MachineBuilder) WithObservedGeneration(generation int64) MachineBuilder 
 // WithPhase sets the Phase for the machine builder.
 func (m MachineBuilder) WithPhase(phase clusterv1.MachinePhase) MachineBuilder {
 	m.phase = phase
+	return m
+}
+
+// WithDeletion sets the Deletion status for the machine builder.
+func (m MachineBuilder) WithDeletion(deletion *clusterv1.MachineDeletionStatus) MachineBuilder {
+	m.deletion = deletion
 	return m
 }

@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Red Hat, Inc.
+Copyright 2025 Red Hat, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -261,6 +261,42 @@ var _ = Describe("Cluster", func() {
 			phase := "Provisioning"
 			cluster := Cluster().WithPhase(phase).Build()
 			Expect(cluster.Status.Phase).To(Equal(phase))
+		})
+	})
+
+	Describe("WithAvailabilityGates", func() {
+		It("should return the custom value when specified", func() {
+			gates := []clusterv1.ClusterAvailabilityGate{
+				{
+					ConditionType: "CustomCondition",
+				},
+			}
+			cluster := Cluster().WithAvailabilityGates(gates).Build()
+			Expect(cluster.Spec.AvailabilityGates).To(Equal(gates))
+		})
+	})
+
+	Describe("WithControlPlaneStatus", func() {
+		It("should return the custom value when specified", func() {
+			controlPlaneStatus := &clusterv1.ClusterControlPlaneStatus{
+				DesiredReplicas: ptr.To(int32(3)),
+				Replicas:        ptr.To(int32(3)),
+				ReadyReplicas:   ptr.To(int32(3)),
+			}
+			cluster := Cluster().WithControlPlaneStatus(controlPlaneStatus).Build()
+			Expect(cluster.Status.ControlPlane).To(Equal(controlPlaneStatus))
+		})
+	})
+
+	Describe("WithWorkersStatus", func() {
+		It("should return the custom value when specified", func() {
+			workersStatus := &clusterv1.WorkersStatus{
+				DesiredReplicas: ptr.To(int32(5)),
+				Replicas:        ptr.To(int32(5)),
+				ReadyReplicas:   ptr.To(int32(5)),
+			}
+			cluster := Cluster().WithWorkersStatus(workersStatus).Build()
+			Expect(cluster.Status.Workers).To(Equal(workersStatus))
 		})
 	})
 
