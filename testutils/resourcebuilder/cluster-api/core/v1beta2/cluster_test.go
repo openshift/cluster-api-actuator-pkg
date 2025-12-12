@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Red Hat, Inc.
+Copyright 2025 Red Hat, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 
 	//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
 	capierrors "sigs.k8s.io/cluster-api/errors"
@@ -112,8 +112,8 @@ var _ = Describe("Cluster", func() {
 
 	Describe("WithClusterNetwork", func() {
 		It("should return the custom value when specified", func() {
-			network := &clusterv1beta1.ClusterNetwork{
-				APIServerPort: ptr.To(int32(6443)),
+			network := clusterv1.ClusterNetwork{
+				APIServerPort: 6443,
 				ServiceDomain: "cluster.local",
 			}
 			cluster := Cluster().WithClusterNetwork(network).Build()
@@ -123,7 +123,7 @@ var _ = Describe("Cluster", func() {
 
 	Describe("WithControlPlaneEndpoint", func() {
 		It("should return the custom value when specified", func() {
-			endpoint := clusterv1beta1.APIEndpoint{
+			endpoint := clusterv1.APIEndpoint{
 				Host: "api.example.com",
 				Port: 6443,
 			}
@@ -134,9 +134,10 @@ var _ = Describe("Cluster", func() {
 
 	Describe("WithControlPlaneRef", func() {
 		It("should return the custom value when specified", func() {
-			ref := &corev1.ObjectReference{
-				Kind: "KubeadmControlPlane",
-				Name: "test-control-plane",
+			ref := clusterv1.ContractVersionedObjectReference{
+				APIGroup: "controlplane.cluster.x-k8s.io",
+				Kind:     "KubeadmControlPlane",
+				Name:     "test-control-plane",
 			}
 			cluster := Cluster().WithControlPlaneRef(ref).Build()
 			Expect(cluster.Spec.ControlPlaneRef).To(Equal(ref))
@@ -145,9 +146,10 @@ var _ = Describe("Cluster", func() {
 
 	Describe("WithInfrastructureRef", func() {
 		It("should return the custom value when specified", func() {
-			ref := &corev1.ObjectReference{
-				Kind: "AWSCluster",
-				Name: "test-aws-cluster",
+			ref := clusterv1.ContractVersionedObjectReference{
+				APIGroup: "infrastructure.cluster.x-k8s.io",
+				Kind:     "AWSCluster",
+				Name:     "test-aws-cluster",
 			}
 			cluster := Cluster().WithInfrastructureRef(ref).Build()
 			Expect(cluster.Spec.InfrastructureRef).To(Equal(ref))
@@ -157,14 +159,16 @@ var _ = Describe("Cluster", func() {
 	Describe("WithPaused", func() {
 		It("should return the custom value when specified", func() {
 			cluster := Cluster().WithPaused(true).Build()
-			Expect(cluster.Spec.Paused).To(BeTrue())
+			Expect(ptr.Deref(cluster.Spec.Paused, false)).To(BeTrue())
 		})
 	})
 
 	Describe("WithTopology", func() {
 		It("should return the custom value when specified", func() {
-			topology := &clusterv1beta1.Topology{
-				Class: "test-class",
+			topology := clusterv1.Topology{
+				ClassRef: clusterv1.ClusterClassRef{
+					Name: "test-class",
+				},
 			}
 			cluster := Cluster().WithTopology(topology).Build()
 			Expect(cluster.Spec.Topology).To(Equal(topology))
@@ -175,10 +179,10 @@ var _ = Describe("Cluster", func() {
 
 	Describe("WithConditions", func() {
 		It("should return the custom value when specified", func() {
-			conditions := clusterv1beta1.Conditions{
+			conditions := []metav1.Condition{
 				{
-					Type:   clusterv1beta1.ReadyCondition,
-					Status: corev1.ConditionTrue,
+					Type:   clusterv1.ReadyCondition,
+					Status: metav1.ConditionTrue,
 				},
 			}
 			cluster := Cluster().WithConditions(conditions).Build()
@@ -186,47 +190,61 @@ var _ = Describe("Cluster", func() {
 		})
 	})
 
-	Describe("WithControlPlaneReady", func() {
+	Describe("WithV1Beta1Conditions", func() {
 		It("should return the custom value when specified", func() {
-			cluster := Cluster().WithControlPlaneReady(true).Build()
-			Expect(cluster.Status.ControlPlaneReady).To(BeTrue())
+			conditions := clusterv1.Conditions{
+				{
+					Type:   clusterv1.ReadyCondition,
+					Status: corev1.ConditionTrue,
+				},
+			}
+			cluster := Cluster().WithV1Beta1Conditions(conditions).Build()
+			//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
+			Expect(cluster.Status.Deprecated.V1Beta1.Conditions).To(Equal(conditions))
+		})
+	})
+
+	Describe("WithControlPlaneInitialized", func() {
+		It("should return the custom value when specified", func() {
+			cluster := Cluster().WithControlPlaneInitialized(true).Build()
+			Expect(ptr.Deref(cluster.Status.Initialization.ControlPlaneInitialized, false)).To(BeTrue())
 		})
 	})
 
 	Describe("WithFailureDomains", func() {
 		It("should return the custom value when specified", func() {
-			failureDomains := clusterv1beta1.FailureDomains{
-				"us-east-1a": clusterv1beta1.FailureDomainSpec{
-					ControlPlane: true,
-				},
+			failureDomains := []clusterv1.FailureDomain{{
+				Name:         "us-east-1a",
+				ControlPlane: ptr.To(true),
+			},
 			}
 			cluster := Cluster().WithFailureDomains(failureDomains).Build()
 			Expect(cluster.Status.FailureDomains).To(Equal(failureDomains))
 		})
 	})
 
-	Describe("WithFailureMessage", func() {
+	Describe("WithV1Beta1FailureMessage", func() {
 		It("should return the custom value when specified", func() {
 			message := "Test failure message"
-			cluster := Cluster().WithFailureMessage(message).Build()
+			cluster := Cluster().WithV1Beta1FailureMessage(message).Build()
 			//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
-			Expect(*cluster.Status.FailureMessage).To(Equal(message))
+			Expect(*cluster.Status.Deprecated.V1Beta1.FailureMessage).To(Equal(message))
 		})
 	})
 
-	Describe("WithFailureReason", func() {
+	Describe("WithV1Beta1FailureReason", func() {
 		It("should return the custom value when specified", func() {
 			reason := capierrors.InvalidConfigurationClusterError
-			cluster := Cluster().WithFailureReason(reason).Build()
+			cluster := Cluster().WithV1Beta1FailureReason(reason).Build()
 			//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
-			Expect(*cluster.Status.FailureReason).To(Equal(reason))
+			Expect(*cluster.Status.Deprecated.V1Beta1.FailureReason).To(Equal(reason))
 		})
 	})
 
-	Describe("WithInfrastructureReady", func() {
+	Describe("WithInfrastructureProvisioned", func() {
 		It("should return the custom value when specified", func() {
-			cluster := Cluster().WithInfrastructureReady(true).Build()
-			Expect(cluster.Status.InfrastructureReady).To(BeTrue())
+			cluster := Cluster().WithInfrastructureProvisioned(true).Build()
+			Expect(ptr.Deref(cluster.Status.Initialization.InfrastructureProvisioned, false)).To(BeTrue())
 		})
 	})
 
@@ -248,7 +266,7 @@ var _ = Describe("Cluster", func() {
 
 	Describe("WithAvailabilityGates", func() {
 		It("should return the custom value when specified", func() {
-			gates := []clusterv1beta1.ClusterAvailabilityGate{
+			gates := []clusterv1.ClusterAvailabilityGate{
 				{
 					ConditionType: "CustomCondition",
 				},
@@ -258,18 +276,27 @@ var _ = Describe("Cluster", func() {
 		})
 	})
 
-	Describe("WithV1Beta2Status", func() {
+	Describe("WithControlPlaneStatus", func() {
 		It("should return the custom value when specified", func() {
-			v1Beta2Status := &clusterv1beta1.ClusterV1Beta2Status{
-				Conditions: []metav1.Condition{
-					{
-						Type:   "TestCondition",
-						Status: metav1.ConditionTrue,
-					},
-				},
+			controlPlaneStatus := &clusterv1.ClusterControlPlaneStatus{
+				DesiredReplicas: ptr.To(int32(3)),
+				Replicas:        ptr.To(int32(3)),
+				ReadyReplicas:   ptr.To(int32(3)),
 			}
-			cluster := Cluster().WithV1Beta2Status(v1Beta2Status).Build()
-			Expect(cluster.Status.V1Beta2).To(Equal(v1Beta2Status))
+			cluster := Cluster().WithControlPlaneStatus(controlPlaneStatus).Build()
+			Expect(cluster.Status.ControlPlane).To(Equal(controlPlaneStatus))
+		})
+	})
+
+	Describe("WithWorkersStatus", func() {
+		It("should return the custom value when specified", func() {
+			workersStatus := &clusterv1.WorkersStatus{
+				DesiredReplicas: ptr.To(int32(5)),
+				Replicas:        ptr.To(int32(5)),
+				ReadyReplicas:   ptr.To(int32(5)),
+			}
+			cluster := Cluster().WithWorkersStatus(workersStatus).Build()
+			Expect(cluster.Status.Workers).To(Equal(workersStatus))
 		})
 	})
 

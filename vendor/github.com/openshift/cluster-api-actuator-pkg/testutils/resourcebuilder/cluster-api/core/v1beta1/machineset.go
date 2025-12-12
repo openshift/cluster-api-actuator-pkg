@@ -18,7 +18,7 @@ package v1beta1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 
 	//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
 	capierrors "sigs.k8s.io/cluster-api/errors"
@@ -47,11 +47,11 @@ type MachineSetBuilder struct {
 	minReadySeconds int32
 	replicas        *int32
 	selector        metav1.LabelSelector
-	template        capiv1.MachineTemplateSpec
+	template        clusterv1beta1.MachineTemplateSpec
 
 	// Status fields.
 	availableReplicas    int32
-	conditions           capiv1.Conditions
+	conditions           clusterv1beta1.Conditions
 	failureMessage       *string
 	failureReason        *capierrors.MachineSetStatusError
 	fullyLabeledReplicas int32
@@ -62,8 +62,8 @@ type MachineSetBuilder struct {
 }
 
 // Build builds a new MachineSet based on the configuration provided.
-func (m MachineSetBuilder) Build() *capiv1.MachineSet {
-	machineSet := &capiv1.MachineSet{
+func (m MachineSetBuilder) Build() *clusterv1beta1.MachineSet {
+	machineSet := &clusterv1beta1.MachineSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations:       m.annotations,
 			CreationTimestamp: m.creationTimestamp,
@@ -74,7 +74,7 @@ func (m MachineSetBuilder) Build() *capiv1.MachineSet {
 			Namespace:         m.namespace,
 			OwnerReferences:   m.ownerReferences,
 		},
-		Spec: capiv1.MachineSetSpec{
+		Spec: clusterv1beta1.MachineSetSpec{
 			ClusterName:     m.clusterName,
 			DeletePolicy:    m.deletePolicy,
 			MinReadySeconds: m.minReadySeconds,
@@ -82,7 +82,7 @@ func (m MachineSetBuilder) Build() *capiv1.MachineSet {
 			Selector:        m.selector,
 			Template:        m.template,
 		},
-		Status: capiv1.MachineSetStatus{
+		Status: clusterv1beta1.MachineSetStatus{
 			AvailableReplicas:    m.availableReplicas,
 			Conditions:           m.conditions,
 			FailureMessage:       m.failureMessage,
@@ -181,7 +181,7 @@ func (m MachineSetBuilder) WithSelector(selector metav1.LabelSelector) MachineSe
 }
 
 // WithTemplate sets the template for the MachineSet builder.
-func (m MachineSetBuilder) WithTemplate(template capiv1.MachineTemplateSpec) MachineSetBuilder {
+func (m MachineSetBuilder) WithTemplate(template clusterv1beta1.MachineTemplateSpec) MachineSetBuilder {
 	m.template = template
 	return m
 }
@@ -195,7 +195,7 @@ func (m MachineSetBuilder) WithStatusAvailableReplicas(availableReplicas int32) 
 }
 
 // WithStatusConditions sets the status conditions for the MachineSet builder.
-func (m MachineSetBuilder) WithStatusConditions(conditions capiv1.Conditions) MachineSetBuilder {
+func (m MachineSetBuilder) WithStatusConditions(conditions clusterv1beta1.Conditions) MachineSetBuilder {
 	m.conditions = conditions
 	return m
 }

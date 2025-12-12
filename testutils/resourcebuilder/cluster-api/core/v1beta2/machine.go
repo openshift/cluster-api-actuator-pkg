@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Red Hat, Inc.
+Copyright 2025 Red Hat, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ package v1beta1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 
 	//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
 	capierrors "sigs.k8s.io/cluster-api/errors"
@@ -43,37 +43,38 @@ type MachineBuilder struct {
 	ownerReferences   []metav1.OwnerReference
 
 	// Spec fields.
-	bootstrap               clusterv1beta1.Bootstrap
-	clusterName             string
-	failureDomain           *string
-	infrastructureRef       corev1.ObjectReference
-	nodeDeletionTimeout     *metav1.Duration
-	nodeDrainTimeout        *metav1.Duration
-	nodeVolumeDetachTimeout *metav1.Duration
-	providerID              *string
-	readinessGates          []clusterv1beta1.MachineReadinessGate
-	version                 *string
+	bootstrap                      clusterv1.Bootstrap
+	clusterName                    string
+	failureDomain                  string
+	infrastructureRef              clusterv1.ContractVersionedObjectReference
+	minReadySeconds                *int32
+	nodeDeletionTimeoutSeconds     *int32
+	nodeDrainTimeoutSeconds        *int32
+	nodeVolumeDetachTimeoutSeconds *int32
+	providerID                     string
+	readinessGates                 []clusterv1.MachineReadinessGate
+	version                        string
 
 	// Status fields.
-	addresses              clusterv1beta1.MachineAddresses
-	bootstrapReady         bool
-	certificatesExpiryDate *metav1.Time
-	conditions             clusterv1beta1.Conditions
-	deletion               *clusterv1beta1.MachineDeletionStatus
-	failureMessage         *string
-	failureReason          *capierrors.MachineStatusError
-	infrastructureReady    bool
-	lastUpdated            *metav1.Time
-	nodeInfo               *corev1.NodeSystemInfo
-	nodeRef                *corev1.ObjectReference
-	observedGeneration     int64
-	phase                  clusterv1beta1.MachinePhase
-	v1Beta2                *clusterv1beta1.MachineV1Beta2Status
+	addresses                  clusterv1.MachineAddresses
+	bootstrapDataSecretCreated *bool
+	certificatesExpiryDate     metav1.Time
+	conditions                 []metav1.Condition
+	deletion                   *clusterv1.MachineDeletionStatus
+	v1Beta1Conditions          clusterv1.Conditions
+	v1Beta1FailureMessage      *string
+	v1Beta1FailureReason       *capierrors.MachineStatusError
+	infrastructureProvisioned  *bool
+	lastUpdated                metav1.Time
+	nodeInfo                   *corev1.NodeSystemInfo
+	nodeRef                    clusterv1.MachineNodeReference
+	observedGeneration         int64
+	phase                      clusterv1.MachinePhase
 }
 
 // Build builds a new Machine based on the configuration provided.
-func (m MachineBuilder) Build() *clusterv1beta1.Machine {
-	machine := &clusterv1beta1.Machine{
+func (m MachineBuilder) Build() *clusterv1.Machine {
+	machine := &clusterv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations:       m.annotations,
 			CreationTimestamp: m.creationTimestamp,
@@ -84,33 +85,42 @@ func (m MachineBuilder) Build() *clusterv1beta1.Machine {
 			Namespace:         m.namespace,
 			OwnerReferences:   m.ownerReferences,
 		},
-		Spec: clusterv1beta1.MachineSpec{
-			Bootstrap:               m.bootstrap,
-			ClusterName:             m.clusterName,
-			FailureDomain:           m.failureDomain,
-			InfrastructureRef:       m.infrastructureRef,
-			NodeDeletionTimeout:     m.nodeDeletionTimeout,
-			NodeDrainTimeout:        m.nodeDrainTimeout,
-			NodeVolumeDetachTimeout: m.nodeVolumeDetachTimeout,
-			ProviderID:              m.providerID,
-			ReadinessGates:          m.readinessGates,
-			Version:                 m.version,
+		Spec: clusterv1.MachineSpec{
+			Bootstrap:         m.bootstrap,
+			ClusterName:       m.clusterName,
+			FailureDomain:     m.failureDomain,
+			InfrastructureRef: m.infrastructureRef,
+			MinReadySeconds:   m.minReadySeconds,
+			Deletion: clusterv1.MachineDeletionSpec{
+				NodeDeletionTimeoutSeconds:     m.nodeDeletionTimeoutSeconds,
+				NodeDrainTimeoutSeconds:        m.nodeDrainTimeoutSeconds,
+				NodeVolumeDetachTimeoutSeconds: m.nodeVolumeDetachTimeoutSeconds,
+			},
+			ProviderID:     m.providerID,
+			ReadinessGates: m.readinessGates,
+			Version:        m.version,
 		},
-		Status: clusterv1beta1.MachineStatus{
+		Status: clusterv1.MachineStatus{
 			Addresses:              m.addresses,
-			BootstrapReady:         m.bootstrapReady,
 			CertificatesExpiryDate: m.certificatesExpiryDate,
 			Conditions:             m.conditions,
 			Deletion:               m.deletion,
-			FailureMessage:         m.failureMessage,
-			FailureReason:          m.failureReason,
-			InfrastructureReady:    m.infrastructureReady,
-			LastUpdated:            m.lastUpdated,
-			NodeInfo:               m.nodeInfo,
-			NodeRef:                m.nodeRef,
-			ObservedGeneration:     m.observedGeneration,
-			Phase:                  string(m.phase),
-			V1Beta2:                m.v1Beta2,
+			Deprecated: &clusterv1.MachineDeprecatedStatus{
+				V1Beta1: &clusterv1.MachineV1Beta1DeprecatedStatus{
+					Conditions:     m.v1Beta1Conditions,
+					FailureMessage: m.v1Beta1FailureMessage,
+					FailureReason:  m.v1Beta1FailureReason,
+				},
+			},
+			Initialization: clusterv1.MachineInitializationStatus{
+				BootstrapDataSecretCreated: m.bootstrapDataSecretCreated,
+				InfrastructureProvisioned:  m.infrastructureProvisioned,
+			},
+			LastUpdated:        m.lastUpdated,
+			NodeInfo:           m.nodeInfo,
+			NodeRef:            m.nodeRef,
+			ObservedGeneration: m.observedGeneration,
+			Phase:              string(m.phase),
 		},
 	}
 
@@ -170,7 +180,7 @@ func (m MachineBuilder) WithOwnerReferences(ownerRefs []metav1.OwnerReference) M
 // Spec fields.
 
 // WithBootstrap sets the Bootstrap for the machine builder.
-func (m MachineBuilder) WithBootstrap(bootstrap clusterv1beta1.Bootstrap) MachineBuilder {
+func (m MachineBuilder) WithBootstrap(bootstrap clusterv1.Bootstrap) MachineBuilder {
 	m.bootstrap = bootstrap
 	return m
 }
@@ -182,55 +192,61 @@ func (m MachineBuilder) WithClusterName(clusterName string) MachineBuilder {
 }
 
 // WithFailureDomain sets the FailureDomain for the machine builder.
-func (m MachineBuilder) WithFailureDomain(failureDomain *string) MachineBuilder {
+func (m MachineBuilder) WithFailureDomain(failureDomain string) MachineBuilder {
 	m.failureDomain = failureDomain
 	return m
 }
 
 // WithInfrastructureRef sets the InfrastructureRef for the machine builder.
-func (m MachineBuilder) WithInfrastructureRef(infraRef corev1.ObjectReference) MachineBuilder {
+func (m MachineBuilder) WithInfrastructureRef(infraRef clusterv1.ContractVersionedObjectReference) MachineBuilder {
 	m.infrastructureRef = infraRef
 	return m
 }
 
+// WithMinReadySeconds sets the MinReadySeconds for the machine builder.
+func (m MachineBuilder) WithMinReadySeconds(seconds int32) MachineBuilder {
+	m.minReadySeconds = &seconds
+	return m
+}
+
 // WithNodeDeletionTimeout sets the NodeDeletionTimeout for the machine builder.
-func (m MachineBuilder) WithNodeDeletionTimeout(timeout *metav1.Duration) MachineBuilder {
-	m.nodeDeletionTimeout = timeout
+func (m MachineBuilder) WithNodeDeletionTimeoutSeconds(timeoutSeconds int32) MachineBuilder {
+	m.nodeDeletionTimeoutSeconds = &timeoutSeconds
 	return m
 }
 
 // WithNodeDrainTimeout sets the NodeDrainTimeout for the machine builder.
-func (m MachineBuilder) WithNodeDrainTimeout(timeout *metav1.Duration) MachineBuilder {
-	m.nodeDrainTimeout = timeout
+func (m MachineBuilder) WithNodeDrainTimeoutSeconds(timeoutSeconds int32) MachineBuilder {
+	m.nodeDrainTimeoutSeconds = &timeoutSeconds
 	return m
 }
 
 // WithNodeVolumeDetachTimeout sets the NodeVolumeDetachTimeout for the machine builder.
-func (m MachineBuilder) WithNodeVolumeDetachTimeout(timeout *metav1.Duration) MachineBuilder {
-	m.nodeVolumeDetachTimeout = timeout
+func (m MachineBuilder) WithNodeVolumeDetachTimeoutSeconds(timeoutSeconds int32) MachineBuilder {
+	m.nodeVolumeDetachTimeoutSeconds = &timeoutSeconds
 	return m
 }
 
 // WithNodeRef sets the NodeRef for the machine builder.
-func (m MachineBuilder) WithNodeRef(nodeRef *corev1.ObjectReference) MachineBuilder {
+func (m MachineBuilder) WithNodeRef(nodeRef clusterv1.MachineNodeReference) MachineBuilder {
 	m.nodeRef = nodeRef
 	return m
 }
 
 // WithProviderID sets the ProviderID for the machine builder.
-func (m MachineBuilder) WithProviderID(providerID *string) MachineBuilder {
+func (m MachineBuilder) WithProviderID(providerID string) MachineBuilder {
 	m.providerID = providerID
 	return m
 }
 
 // WithReadinessGates sets the ReadinessGates for the machine builder.
-func (m MachineBuilder) WithReadinessGates(gates []clusterv1beta1.MachineReadinessGate) MachineBuilder {
+func (m MachineBuilder) WithReadinessGates(gates []clusterv1.MachineReadinessGate) MachineBuilder {
 	m.readinessGates = gates
 	return m
 }
 
 // WithVersion sets the Version for the machine builder.
-func (m MachineBuilder) WithVersion(version *string) MachineBuilder {
+func (m MachineBuilder) WithVersion(version string) MachineBuilder {
 	m.version = version
 	return m
 }
@@ -238,49 +254,55 @@ func (m MachineBuilder) WithVersion(version *string) MachineBuilder {
 // Status Fields.
 
 // WithAddresses sets the Addresses for the machine builder.
-func (m MachineBuilder) WithAddresses(addresses clusterv1beta1.MachineAddresses) MachineBuilder {
+func (m MachineBuilder) WithAddresses(addresses clusterv1.MachineAddresses) MachineBuilder {
 	m.addresses = addresses
 	return m
 }
 
-// WithBootstrapReady sets the BootstrapReady for the machine builder.
-func (m MachineBuilder) WithBootstrapReady(ready bool) MachineBuilder {
-	m.bootstrapReady = ready
+// WithBootstrapDataSecretCreated sets the BootstrapDataSecretCreated for the machine builder.
+func (m MachineBuilder) WithBootstrapDataSecretCreated(created bool) MachineBuilder {
+	m.bootstrapDataSecretCreated = &created
 	return m
 }
 
 // WithCertificatesExpiryDate sets the CertificatesExpiryDate for the machine builder.
-func (m MachineBuilder) WithCertificatesExpiryDate(expiryDate *metav1.Time) MachineBuilder {
+func (m MachineBuilder) WithCertificatesExpiryDate(expiryDate metav1.Time) MachineBuilder {
 	m.certificatesExpiryDate = expiryDate
 	return m
 }
 
 // WithConditions sets the Conditions for the machine builder.
-func (m MachineBuilder) WithConditions(conditions clusterv1beta1.Conditions) MachineBuilder {
+func (m MachineBuilder) WithConditions(conditions []metav1.Condition) MachineBuilder {
 	m.conditions = conditions
+	return m
+}
+
+// WithV1Beta1Conditions sets the Conditions for the machine builder.
+func (m MachineBuilder) WithV1Beta1Conditions(conditions clusterv1.Conditions) MachineBuilder {
+	m.v1Beta1Conditions = conditions
 	return m
 }
 
 // WithFailureMessage sets the FailureMessage for the machine builder.
 func (m MachineBuilder) WithFailureMessage(message *string) MachineBuilder {
-	m.failureMessage = message
+	m.v1Beta1FailureMessage = message
 	return m
 }
 
 // WithFailureReason sets the FailureReason for the machine builder.
 func (m MachineBuilder) WithFailureReason(reason *capierrors.MachineStatusError) MachineBuilder {
-	m.failureReason = reason
+	m.v1Beta1FailureReason = reason
 	return m
 }
 
-// WithInfrastructureReady sets the InfrastructureReady for the machine builder.
-func (m MachineBuilder) WithInfrastructureReady(ready bool) MachineBuilder {
-	m.infrastructureReady = ready
+// WithInfrastructureProvisioned sets the InfrastructureProvisioned for the machine builder.
+func (m MachineBuilder) WithInfrastructureProvisioned(provisioned bool) MachineBuilder {
+	m.infrastructureProvisioned = &provisioned
 	return m
 }
 
 // WithLastUpdated sets the LastUpdated for the machine builder.
-func (m MachineBuilder) WithLastUpdated(lastUpdated *metav1.Time) MachineBuilder {
+func (m MachineBuilder) WithLastUpdated(lastUpdated metav1.Time) MachineBuilder {
 	m.lastUpdated = lastUpdated
 	return m
 }
@@ -298,19 +320,13 @@ func (m MachineBuilder) WithObservedGeneration(generation int64) MachineBuilder 
 }
 
 // WithPhase sets the Phase for the machine builder.
-func (m MachineBuilder) WithPhase(phase clusterv1beta1.MachinePhase) MachineBuilder {
+func (m MachineBuilder) WithPhase(phase clusterv1.MachinePhase) MachineBuilder {
 	m.phase = phase
 	return m
 }
 
 // WithDeletion sets the Deletion status for the machine builder.
-func (m MachineBuilder) WithDeletion(deletion *clusterv1beta1.MachineDeletionStatus) MachineBuilder {
+func (m MachineBuilder) WithDeletion(deletion *clusterv1.MachineDeletionStatus) MachineBuilder {
 	m.deletion = deletion
-	return m
-}
-
-// WithV1Beta2Status sets the v1beta2 status for the machine builder.
-func (m MachineBuilder) WithV1Beta2Status(v1Beta2 *clusterv1beta1.MachineV1Beta2Status) MachineBuilder {
-	m.v1Beta2 = v1Beta2
 	return m
 }

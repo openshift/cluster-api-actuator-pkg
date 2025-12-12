@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Red Hat, Inc.
+Copyright 2025 Red Hat, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 
 	//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
 	capierrors "sigs.k8s.io/cluster-api/errors"
@@ -106,7 +106,7 @@ var _ = Describe("Machine", func() {
 
 	Describe("Bootstrap", func() {
 		It("should have the correct bootstrap settings when set", func() {
-			bootstrap := clusterv1beta1.Bootstrap{}
+			bootstrap := clusterv1.Bootstrap{}
 			machine := Machine().WithBootstrap(bootstrap).Build()
 			Expect(machine.Spec.Bootstrap).To(Equal(bootstrap))
 		})
@@ -122,14 +122,18 @@ var _ = Describe("Machine", func() {
 	Describe("FailureDomain", func() {
 		It("should have the correct failure domain when set", func() {
 			failureDomain := "test-dm"
-			machine := Machine().WithFailureDomain(&failureDomain).Build()
-			Expect(*machine.Spec.FailureDomain).To(Equal(failureDomain))
+			machine := Machine().WithFailureDomain(failureDomain).Build()
+			Expect(machine.Spec.FailureDomain).To(Equal(failureDomain))
 		})
 	})
 
 	Describe("InfrastructureRef", func() {
 		It("should have the correct infrastructure reference when set", func() {
-			infraRef := corev1.ObjectReference{Name: "test-obj-ref"}
+			infraRef := clusterv1.ContractVersionedObjectReference{
+				Name:     "test-obj-ref",
+				APIGroup: "some.group.io",
+				Kind:     "InfraObject",
+			}
 			machine := Machine().WithInfrastructureRef(infraRef).Build()
 			Expect(machine.Spec.InfrastructureRef).To(Equal(infraRef))
 		})
@@ -137,41 +141,41 @@ var _ = Describe("Machine", func() {
 
 	Describe("NodeDeletionTimeout", func() {
 		It("should have the correct node deletion timeout when set", func() {
-			timeout := metav1.Duration{Duration: 30 * time.Second}
-			machine := Machine().WithNodeDeletionTimeout(&timeout).Build()
-			Expect(*machine.Spec.NodeDeletionTimeout).To(Equal(timeout))
+			timeout := int32(30)
+			machine := Machine().WithNodeDeletionTimeoutSeconds(timeout).Build()
+			Expect(ptr.Deref(machine.Spec.Deletion.NodeDeletionTimeoutSeconds, 0)).To(Equal(timeout))
 		})
 	})
 
 	Describe("NodeDrainTimeout", func() {
 		It("should have the correct node drain timeout when set", func() {
-			timeout := metav1.Duration{Duration: 30 * time.Second}
-			machine := Machine().WithNodeDrainTimeout(&timeout).Build()
-			Expect(*machine.Spec.NodeDrainTimeout).To(Equal(timeout))
+			timeout := int32(30)
+			machine := Machine().WithNodeDrainTimeoutSeconds(timeout).Build()
+			Expect(*machine.Spec.Deletion.NodeDrainTimeoutSeconds).To(Equal(timeout))
 		})
 	})
 
 	Describe("NodeVolumeDetachTimeout", func() {
 		It("should have the correct node volume detach timeout when set", func() {
-			timeout := metav1.Duration{Duration: 30 * time.Second}
-			machine := Machine().WithNodeVolumeDetachTimeout(&timeout).Build()
-			Expect(*machine.Spec.NodeVolumeDetachTimeout).To(Equal(timeout))
+			timeout := int32(30)
+			machine := Machine().WithNodeVolumeDetachTimeoutSeconds(timeout).Build()
+			Expect(*machine.Spec.Deletion.NodeVolumeDetachTimeoutSeconds).To(Equal(timeout))
 		})
 	})
 
 	Describe("ProviderID", func() {
 		It("should have the correct provider ID when set", func() {
 			providerID := "test-obj-id"
-			machine := Machine().WithProviderID(&providerID).Build()
-			Expect(*machine.Spec.ProviderID).To(Equal(providerID))
+			machine := Machine().WithProviderID(providerID).Build()
+			Expect(machine.Spec.ProviderID).To(Equal(providerID))
 		})
 	})
 
 	Describe("Version", func() {
 		It("should have the correct version when set", func() {
 			version := "1.23.0"
-			machine := Machine().WithVersion(&version).Build()
-			Expect(*machine.Spec.Version).To(Equal(version))
+			machine := Machine().WithVersion(version).Build()
+			Expect(machine.Spec.Version).To(Equal(version))
 		})
 	})
 
@@ -179,9 +183,9 @@ var _ = Describe("Machine", func() {
 
 	Describe("NodeRef", func() {
 		It("should have the correct node reference when set", func() {
-			nodeRef := corev1.ObjectReference{Name: "test-node"}
-			machine := Machine().WithNodeRef(&nodeRef).Build()
-			Expect(*machine.Status.NodeRef).To(Equal(nodeRef))
+			nodeRef := clusterv1.MachineNodeReference{Name: "test-node"}
+			machine := Machine().WithNodeRef(nodeRef).Build()
+			Expect(machine.Status.NodeRef).To(Equal(nodeRef))
 		})
 	})
 
@@ -196,14 +200,14 @@ var _ = Describe("Machine", func() {
 	Describe("LastUpdated", func() {
 		It("should have the correct last updated timestamp when set", func() {
 			timestamp := metav1.Now()
-			machine := Machine().WithLastUpdated(&timestamp).Build()
-			Expect(*machine.Status.LastUpdated).To(Equal(timestamp))
+			machine := Machine().WithLastUpdated(timestamp).Build()
+			Expect(machine.Status.LastUpdated).To(Equal(timestamp))
 		})
 	})
 
 	Describe("Phase", func() {
 		It("should have the correct phase when set", func() {
-			phase := clusterv1beta1.MachinePhaseRunning
+			phase := clusterv1.MachinePhaseRunning
 			machine := Machine().WithPhase(phase).Build()
 			Expect(machine.Status.Phase).To(Equal(string(phase)))
 		})
@@ -211,15 +215,15 @@ var _ = Describe("Machine", func() {
 
 	Describe("BootstrapReady", func() {
 		It("should have the correct bootstrap ready status when set", func() {
-			machine := Machine().WithBootstrapReady(true).Build()
-			Expect(machine.Status.BootstrapReady).To(BeTrue())
+			machine := Machine().WithBootstrapDataSecretCreated(true).Build()
+			Expect(ptr.Deref(machine.Status.Initialization.BootstrapDataSecretCreated, false)).To(BeTrue())
 		})
 	})
 
 	Describe("InfrastructureReady", func() {
 		It("should have the correct infrastructure ready status when set", func() {
-			machine := Machine().WithInfrastructureReady(true).Build()
-			Expect(machine.Status.InfrastructureReady).To(BeTrue())
+			machine := Machine().WithInfrastructureProvisioned(true).Build()
+			Expect(ptr.Deref(machine.Status.Initialization.InfrastructureProvisioned, false)).To(BeTrue())
 		})
 	})
 
@@ -233,9 +237,18 @@ var _ = Describe("Machine", func() {
 
 	Describe("Conditions", func() {
 		It("should have the correct conditions when set", func() {
-			condition := clusterv1beta1.Condition{Type: "Ready", Status: corev1.ConditionTrue}
-			machine := Machine().WithConditions([]clusterv1beta1.Condition{condition}).Build()
+			condition := metav1.Condition{Type: "Ready", Status: metav1.ConditionTrue}
+			machine := Machine().WithConditions([]metav1.Condition{condition}).Build()
 			Expect(machine.Status.Conditions).To(HaveLen(1))
+		})
+	})
+
+	Describe("V1Beta1Conditions", func() {
+		It("should have the correct conditions when set", func() {
+			condition := clusterv1.Condition{Type: "Ready", Status: corev1.ConditionTrue}
+			machine := Machine().WithV1Beta1Conditions([]clusterv1.Condition{condition}).Build()
+			//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
+			Expect(machine.Status.Deprecated.V1Beta1.Conditions).To(HaveLen(1))
 		})
 	})
 
@@ -244,7 +257,7 @@ var _ = Describe("Machine", func() {
 			reason := capierrors.InvalidConfigurationMachineError
 			machine := Machine().WithFailureReason(&reason).Build()
 			//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
-			Expect(*machine.Status.FailureReason).To(Equal(reason))
+			Expect(*machine.Status.Deprecated.V1Beta1.FailureReason).To(Equal(reason))
 		})
 
 	})
@@ -254,21 +267,29 @@ var _ = Describe("Machine", func() {
 			message := "test-fail-msg"
 			machine := Machine().WithFailureMessage(&message).Build()
 			//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
-			Expect(*machine.Status.FailureMessage).To(Equal(message))
+			Expect(*machine.Status.Deprecated.V1Beta1.FailureMessage).To(Equal(message))
 		})
 	})
 
 	Describe("CertificatesExpiryDate", func() {
 		It("should have the correct expiry date when set", func() {
 			expiryDate := metav1.Time{Time: time.Now()}
-			machine := Machine().WithCertificatesExpiryDate(&expiryDate).Build()
-			Expect(*machine.Status.CertificatesExpiryDate).To(Equal(expiryDate))
+			machine := Machine().WithCertificatesExpiryDate(expiryDate).Build()
+			Expect(machine.Status.CertificatesExpiryDate).To(Equal(expiryDate))
 		})
 	})
 
-	Describe("WithReadinessGates", func() {
-		It("should return the custom value when specified", func() {
-			gates := []clusterv1beta1.MachineReadinessGate{
+	Describe("MinReadySeconds", func() {
+		It("should have the correct min ready seconds when set", func() {
+			seconds := int32(30)
+			machine := Machine().WithMinReadySeconds(seconds).Build()
+			Expect(ptr.Deref(machine.Spec.MinReadySeconds, 0)).To(Equal(seconds))
+		})
+	})
+
+	Describe("ReadinessGates", func() {
+		It("should have the correct readiness gates when set", func() {
+			gates := []clusterv1.MachineReadinessGate{
 				{
 					ConditionType: "CustomCondition",
 				},
@@ -278,29 +299,14 @@ var _ = Describe("Machine", func() {
 		})
 	})
 
-	Describe("WithDeletion", func() {
-		It("should return the custom value when specified", func() {
+	Describe("Deletion", func() {
+		It("should have the correct deletion status when set", func() {
 			now := metav1.Now()
-			deletion := &clusterv1beta1.MachineDeletionStatus{
-				NodeDrainStartTime: &now,
+			deletion := &clusterv1.MachineDeletionStatus{
+				NodeDrainStartTime: now,
 			}
 			machine := Machine().WithDeletion(deletion).Build()
 			Expect(machine.Status.Deletion).To(Equal(deletion))
-		})
-	})
-
-	Describe("WithV1Beta2Status", func() {
-		It("should return the custom value when specified", func() {
-			v1Beta2Status := &clusterv1beta1.MachineV1Beta2Status{
-				Conditions: []metav1.Condition{
-					{
-						Type:   "TestCondition",
-						Status: metav1.ConditionTrue,
-					},
-				},
-			}
-			machine := Machine().WithV1Beta2Status(v1Beta2Status).Build()
-			Expect(machine.Status.V1Beta2).To(Equal(v1Beta2Status))
 		})
 	})
 

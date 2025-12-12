@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Red Hat, Inc.
+Copyright 2025 Red Hat, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,7 +22,8 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	"k8s.io/utils/ptr"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 
 	//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
 	capierrors "sigs.k8s.io/cluster-api/errors"
@@ -135,11 +136,11 @@ var _ = Describe("MachineSet", func() {
 		})
 	})
 
-	Describe("WithDeletePolicy", func() {
+	Describe("WithDeletionOrder", func() {
 		It("should return the custom value when specified", func() {
-			deletePolicy := "Delete"
-			machineSet := MachineSet().WithDeletePolicy(deletePolicy).Build()
-			Expect(machineSet.Spec.DeletePolicy).To(Equal(deletePolicy))
+			deletionOrder := clusterv1.RandomMachineSetDeletionOrder
+			machineSet := MachineSet().WithDeletionOrder(deletionOrder).Build()
+			Expect(machineSet.Spec.Deletion.Order).To(Equal(deletionOrder))
 		})
 	})
 
@@ -147,7 +148,7 @@ var _ = Describe("MachineSet", func() {
 		It("should return the custom value when specified", func() {
 			minReadySeconds := int32(10)
 			machineSet := MachineSet().WithMinReadySeconds(minReadySeconds).Build()
-			Expect(machineSet.Spec.MinReadySeconds).To(Equal(minReadySeconds))
+			Expect(ptr.Deref(machineSet.Spec.Template.Spec.MinReadySeconds, 0)).To(Equal(minReadySeconds))
 		})
 	})
 
@@ -171,8 +172,8 @@ var _ = Describe("MachineSet", func() {
 
 	Describe("WithTemplate", func() {
 		It("should return the custom value when specified", func() {
-			template := clusterv1beta1.MachineTemplateSpec{
-				ObjectMeta: clusterv1beta1.ObjectMeta{
+			template := clusterv1.MachineTemplateSpec{
+				ObjectMeta: clusterv1.ObjectMeta{
 					Labels: map[string]string{"key": "value"},
 				},
 			}
@@ -183,48 +184,60 @@ var _ = Describe("MachineSet", func() {
 
 	// Status fields.
 
-	Describe("WithStatusAvailableReplicas", func() {
-		It("should return the custom value when specified", func() {
-			availableReplicas := int32(5)
-			machineSet := MachineSet().WithStatusAvailableReplicas(availableReplicas).Build()
-			Expect(machineSet.Status.AvailableReplicas).To(Equal(availableReplicas))
-		})
-	})
-
 	Describe("WithStatusConditions", func() {
 		It("should return the custom value when specified and not nil", func() {
-			conditions := clusterv1beta1.Conditions{
-				{Type: "Ready", Status: corev1.ConditionTrue},
+			conditions := []metav1.Condition{
+				{Type: "Ready", Status: metav1.ConditionTrue},
 			}
 			machineSet := MachineSet().WithStatusConditions(conditions).Build()
 			Expect(machineSet.Status.Conditions).To(Equal(conditions))
 		})
 	})
 
-	Describe("WithStatusFailureMessage", func() {
+	Describe("WithStatusV1Beta1AvailableReplicas", func() {
+		It("should return the custom value when specified", func() {
+			availableReplicas := int32(5)
+			machineSet := MachineSet().WithStatusV1Beta1AvailableReplicas(availableReplicas).Build()
+			//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
+			Expect(machineSet.Status.Deprecated.V1Beta1.AvailableReplicas).To(Equal(availableReplicas))
+		})
+	})
+
+	Describe("WithStatusV1Beta1Conditions", func() {
+		It("should return the custom value when specified and not nil", func() {
+			conditions := clusterv1.Conditions{
+				{Type: "Ready", Status: corev1.ConditionTrue},
+			}
+			machineSet := MachineSet().WithStatusV1Beta1Conditions(conditions).Build()
+			//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
+			Expect(machineSet.Status.Deprecated.V1Beta1.Conditions).To(Equal(conditions))
+		})
+	})
+
+	Describe("WithStatusV1Beta1FailureMessage", func() {
 		It("should return the custom value when specified and not nil", func() {
 			message := "test error"
-			machineSet := MachineSet().WithStatusFailureMessage(message).Build()
+			machineSet := MachineSet().WithStatusV1Beta1FailureMessage(message).Build()
 			//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
-			Expect(*machineSet.Status.FailureMessage).To(Equal(message))
+			Expect(*machineSet.Status.Deprecated.V1Beta1.FailureMessage).To(Equal(message))
 		})
 	})
 
-	Describe("WithStatusFailureReason", func() {
+	Describe("WithStatusV1Beta1FailureReason", func() {
 		It("should return the custom value when specified and not nil", func() {
 			reason := capierrors.InvalidConfigurationMachineSetError
-			machineSet := MachineSet().WithStatusFailureReason(reason).Build()
+			machineSet := MachineSet().WithStatusV1Beta1FailureReason(reason).Build()
 			//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
-			Expect(*machineSet.Status.FailureReason).To(Equal(reason))
+			Expect(*machineSet.Status.Deprecated.V1Beta1.FailureReason).To(Equal(reason))
 		})
 	})
 
-	Describe("WithStatusFullyLabeledReplicas", func() {
+	Describe("WithStatusV1Beta1FullyLabeledReplicas", func() {
 		It("should return the custom value when specified", func() {
 			fullyLabeledReplicas := int32(5)
-			machineSet := MachineSet().WithStatusFullyLabeledReplicas(fullyLabeledReplicas).Build()
+			machineSet := MachineSet().WithStatusV1Beta1FullyLabeledReplicas(fullyLabeledReplicas).Build()
 			//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
-			Expect(machineSet.Status.FullyLabeledReplicas).To(Equal(fullyLabeledReplicas))
+			Expect(machineSet.Status.Deprecated.V1Beta1.FullyLabeledReplicas).To(Equal(fullyLabeledReplicas))
 		})
 	})
 
@@ -236,11 +249,12 @@ var _ = Describe("MachineSet", func() {
 		})
 	})
 
-	Describe("WithStatusReadyReplicas", func() {
+	Describe("WithStatusV1Beta1ReadyReplicas", func() {
 		It("should return the custom value when specified", func() {
 			readyReplicas := int32(5)
-			machineSet := MachineSet().WithStatusReadyReplicas(readyReplicas).Build()
-			Expect(machineSet.Status.ReadyReplicas).To(Equal(readyReplicas))
+			machineSet := MachineSet().WithStatusV1Beta1ReadyReplicas(readyReplicas).Build()
+			//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
+			Expect(machineSet.Status.Deprecated.V1Beta1.ReadyReplicas).To(Equal(readyReplicas))
 		})
 	})
 
@@ -248,7 +262,7 @@ var _ = Describe("MachineSet", func() {
 		It("should return the custom value when specified", func() {
 			repliacs := int32(5)
 			machineSet := MachineSet().WithStatusReplicas(repliacs).Build()
-			Expect(machineSet.Status.Replicas).To(Equal(repliacs))
+			Expect(ptr.Deref(machineSet.Status.Replicas, 0)).To(Equal(repliacs))
 		})
 	})
 
@@ -260,28 +274,37 @@ var _ = Describe("MachineSet", func() {
 		})
 	})
 
-	Describe("WithMachineNamingStrategy", func() {
+	Describe("WithMachineNaming", func() {
 		It("should return the custom value when specified", func() {
-			strategy := &clusterv1beta1.MachineNamingStrategy{
+			machineNaming := clusterv1.MachineNamingSpec{
 				Template: "custom-{{ .cluster.name }}-{{ .random }}",
 			}
-			machineSet := MachineSet().WithMachineNamingStrategy(strategy).Build()
-			Expect(machineSet.Spec.MachineNamingStrategy).To(Equal(strategy))
+			machineSet := MachineSet().WithMachineNaming(machineNaming).Build()
+			Expect(machineSet.Spec.MachineNaming).To(Equal(machineNaming))
 		})
 	})
 
-	Describe("WithV1Beta2Status", func() {
+	Describe("WithStatusReadyReplicas", func() {
 		It("should return the custom value when specified", func() {
-			v1Beta2Status := &clusterv1beta1.MachineSetV1Beta2Status{
-				Conditions: []metav1.Condition{
-					{
-						Type:   "TestCondition",
-						Status: metav1.ConditionTrue,
-					},
-				},
-			}
-			machineSet := MachineSet().WithV1Beta2Status(v1Beta2Status).Build()
-			Expect(machineSet.Status.V1Beta2).To(Equal(v1Beta2Status))
+			readyReplicas := int32(3)
+			machineSet := MachineSet().WithStatusReadyReplicas(readyReplicas).Build()
+			Expect(ptr.Deref(machineSet.Status.ReadyReplicas, 0)).To(Equal(readyReplicas))
+		})
+	})
+
+	Describe("WithStatusAvailableReplicas", func() {
+		It("should return the custom value when specified", func() {
+			availableReplicas := int32(3)
+			machineSet := MachineSet().WithStatusAvailableReplicas(availableReplicas).Build()
+			Expect(ptr.Deref(machineSet.Status.AvailableReplicas, 0)).To(Equal(availableReplicas))
+		})
+	})
+
+	Describe("WithStatusUpToDateReplicas", func() {
+		It("should return the custom value when specified", func() {
+			upToDateReplicas := int32(3)
+			machineSet := MachineSet().WithStatusUpToDateReplicas(upToDateReplicas).Build()
+			Expect(ptr.Deref(machineSet.Status.UpToDateReplicas, 0)).To(Equal(upToDateReplicas))
 		})
 	})
 
