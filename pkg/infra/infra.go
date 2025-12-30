@@ -54,7 +54,7 @@ func replicationControllerWorkload(namespace string) *corev1.ReplicationControll
 					Containers: []corev1.Container{
 						{
 							Name:    "work",
-							Image:   "registry.ci.openshift.org/openshift/origin-v4.0:base",
+							Image:   "registry.access.redhat.com/ubi8/ubi-minimal:latest",
 							Command: []string{"sleep", "10h"},
 							Resources: corev1.ResourceRequirements{
 								Requests: corev1.ResourceList{
