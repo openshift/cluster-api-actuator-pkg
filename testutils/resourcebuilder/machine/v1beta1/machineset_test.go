@@ -446,6 +446,19 @@ var _ = Describe("MachineSet", func() {
 		})
 	})
 
+	Describe("WithSynchronizedAPIStatus", func() {
+		It("should return the default value when not specified", func() {
+			machineSet := MachineSet().Build()
+			Expect(machineSet.Status.SynchronizedAPI).To(BeZero())
+		})
+
+		It("should return the custom value when specified", func() {
+			synchronizedAPI := machinev1beta1.MachineAPISynchronized
+			machineSet := MachineSet().WithSynchronizedAPIStatus(synchronizedAPI).Build()
+			Expect(machineSet.Status.SynchronizedAPI).To(Equal(synchronizedAPI))
+		})
+	})
+
 	Describe("WithSynchronizedGeneration", func() {
 		It("should return the custom value when specified", func() {
 			generation := int64(3)

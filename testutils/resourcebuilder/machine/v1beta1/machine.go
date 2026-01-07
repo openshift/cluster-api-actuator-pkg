@@ -51,6 +51,7 @@ type MachineBuilder struct {
 	// status fields
 	addresses              []corev1.NodeAddress
 	authoritativeAPIStatus machinev1beta1.MachineAuthority
+	synchronizedAPIStatus  machinev1beta1.SynchronizedAPI
 	conditions             []machinev1beta1.Condition
 	errorMessage           *string
 	errorReason            *machinev1beta1.MachineStatusError
@@ -95,6 +96,7 @@ func (m MachineBuilder) Build() *machinev1beta1.Machine {
 			NodeRef:          m.nodeRef,
 			Phase:            m.phase,
 			ProviderStatus:   m.providerStatus,
+			SynchronizedAPI:  m.synchronizedAPIStatus,
 		},
 	}
 
@@ -237,6 +239,12 @@ func (m MachineBuilder) WithAddresses(addrs []corev1.NodeAddress) MachineBuilder
 // WithAuthoritativeAPIStatus sets the authoritativeAPIStatus for the machine builder.
 func (m MachineBuilder) WithAuthoritativeAPIStatus(authority machinev1beta1.MachineAuthority) MachineBuilder {
 	m.authoritativeAPIStatus = authority
+	return m
+}
+
+// WithSynchronizedAPIStatus sets the synchronizedAPIStatus for the machine builder.
+func (m MachineBuilder) WithSynchronizedAPIStatus(synchronizedAPI machinev1beta1.SynchronizedAPI) MachineBuilder {
+	m.synchronizedAPIStatus = synchronizedAPI
 	return m
 }
 
