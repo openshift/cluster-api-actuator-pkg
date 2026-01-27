@@ -42,12 +42,13 @@ type MachineSetBuilder struct {
 	ownerReferences   []metav1.OwnerReference
 
 	// Spec fields.
-	clusterName     string
-	deletePolicy    string
-	minReadySeconds int32
-	replicas        *int32
-	selector        metav1.LabelSelector
-	template        clusterv1beta1.MachineTemplateSpec
+	clusterName           string
+	deletePolicy          string
+	machineNamingStrategy *clusterv1beta1.MachineNamingStrategy
+	minReadySeconds       int32
+	replicas              *int32
+	selector              metav1.LabelSelector
+	template              clusterv1beta1.MachineTemplateSpec
 
 	// Status fields.
 	availableReplicas    int32
@@ -59,6 +60,7 @@ type MachineSetBuilder struct {
 	readyReplicas        int32
 	statusReplicas       int32
 	statusSelector       string
+	v1Beta2              *clusterv1beta1.MachineSetV1Beta2Status
 }
 
 // Build builds a new MachineSet based on the configuration provided.
@@ -75,12 +77,13 @@ func (m MachineSetBuilder) Build() *clusterv1beta1.MachineSet {
 			OwnerReferences:   m.ownerReferences,
 		},
 		Spec: clusterv1beta1.MachineSetSpec{
-			ClusterName:     m.clusterName,
-			DeletePolicy:    m.deletePolicy,
-			MinReadySeconds: m.minReadySeconds,
-			Replicas:        m.replicas,
-			Selector:        m.selector,
-			Template:        m.template,
+			ClusterName:           m.clusterName,
+			DeletePolicy:          m.deletePolicy,
+			MachineNamingStrategy: m.machineNamingStrategy,
+			MinReadySeconds:       m.minReadySeconds,
+			Replicas:              m.replicas,
+			Selector:              m.selector,
+			Template:              m.template,
 		},
 		Status: clusterv1beta1.MachineSetStatus{
 			AvailableReplicas:    m.availableReplicas,
@@ -92,6 +95,7 @@ func (m MachineSetBuilder) Build() *clusterv1beta1.MachineSet {
 			ReadyReplicas:        m.readyReplicas,
 			Replicas:             m.statusReplicas,
 			Selector:             m.statusSelector,
+			V1Beta2:              m.v1Beta2,
 		},
 	}
 
@@ -159,6 +163,12 @@ func (m MachineSetBuilder) WithClusterName(clusterName string) MachineSetBuilder
 // WithDeletePolicy sets the deletePolicy for the MachineSet builder.
 func (m MachineSetBuilder) WithDeletePolicy(deletePolicy string) MachineSetBuilder {
 	m.deletePolicy = deletePolicy
+	return m
+}
+
+// WithMachineNamingStrategy sets the machineNamingStrategy for the MachineSet builder.
+func (m MachineSetBuilder) WithMachineNamingStrategy(strategy *clusterv1beta1.MachineNamingStrategy) MachineSetBuilder {
+	m.machineNamingStrategy = strategy
 	return m
 }
 
@@ -239,5 +249,11 @@ func (m MachineSetBuilder) WithStatusReplicas(replicas int32) MachineSetBuilder 
 // WithStatusSelector sets the status selector for the MachineSet builder.
 func (m MachineSetBuilder) WithStatusSelector(selector string) MachineSetBuilder {
 	m.statusSelector = selector
+	return m
+}
+
+// WithV1Beta2Status sets the v1beta2 status for the MachineSet builder.
+func (m MachineSetBuilder) WithV1Beta2Status(v1Beta2 *clusterv1beta1.MachineSetV1Beta2Status) MachineSetBuilder {
+	m.v1Beta2 = v1Beta2
 	return m
 }
