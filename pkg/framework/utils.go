@@ -113,3 +113,17 @@ func GetControlPlaneHostAndPort(ctx context.Context, cl client.Client) (string, 
 
 	return apiURL.Hostname(), int32(port), nil
 }
+
+// MergeLabels merges multiple label mappings into a single map.
+// Later maps override earlier ones for conflicting keys.
+func MergeLabels(labelMaps ...map[string]string) map[string]string {
+	result := make(map[string]string)
+
+	for _, labels := range labelMaps {
+		for k, v := range labels {
+			result[k] = v
+		}
+	}
+
+	return result
+}
