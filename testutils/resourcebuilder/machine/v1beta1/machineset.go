@@ -67,6 +67,7 @@ type MachineSetBuilder struct {
 	observedGeneration     int64
 	readyReplicas          int32
 	replicasStatus         int32
+	synchronizedAPIStatus  machinev1beta1.SynchronizedAPI
 	synchronizedGeneration int64
 }
 
@@ -118,6 +119,7 @@ func (m MachineSetBuilder) Build() *machinev1beta1.MachineSet {
 			ObservedGeneration:     m.observedGeneration,
 			ReadyReplicas:          m.readyReplicas,
 			Replicas:               m.replicasStatus,
+			SynchronizedAPI:        m.synchronizedAPIStatus,
 			SynchronizedGeneration: m.synchronizedGeneration,
 		},
 	}
@@ -339,6 +341,12 @@ func (m MachineSetBuilder) WithReadyReplicas(r int32) MachineSetBuilder {
 // WithReplicasStatus sets the replicas status field for the machineSet builder.
 func (m MachineSetBuilder) WithReplicasStatus(r int32) MachineSetBuilder {
 	m.replicasStatus = r
+	return m
+}
+
+// WithSynchronizedAPIStatus sets the synchronizedAPIStatus for the machineSet builder.
+func (m MachineSetBuilder) WithSynchronizedAPIStatus(synchronizedAPI machinev1beta1.SynchronizedAPI) MachineSetBuilder {
+	m.synchronizedAPIStatus = synchronizedAPI
 	return m
 }
 

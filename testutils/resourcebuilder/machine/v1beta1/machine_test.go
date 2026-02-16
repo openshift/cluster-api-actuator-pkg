@@ -270,6 +270,18 @@ var _ = Describe("Machine", func() {
 		})
 	})
 
+	Describe("WithSynchronizedAPIStatus", func() {
+		It("should return the default value when not specified", func() {
+			machine := Machine().Build()
+			Expect(machine.Status.SynchronizedAPI).To(BeZero())
+		})
+
+		It("should return the custom value when specified", func() {
+			machine := Machine().WithSynchronizedAPIStatus(machinev1beta1.MachineAPISynchronized).Build()
+			Expect(machine.Status.SynchronizedAPI).To(Equal(machinev1beta1.MachineAPISynchronized))
+		})
+	})
+
 	Describe("WithConditions", func() {
 		It("should return the custom value when specified", func() {
 			conditions := []machinev1beta1.Condition{{Type: "Ready", Status: corev1.ConditionTrue}}
