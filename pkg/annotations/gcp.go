@@ -72,7 +72,7 @@ var _ = Describe("Service Annotation tests GCP", framework.LabelCCM, framework.L
 		}
 	})
 
-	It("should validate network-tier annotation with GCP CLI verification", func() {
+	It("should validate network-tier annotation with GCP CLI verification", framework.LabelPeriodic, func() {
 		serviceName := "test-service-network-tier-validation"
 
 		// Step 1: Create service with network-tier: Standard
@@ -186,7 +186,7 @@ var _ = Describe("Service Annotation tests GCP", framework.LabelCCM, framework.L
 
 	})
 
-	It("should reject invalid network-tier annotation values", func() {
+	It("should reject invalid network-tier annotation values", framework.LabelPeriodic, func() {
 		serviceName := "test-service-invalid-network-tier"
 
 		// Step 4: Create service with invalid network-tier value
@@ -218,7 +218,7 @@ var _ = Describe("Service Annotation tests GCP", framework.LabelCCM, framework.L
 		Expect(err).To(HaveOccurred(), "Service should not exist after failed creation")
 	})
 
-	It("should validate other GCP annotations(local-with-fallback, load-balancer-backend-share, internal-load-balancer-allow-global-access, internal-load-balancer-subnet)", func() {
+	It("should validate other GCP annotations(local-with-fallback, load-balancer-backend-share, internal-load-balancer-allow-global-access, internal-load-balancer-subnet)", framework.LabelPeriodic, func() {
 		serviceName := "test-service-other-gcp-annotations"
 
 		// Test other GCP annotations that don't require CLI verification

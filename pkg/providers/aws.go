@@ -133,7 +133,7 @@ var _ = Describe("MetadataServiceOptions", framework.LabelDisruptive, framework.
 
 	// Machines required for test: 0
 	// No machines are created, because the machineSet is rejected.
-	It("should not allow to create machineset with incorrect metadataServiceOptions.authentication", func() {
+	It("should not allow to create machineset with incorrect metadataServiceOptions.authentication", framework.LabelPeriodic, func() {
 		_, err := createMachineSet("fooobaar")
 		Expect(err).To(HaveOccurred(), "Expected error, shouldn't be able to create machineSet with incorrect metadataServiceOptions.authentication")
 		Expect(err.Error()).Should(ContainSubstring("Invalid value: \"fooobaar\": Allowed values are either 'Optional' or 'Required'"))
@@ -141,7 +141,7 @@ var _ = Describe("MetadataServiceOptions", framework.LabelDisruptive, framework.
 
 	// Machines required for test: 1
 	// Reason: Deploys a pod on the node, so it requires a machine to be running.
-	It("should enforce auth on metadata service if metadataServiceOptions.authentication set to Required", func() {
+	It("should enforce auth on metadata service if metadataServiceOptions.authentication set to Required", framework.LabelPeriodic, func() {
 		machineSet, err := createMachineSet(machinev1.MetadataServiceAuthenticationRequired)
 		Expect(err).ToNot(HaveOccurred(), "metadataServiceOptions.authentication set to Required, authentication needed")
 		assertIMDSavailability(machineSet, "HTTP_CODE:401")
@@ -149,7 +149,7 @@ var _ = Describe("MetadataServiceOptions", framework.LabelDisruptive, framework.
 
 	// Machines required for test: 1
 	// Reason: Deploys a pod on the node, so it requires a machine to be running.
-	It("should allow unauthorized requests to metadata service if metadataServiceOptions.authentication is Optional", func() {
+	It("should allow unauthorized requests to metadata service if metadataServiceOptions.authentication is Optional", framework.LabelPeriodic, func() {
 		machineSet, err := createMachineSet(machinev1.MetadataServiceAuthenticationOptional)
 		Expect(err).ToNot(HaveOccurred(), "Failed to create unauthorized request to metadata service")
 		assertIMDSavailability(machineSet, "HTTP_CODE:200")
@@ -219,14 +219,14 @@ var _ = Describe("CapacityReservationID", framework.LabelDisruptive, framework.L
 
 	// Machines required for test: 0
 	// No machines are created, because the machineSet is rejected.
-	It("should not allow to create machineset with incorrect capacityReservationId", func() {
+	It("should not allow to create machineset with incorrect capacityReservationId", framework.LabelPeriodic, func() {
 		_, err := createMachineSetWithCapacityReservationID("fooobaar")
 		Expect(err).To(HaveOccurred(), "Expected error, shouldn't be able to create machineSet with incorrect capacityReservationId")
 		Expect(err.Error()).Should(ContainSubstring("invalid value for capacityReservationId: \"fooobaar\", it must start with 'cr-' and be exactly 20 characters long with 17 hexadecimal characters"))
 	})
 
 	// Machines required for test: 1
-	It("machine should get Running with active capacityReservationId", framework.LabelQEOnly, func() {
+	It("machine should get Running with active capacityReservationId", framework.LabelQEOnly, framework.LabelPeriodic, func() {
 		By("Get instanceType and availabilityZone from the first worker MachineSet")
 		workers, err := framework.GetWorkerMachineSets(ctx, client)
 		Expect(err).ToNot(HaveOccurred())

@@ -23,7 +23,7 @@ import (
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 )
 
-var _ = Describe("Webhooks", framework.LabelMAPI, framework.LabelDisruptive, func() {
+var _ = Describe("Webhooks", framework.LabelMAPI, framework.LabelDisruptive, framework.LabelPeriodic,func() {
 	var client runtimeclient.Client
 	var platform configv1.PlatformType
 	var machineSetParams framework.MachineSetParams

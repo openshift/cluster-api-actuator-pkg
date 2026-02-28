@@ -28,7 +28,7 @@ const (
 	capzManagerBootstrapCredentials = "capz-manager-bootstrap-credentials"
 )
 
-var _ = Describe("Cluster API Azure MachineSet", framework.LabelCAPI, framework.LabelDisruptive, Ordered, func() {
+var _ = Describe("[sig-cluster-lifecycle] Cluster API Azure MachineSet", framework.LabelCAPI, framework.LabelDisruptive, Ordered, func() {
 	var azureMachineTemplate *azurev1.AzureMachineTemplate
 	var machineSet *clusterv1beta1.MachineSet
 	var mapiMachineSpec *mapiv1.AzureMachineProviderSpec
@@ -93,7 +93,7 @@ var _ = Describe("Cluster API Azure MachineSet", framework.LabelCAPI, framework.
 	// OCP-75959 - [CAPI] host-based disk encryption at VM on Azure platform.
 	// author: zhsun@redhat.com
 	// EncryptionAtHost feature is not enabled for dev subscription, added framework.LabelQEOnly
-	It("should be able to run a machine with host-based disk encryption", framework.LabelQEOnly, func() {
+	It("should be able to run a machine with host-based disk encryption", framework.LabelQEOnly, framework.LabelPeriodic, func() {
 		azureMachineTemplate = newAzureMachineTemplate(client, azureMachineTemplateName, mapiMachineSpec)
 		azureMachineTemplate.Spec.Template.Spec.SecurityProfile = &azurev1.SecurityProfile{
 			EncryptionAtHost: ptr.To(true),
@@ -119,7 +119,7 @@ var _ = Describe("Cluster API Azure MachineSet", framework.LabelCAPI, framework.
 
 	// OCP-75961 - [CAPI] Enable accelerated network via MachineSets on Azure.
 	// author: zhsun@redhat.com
-	It("should be able to run a machine with accelerated network", func() {
+	It("should be able to run a machine with accelerated network", framework.LabelPeriodic, func() {
 		azureMachineTemplate = newAzureMachineTemplate(client, azureMachineTemplateName, mapiMachineSpec)
 		azureMachineTemplate.Spec.Template.Spec.NetworkInterfaces = []azurev1.NetworkInterface{
 			{
@@ -148,7 +148,7 @@ var _ = Describe("Cluster API Azure MachineSet", framework.LabelCAPI, framework.
 
 	// OCP-75972 - [CAPI] Spot instance can be created successfully with capi on azure.
 	// author: zhsun@redhat.com
-	It("should be able to run a machine with SpotVMOptions", func() {
+	It("should be able to run a machine with SpotVMOptions", framework.LabelPeriodic, func() {
 		region := mapiMachineSpec.Location
 		if region == "northcentralus" || region == "westus" || region == "usgovtexas" {
 			Skip("Skipping this test scenario on the " + region + " region, because this region doesn't have zones")

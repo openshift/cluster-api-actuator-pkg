@@ -200,7 +200,7 @@ var _ = Describe("Managed cluster should", framework.LabelMAPI, func() {
 
 		// Machines required for test: 1
 		// Reason: This test works on a single machine and its node.
-		It("have ability to additively reconcile taints from machine to nodes", func() {
+		It("have ability to additively reconcile taints from machine to nodes", framework.LabelPeriodic, func() {
 			selector := machineSet.Spec.Selector
 			machines, err := framework.GetMachines(ctx, client, &selector)
 			Expect(err).ToNot(HaveOccurred(), "Listing Machines should succeed")
@@ -295,7 +295,7 @@ var _ = Describe("Managed cluster should", framework.LabelMAPI, func() {
 
 		// Machines required for test: 4
 		// Reason: MachineSet scales 2->0 and MachineSet2 scales 0->2. Changing to scaling 1->0 and 0->1 might not test this thoroughly.
-		It("grow and decrease when scaling different machineSets simultaneously", framework.LabelPeriodic, framework.LabelLEVEL0, func() {
+		It("grow and decrease when scaling different machineSets simultaneously", framework.LabelLEVEL0, func() {
 			By("Creating a second MachineSet") // Machineset 1 can start with 1 replica
 			machineSetParams := framework.BuildMachineSetParams(ctx, client, 0)
 			machineSet2, err := framework.CreateMachineSet(client, machineSetParams)
@@ -319,7 +319,7 @@ var _ = Describe("Managed cluster should", framework.LabelMAPI, func() {
 
 		// Machines required for test: 2 (3 but it gets deleted without waiting for it to be ready)
 		// Reason: Pods are spread across both machines. After one is deleted, the pods are rescheduled onto the other machine.
-		It("drain node before removing machine resource", func() {
+		It("drain node before removing machine resource", framework.LabelPeriodic, func() {
 			By("Create a machine for node about to be drained")
 
 			selector := machineSet.Spec.Selector
@@ -386,7 +386,7 @@ var _ = Describe("Managed cluster should", framework.LabelMAPI, func() {
 
 	// Machines required for test: 0
 	// Reason: The machineSet creation is rejected by the webhook.
-	It("reject invalid machinesets", func() {
+	It("reject invalid machinesets", framework.LabelPeriodic, func() {
 		client, err := framework.LoadClient()
 		Expect(err).ToNot(HaveOccurred(), "Controller-runtime client should be able to be created")
 		// Only run on platforms that have webhooks
