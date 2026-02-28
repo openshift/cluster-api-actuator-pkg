@@ -147,7 +147,7 @@ func deleteObjects(client runtimeclient.Client, delObjects map[string]runtimecli
 	return nil
 }
 
-var _ = Describe("Managed cluster should", framework.LabelMAPI, func() {
+var _ = Describe("[sig-cluster-lifecycle] Machine API Managed cluster should", framework.LabelMAPI, func() {
 	var client runtimeclient.Client
 	var ctx context.Context
 	var machineSet *machinev1.MachineSet

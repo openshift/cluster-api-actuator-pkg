@@ -29,7 +29,7 @@ const (
 	pollingInterval                   = 3 * time.Second
 )
 
-var _ = Describe("Lifecycle Hooks should", framework.LabelMAPI, framework.LabelDisruptive, framework.LabelPeriodic, func() {
+var _ = Describe("[sig-cluster-lifecycle] Machine API Lifecycle Hooks should", framework.LabelMAPI, framework.LabelDisruptive, framework.LabelPeriodic, func() {
 	var client runtimeclient.Client
 	var machineSet *machinev1.MachineSet
 	var workload *batchv1.Job

@@ -20,7 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest/komega"
 )
 
-var _ = Describe("Cluster API MachineSet", framework.LabelCAPI, framework.LabelDisruptive, Ordered, func() {
+var _ = Describe("[sig-cluster-lifecycle] Cluster API MachineSet", framework.LabelCAPI, framework.LabelDisruptive, Ordered, func() {
 	var awsMachineTemplate *awsv1.AWSMachineTemplate
 	var azureMachineTemplate *azurev1.AzureMachineTemplate
 	var gcpMachineTemplate *gcpv1.GCPMachineTemplate

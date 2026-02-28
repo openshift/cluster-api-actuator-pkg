@@ -24,7 +24,7 @@ var (
 	cl client.Client
 )
 
-var _ = Describe("Machine API GCP MachineSet", framework.LabelMAPI, framework.LabelDisruptive, Ordered, func() {
+var _ = Describe("[sig-cluster-lifecycle] Machine API GCP MachineSet", framework.LabelMAPI, framework.LabelDisruptive, Ordered, func() {
 	var mapiMachineSet *mapiv1.MachineSet
 	var ctx context.Context
 	var platform configv1.PlatformType

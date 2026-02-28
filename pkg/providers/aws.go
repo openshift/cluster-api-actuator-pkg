@@ -23,7 +23,7 @@ const (
 	amiIDMetadataEndpoint = "http://169.254.169.254/latest/meta-data/ami-id"
 )
 
-var _ = Describe("MetadataServiceOptions", framework.LabelDisruptive, framework.LabelMAPI, func() {
+var _ = Describe("[sig-cluster-lifecycle] Machine API MetadataServiceOptions", framework.LabelDisruptive, framework.LabelMAPI, func() {
 	var client runtimeclient.Client
 	var clientset *kubernetes.Clientset
 
@@ -156,7 +156,7 @@ var _ = Describe("MetadataServiceOptions", framework.LabelDisruptive, framework.
 	})
 })
 
-var _ = Describe("CapacityReservationID", framework.LabelDisruptive, framework.LabelMAPI, func() {
+var _ = Describe("[sig-cluster-lifecycle] Machine API CapacityReservationID", framework.LabelDisruptive, framework.LabelMAPI, func() {
 	var client runtimeclient.Client
 	var gatherer *gatherer.StateGatherer
 	var ctx context.Context

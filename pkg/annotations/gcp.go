@@ -31,7 +31,7 @@ const (
 
 var cl client.Client
 
-var _ = Describe("Service Annotation tests GCP", framework.LabelCCM, framework.LabelDisruptive, Ordered, func() {
+var _ = Describe("[sig-cluster-lifecycle] CCM Service Annotation tests GCP", framework.LabelCCM, framework.LabelDisruptive, Ordered, func() {
 	var (
 		ctx             context.Context
 		platform        configv1.PlatformType
