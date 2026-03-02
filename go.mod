@@ -14,7 +14,7 @@ require (
 	github.com/onsi/gomega v1.38.2
 	github.com/openshift/api v0.0.0-20251111193948-50e2ece149d7
 	github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0
-	github.com/openshift/cluster-autoscaler-operator v0.0.1-0.20250702183526-4eb64d553940
+	github.com/openshift/cluster-autoscaler-operator v0.0.1-0.20251016022208-dc342af67c74
 	github.com/openshift/library-go v0.0.0-20251112091634-ab97ebb73f0f
 	github.com/openshift/machine-api-operator v0.2.1-0.20251121134325-1d78f2ebcae5
 	github.com/tidwall/gjson v1.18.0

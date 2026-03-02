@@ -858,8 +858,8 @@ github.com/openshift/client-go/machine/listers/machine/v1beta1
 github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/apps/v1
 github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/cluster-api/core/v1beta1
 github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/core/v1
-# github.com/openshift/cluster-autoscaler-operator v0.0.1-0.20250702183526-4eb64d553940
-## explicit; go 1.23.0
+# github.com/openshift/cluster-autoscaler-operator v0.0.1-0.20251016022208-dc342af67c74
+## explicit; go 1.24.0
 github.com/openshift/cluster-autoscaler-operator/pkg/apis
 github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1
 github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1beta1
