@@ -32,7 +32,7 @@ const (
 	infraAPIVersion        = "infrastructure.cluster.x-k8s.io/v1beta1"
 )
 
-var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.LabelDisruptive, Ordered, func() {
+var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cluster API AWS MachineSet", framework.LabelCAPI, framework.LabelDisruptive, Ordered, func() {
 	var (
 		cl                      client.Client
 		ctx                     = context.Background()
@@ -103,7 +103,7 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 	})
 
 	//huliu-OCP-75395 - [CAPI] AWS Placement group support.
-	It("should be able to run a machine with cluster placement group", func() {
+	It("should be able to run a machine with cluster placement group", framework.LabelPeriodic, func() {
 		awsClient := framework.NewAwsClient(framework.GetCredentialsFromCluster(oc))
 		placementGroupName := clusterName + "pgcluster"
 		placementGroupID, err := awsClient.CreatePlacementGroup(placementGroupName, "cluster")
@@ -126,7 +126,7 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 	})
 
 	//huliu-OCP-75396 - [CAPI] Creating machines using KMS keys from AWS.
-	It("should be able to run a machine using KMS keys", framework.LabelQEOnly, func() {
+	It("should be able to run a machine using KMS keys", framework.LabelQEOnly, framework.LabelPeriodic, func() {
 		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
 		awskmsClient := framework.NewAwsKmsClient(framework.GetCredentialsFromCluster(oc))
 		key, err := awskmsClient.CreateKey(infrastructureName + " key 75396")
@@ -157,7 +157,7 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 	})
 
 	//OCP-78677 - [CAPI] Dedicated tenancy should be exposed on aws providerspec.
-	It("should be able to run a machine with dedicated instance", func() {
+	It("should be able to run a machine with dedicated instance", framework.LabelPeriodic, func() {
 		var success bool
 		machineSet, awsMachineTemplate, success = createAWSCAPIMachineSetWithRetry(ctx, cl, "aws-machineset-78677", clusterName, mapiDefaultProviderSpec, 4, func(template *awsv1.AWSMachineTemplate, instanceType string) {
 			template.Spec.Template.Spec.Tenancy = "dedicated"
@@ -171,7 +171,7 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 	})
 
 	//huliu-OCP-75662 - [CAPI] AWS Machine API Support of more than one block device.
-	It("should be able to run a machine with more than one block device", func() {
+	It("should be able to run a machine with more than one block device", framework.LabelPeriodic, func() {
 		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
 		awsMachineTemplate.Spec.Template.Spec.NonRootVolumes = []awsv1.Volume{
 			{
@@ -196,7 +196,7 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 	})
 
 	//huliu-OCP-75663 - [CAPI] User defined tags can be applied to AWS EC2 Instances.
-	It("should be able to run a machine with user defined tags", func() {
+	It("should be able to run a machine with user defined tags", framework.LabelPeriodic, func() {
 		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
 		awsMachineTemplate.Spec.Template.Spec.AdditionalTags = map[string]string{
 			"adminContact": "qe",
@@ -212,7 +212,7 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 	})
 
 	//OCP-76794 - [CAPI] Support AWS capacity-reservations in CAPA.
-	It("should be able to run a machine with capacity-reservations", func() {
+	It("should be able to run a machine with capacity-reservations", framework.LabelPeriodic, func() {
 		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
 		By("Access AWS to create CapacityReservation")
 		awsClient := framework.NewAwsClient(framework.GetCredentialsFromCluster(oc))
@@ -233,7 +233,7 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 	})
 
 	//OCP-81293 - [CAPI][AWS] Support AWS EFA network interface type in CAPI.
-	It("should be able to run a machine with EFA network interface type", func() {
+	It("should be able to run a machine with EFA network interface type", framework.LabelPeriodic, func() {
 		// c5n.9xlarge with EFA may not be available in all regions
 		if mapiDefaultProviderSpec.Placement.Region != "us-east-2" && mapiDefaultProviderSpec.Placement.Region != "us-west-2" {
 			Skip("c5n.9xlarge instances with EFA support may not be available in all regions, limiting this test to us-east-2 and us-west-2")
@@ -250,7 +250,7 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 	})
 
 	//OCP-79026 - [CAPI] Spot instance can be created successfully with CAPI on aws.
-	It("should be able to run a machine with SpotMarketOptions", func() {
+	It("should be able to run a machine with SpotMarketOptions", framework.LabelPeriodic, func() {
 		var success bool
 		machineSet, awsMachineTemplate, success = createAWSCAPIMachineSetWithRetry(ctx, cl, "aws-machineset-79026a", clusterName, mapiDefaultProviderSpec, 4, func(template *awsv1.AWSMachineTemplate, instanceType string) {
 			template.Spec.Template.Spec.SpotMarketOptions = &awsv1.SpotMarketOptions{}
@@ -264,7 +264,7 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 	})
 
 	//OCP-84243 - [CAPI] AWS capacity reservation preference None should work correctly.
-	It("should be able to run a machine with capacity reservation preference None", func() {
+	It("should be able to run a machine with capacity reservation preference None", framework.LabelPeriodic, func() {
 		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
 		awsMachineTemplate.Spec.Template.Spec.CapacityReservationPreference = awsv1.CapacityReservationPreferenceNone
 		Eventually(func() error {
@@ -281,7 +281,7 @@ var _ = Describe("Cluster API AWS MachineSet", framework.LabelCAPI, framework.La
 	})
 
 	//OCP-84243 - [CAPI] AWS capacity reservation preference CapacityReservationsOnly should work correctly.
-	It("should be able to run a machine with capacity reservation preference CapacityReservationsOnly", func() {
+	It("should be able to run a machine with capacity reservation preference CapacityReservationsOnly", framework.LabelPeriodic, func() {
 		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
 		awsMachineTemplate.Spec.Template.Spec.InstanceType = "m6i.large"
 		awsMachineTemplate.Spec.Template.Spec.CapacityReservationPreference = awsv1.CapacityReservationPreferenceOnly

@@ -30,7 +30,7 @@ var (
 	cl          client.Client
 )
 
-var _ = Describe("Cluster API GCP MachineSet", framework.LabelCAPI, framework.LabelDisruptive, Ordered, func() {
+var _ = Describe("[sig-cluster-lifecycle] Cluster API GCP MachineSet", framework.LabelCAPI, framework.LabelDisruptive, Ordered, func() {
 	var gcpMachineTemplate *gcpv1.GCPMachineTemplate
 	var machineSet *clusterv1beta1.MachineSet
 	var mapiMachineSpec *mapiv1.GCPMachineProviderSpec
@@ -70,7 +70,7 @@ var _ = Describe("Cluster API GCP MachineSet", framework.LabelCAPI, framework.La
 		framework.WaitForCAPIMachineSetsDeleted(ctx, cl, machineSet)
 		framework.DeleteObjects(ctx, cl, gcpMachineTemplate)
 	})
-	DescribeTable("should be able to run a machine with disk types", framework.LabelCAPI, framework.LabelDisruptive,
+	DescribeTable("should be able to run a machine with disk types", framework.LabelCAPI, framework.LabelDisruptive, framework.LabelPeriodic,
 		func(expectedDiskType gcpv1.DiskType) {
 			mapiProviderSpec := getGCPMAPIProviderSpec(cl)
 			Expect(mapiProviderSpec).ToNot(BeNil())
@@ -94,7 +94,7 @@ var _ = Describe("Cluster API GCP MachineSet", framework.LabelCAPI, framework.La
 		Entry("Disk type pd-standard", gcpv1.PdStandardDiskType),
 		Entry("Disk type pd-ssd", gcpv1.PdSsdDiskType),
 	)
-	DescribeTable("should configure Shielded VM options correctly", framework.LabelCAPI, framework.LabelDisruptive,
+	DescribeTable("should configure Shielded VM options correctly", framework.LabelCAPI, framework.LabelDisruptive, framework.LabelPeriodic,
 		func(enableSecureBoot gcpv1.SecureBootPolicy, enableVtpm gcpv1.VirtualizedTrustedPlatformModulePolicy, enableIntegrityMonitoring gcpv1.IntegrityMonitoringPolicy) {
 			mapiProviderSpec := getGCPMAPIProviderSpec(cl)
 			Expect(mapiProviderSpec).ToNot(BeNil())
@@ -146,7 +146,7 @@ var _ = Describe("Cluster API GCP MachineSet", framework.LabelCAPI, framework.La
 		Entry("all Shielded VM options disabled", gcpv1.SecureBootPolicyDisabled, gcpv1.VirtualizedTrustedPlatformModulePolicyDisabled, gcpv1.IntegrityMonitoringPolicyDisabled),
 		*/
 	)
-	DescribeTable("should configure Confidential VM correctly", framework.LabelCAPI, framework.LabelDisruptive,
+	DescribeTable("should configure Confidential VM correctly", framework.LabelCAPI, framework.LabelDisruptive, framework.LabelPeriodic,
 		func(confidentialCompute gcpv1.ConfidentialComputePolicy) {
 			mapiProviderSpec := getGCPMAPIProviderSpec(cl)
 			Expect(mapiProviderSpec).ToNot(BeNil())
@@ -206,7 +206,7 @@ var _ = Describe("Cluster API GCP MachineSet", framework.LabelCAPI, framework.La
 		Entry("Confidential Compute AMDEncryptedVirtualizationNestedPaging", gcpv1.ConfidentialComputePolicySEVSNP),
 		Entry("Confidential Compute IntelTrustedDomainExtensions", gcpv1.ConfidentialComputePolicyTDX),
 	)
-	It("should provision Preemptible machine successfully", func() {
+	It("should provision Preemptible machine successfully", framework.LabelPeriodic, func() {
 		mapiProviderSpec := getGCPMAPIProviderSpec(cl)
 		Expect(mapiProviderSpec).ToNot(BeNil())
 		gcpMachineTemplate = createGCPMachineTemplate(mapiProviderSpec)

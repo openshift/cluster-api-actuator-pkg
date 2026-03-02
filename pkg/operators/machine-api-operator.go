@@ -24,7 +24,7 @@ var (
 )
 
 var _ = Describe(
-	"Machine API operator deployment should",
+	"[sig-cluster-lifecycle] Machine API operator deployment should",
 	framework.LabelMAPI,
 	Serial,
 	func() {
@@ -252,7 +252,7 @@ var _ = Describe(
 	})
 
 var _ = Describe(
-	"Machine API cluster operator status should", framework.LabelMAPI, func() {
+	"[sig-cluster-lifecycle] Machine API cluster operator status should", framework.LabelMAPI, func() {
 		It("be available", framework.LabelLEVEL0, func() {
 			ctx := framework.GetContext()
 
@@ -265,7 +265,7 @@ var _ = Describe(
 	})
 
 var _ = Describe(
-	"When cluster-wide proxy is configured, Machine API cluster operator should ",
+	"[sig-cluster-lifecycle] Machine API When cluster-wide proxy is configured, Machine API cluster operator should ",
 	framework.LabelDisruptive, framework.LabelConnectedOnly, framework.LabelPeriodic, framework.LabelMAPI,
 	Serial,
 	func() {

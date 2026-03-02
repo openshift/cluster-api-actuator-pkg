@@ -39,7 +39,7 @@ const (
 	spotMachineSetMaxProvisioningRetryCount = 3
 )
 
-var _ = Describe("Running on Spot", framework.LabelMAPI, framework.LabelDisruptive, func() {
+var _ = Describe("[sig-cluster-lifecycle] Machine API Running on Spot", framework.LabelMAPI, framework.LabelDisruptive, framework.LabelPeriodic, func() {
 	var ctx = context.Background()
 
 	var client runtimeclient.Client

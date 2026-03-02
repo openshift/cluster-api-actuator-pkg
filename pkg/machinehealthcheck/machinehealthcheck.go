@@ -16,7 +16,7 @@ import (
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 )
 
-var _ = Describe("MachineHealthCheck", framework.LabelMachineHealthCheck, framework.LabelDisruptive, func() {
+var _ = Describe("[sig-cluster-lifecycle] MachineHealthCheck", framework.LabelMachineHealthCheck, framework.LabelDisruptive, func() {
 	var client client.Client
 	var ctx context.Context
 
@@ -130,7 +130,7 @@ var _ = Describe("MachineHealthCheck", framework.LabelMachineHealthCheck, framew
 
 	// Machines required for test: 2
 	// Reason: We have two unhealthy machines, but the maxUnhealthy threshold is 1, so the MHC should not remediate.
-	It("should not remediate larger number of unhealthy machines then maxUnhealthy", func() {
+	It("should not remediate larger number of unhealthy machines then maxUnhealthy", framework.LabelPeriodic, func() {
 		selector := machineSet.Spec.Selector
 		machines, err := framework.GetMachines(ctx, client, &selector)
 		Expect(err).ToNot(HaveOccurred(), "failed to get machines using a selector")

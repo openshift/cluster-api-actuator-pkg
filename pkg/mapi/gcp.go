@@ -24,7 +24,7 @@ var (
 	cl client.Client
 )
 
-var _ = Describe("Machine API GCP MachineSet", framework.LabelMAPI, framework.LabelDisruptive, Ordered, func() {
+var _ = Describe("[sig-cluster-lifecycle] Machine API GCP MachineSet", framework.LabelMAPI, framework.LabelDisruptive, Ordered, func() {
 	var mapiMachineSet *mapiv1.MachineSet
 	var ctx context.Context
 	var platform configv1.PlatformType
@@ -55,7 +55,7 @@ var _ = Describe("Machine API GCP MachineSet", framework.LabelMAPI, framework.La
 		}
 	})
 
-	It("should have all Shielded VM options disabled when using nonUefi image", func() {
+	It("should have all Shielded VM options disabled when using nonUefi image", framework.LabelPeriodic, func() {
 		// Get MAPI machineset parameters
 		machineSetParams := framework.BuildMachineSetParams(ctx, cl, 1)
 
@@ -110,7 +110,7 @@ var _ = Describe("Machine API GCP MachineSet", framework.LabelMAPI, framework.La
 	})
 
 	// Test for provisioningModel: Spot
-	It("should provision Spot instance with provisioningModel: Spot successfully", func() {
+	It("should provision Spot instance with provisioningModel: Spot successfully", framework.LabelPeriodic, func() {
 		By("Building MachineSet parameters from existing cluster")
 		machineSetParams := framework.BuildMachineSetParams(ctx, cl, 1)
 
@@ -161,7 +161,7 @@ var _ = Describe("Machine API GCP MachineSet", framework.LabelMAPI, framework.La
 	})
 
 	// Webhook validation test: preemptible and provisioningModel should not be used together
-	It("should reject when both preemptible: true and provisioningModel: Spot are set", func() {
+	It("should reject when both preemptible: true and provisioningModel: Spot are set", framework.LabelPeriodic, func() {
 		By("Building MachineSet parameters from existing cluster")
 		machineSetParams := framework.BuildMachineSetParams(ctx, cl, 0)
 
@@ -199,7 +199,7 @@ var _ = Describe("Machine API GCP MachineSet", framework.LabelMAPI, framework.La
 		klog.Infof("Successfully verified that webhook rejects both preemptible and provisioningModel being set together")
 	})
 	// Test: webhook should allow MachineSet update when preemptible is set and provisioningModel is not set
-	It("should allow MachineSet update to set preemptible when provisioningModel is not set", func() {
+	It("should allow MachineSet update to set preemptible when provisioningModel is not set", framework.LabelPeriodic, func() {
 		By("Building MachineSet parameters from existing cluster")
 		machineSetParams := framework.BuildMachineSetParams(ctx, cl, 0)
 

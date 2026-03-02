@@ -20,7 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest/komega"
 )
 
-var _ = Describe("Cluster API MachineSet", framework.LabelCAPI, framework.LabelDisruptive, Ordered, func() {
+var _ = Describe("[sig-cluster-lifecycle] Cluster API MachineSet", framework.LabelCAPI, framework.LabelDisruptive, Ordered, func() {
 	var awsMachineTemplate *awsv1.AWSMachineTemplate
 	var azureMachineTemplate *azurev1.AzureMachineTemplate
 	var gcpMachineTemplate *gcpv1.GCPMachineTemplate
@@ -94,7 +94,7 @@ var _ = Describe("Cluster API MachineSet", framework.LabelCAPI, framework.LabelD
 
 	// OCP-75779 - [CAPI] Labels and annotations specified in a machineset should propagate to nodes.
 	// author: huliu@redhat.com
-	It("should be able to run a machine with labels and annotations and they are propagated to nodes", func() {
+	It("should be able to run a machine with labels and annotations and they are propagated to nodes", framework.LabelPeriodic, func() {
 		switch platform {
 		case configv1.AWSPlatformType:
 			machineTemplateName = "awsmachinetemplate-75779"
