@@ -35,6 +35,7 @@ var _ = Describe("Cleanup", func() {
 
 	BeforeEach(func() {
 		By("Setting up a namespace for the test")
+
 		ns := corev1resourcebuilder.Namespace().WithGenerateName("test-utils-").Build()
 		Expect(k8sClient.Create(ctx, ns)).To(Succeed())
 		namespaceName = ns.GetName()

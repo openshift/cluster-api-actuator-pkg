@@ -24,10 +24,12 @@ import (
 )
 
 var _ = Describe("[sig-cluster-lifecycle] Machine API Webhooks", framework.LabelMAPI, framework.LabelDisruptive, framework.LabelPeriodic, func() {
-	var client runtimeclient.Client
-	var platform configv1.PlatformType
-	var machineSetParams framework.MachineSetParams
-	var testSelector *metav1.LabelSelector
+	var (
+		client           runtimeclient.Client
+		platform         configv1.PlatformType
+		machineSetParams framework.MachineSetParams
+		testSelector     *metav1.LabelSelector
+	)
 
 	var gatherer *gatherer.StateGatherer
 
@@ -35,6 +37,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Webhooks", framework.Label
 
 	BeforeEach(func() {
 		var err error
+
 		gatherer, err = framework.NewGatherer()
 		Expect(err).ToNot(HaveOccurred(), "StateGatherer should be able to be created")
 
@@ -44,6 +47,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Webhooks", framework.Label
 		// Only run on platforms that have webhooks
 		clusterInfra, err := framework.GetInfrastructure(ctx, client)
 		Expect(err).NotTo(HaveOccurred(), "Should be able to get Infrastructure")
+
 		platform = clusterInfra.Status.PlatformStatus.Type
 		switch platform {
 		case configv1.AWSPlatformType, configv1.AzurePlatformType, configv1.GCPPlatformType, configv1.VSpherePlatformType, configv1.PowerVSPlatformType, configv1.NutanixPlatformType:
@@ -55,6 +59,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Webhooks", framework.Label
 		machineSetParams = framework.BuildMachineSetParams(ctx, client, 1)
 		ps, err := createMinimalProviderSpec(platform, machineSetParams.ProviderSpec)
 		Expect(err).ToNot(HaveOccurred(), "Should be able to generate MachineSet ProviderSpec")
+
 		machineSetParams.ProviderSpec = ps
 
 		// All machines/machinesets created in this test should match these labels
@@ -120,12 +125,15 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Webhooks", framework.Label
 				if m.Status.ErrorReason != nil {
 					reason = string(*m.Status.ErrorReason)
 				}
+
 				message := "failureMessage not present in Machine.status"
 				if m.Status.ErrorMessage != nil {
 					message = *m.Status.ErrorMessage
 				}
+
 				klog.Errorf("Failed machine: %s, Reason: %s, Message: %s", m.Name, reason, message)
 			}
+
 			Expect(len(failed)).To(Equal(0), "zero machines should be in a Failed phase")
 
 			running := framework.FilterRunningMachines([]*machinev1beta1.Machine{m})
@@ -170,6 +178,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Webhooks", framework.Label
 			Expect(err).ToNot(HaveOccurred(), "Should be able to generate Machine's ProviderSpec")
 
 			machine.Spec.ProviderSpec = *minimalSpec
+
 			err = client.Update(ctx, machine)
 			if apierrors.IsConflict(err) {
 				// Try again if there was a conflict
@@ -178,6 +187,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Webhooks", framework.Label
 
 			// No conflict, so the update "worked"
 			updated = true
+
 			Expect(err).To(HaveOccurred(), "Should be able to update Machine")
 			Expect(err).To(MatchError(ContainSubstring("admission webhook \"validation.machine.machine.openshift.io\" denied the request")), "Should get an admission webhook denied error back")
 		}
@@ -199,6 +209,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Webhooks", framework.Label
 			Expect(err).ToNot(HaveOccurred(), "Should be able to generate Machine's ProviderSpec")
 
 			machineSet.Spec.Template.Spec.ProviderSpec = *minimalSpec
+
 			err = client.Update(ctx, machineSet)
 			if apierrors.IsConflict(err) {
 				// Try again if there was a conflict
@@ -207,10 +218,10 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Webhooks", framework.Label
 
 			// No conflict, so the update "worked"
 			updated = true
+
 			Expect(err).To(HaveOccurred(), "Should be able to update MachineSet")
 			Expect(err).To(MatchError(ContainSubstring("admission webhook \"validation.machineset.machine.openshift.io\" denied the request")), "Should get an admission webhook denied error back")
 		}
-
 	})
 })
 

@@ -19,9 +19,11 @@ import (
 )
 
 var _ = Describe("Cluster autoscaler operator should", framework.LabelAutoscaler, func() {
-	var client runtimeclient.Client
-	var ctx context.Context
-	var gatherer *gatherer.StateGatherer
+	var (
+		client   runtimeclient.Client
+		ctx      context.Context
+		gatherer *gatherer.StateGatherer
+	)
 
 	BeforeEach(func() {
 		var err error

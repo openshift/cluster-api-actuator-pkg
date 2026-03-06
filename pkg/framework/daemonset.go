@@ -71,12 +71,14 @@ func IsDaemonsetAvailable(ctx context.Context, c client.Client, name, namespace 
 			klog.Errorf("Error getting DaemonSet: %v", err)
 			return false, nil
 		}
+
 		if d.Status.NumberAvailable == 0 {
 			klog.Errorf("DaemonSet %q is not available. Status: %s",
 				d.Name, daemonsetInfo(d))
 
 			return false, nil
 		}
+
 		klog.Infof("DaemonSet %q is available. Status: %s",
 			d.Name, daemonsetInfo(d))
 

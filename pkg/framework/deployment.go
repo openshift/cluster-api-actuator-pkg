@@ -72,12 +72,14 @@ func IsDeploymentAvailable(ctx context.Context, c client.Client, name, namespace
 			klog.Errorf("Error getting deployment: %v", err)
 			return false, nil
 		}
+
 		if d.Status.AvailableReplicas < 1 {
 			klog.Errorf("Deployment %q is not available. Status: %s",
 				d.Name, deploymentInfo(d))
 
 			return false, nil
 		}
+
 		klog.Infof("Deployment %q is available. Status: %s",
 			d.Name, deploymentInfo(d))
 
