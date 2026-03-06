@@ -19,6 +19,7 @@ const (
 func main() {
 	provider := flag.String("provider", "", "Cloud Provider metadata service to mock (One of AWS, Azure or GCP)")
 	listenAddr := flag.String("listen-addr", "0.0.0.0:80", "Address on which metadata mock service should listen")
+
 	flag.Parse()
 
 	var handler http.Handler
@@ -114,8 +115,8 @@ func azureMetadataMockHandler() http.Handler {
 				},
 			},
 		}
-		data, err := json.Marshal(events)
 
+		data, err := json.Marshal(events)
 		if err != nil {
 			rw.WriteHeader(500)
 

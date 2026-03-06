@@ -35,10 +35,12 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API AWS MachineSet", framework
 		cl, err = framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred(), "Failed to create Kubernetes client for test")
 		komega.SetClient(cl)
+
 		ctx = framework.GetContext()
 
 		platform, err = framework.GetPlatform(ctx, cl)
 		Expect(err).ToNot(HaveOccurred(), "Failed to get platform")
+
 		if platform != configv1.AWSPlatformType {
 			Skip("Skipping AWS E2E tests")
 		}
@@ -76,6 +78,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API AWS MachineSet", framework
 		// Get the first machine and unmarshal its provider spec
 		machine := machines[0]
 		machineProviderSpec := &mapiv1.AWSMachineProviderConfig{}
+
 		By(fmt.Sprintf("Getting machine %q created by MachineSet %q", machine.Name, machineSet.Name))
 		Expect(machine.Spec.ProviderSpec.Value).ToNot(BeNil(), "Machine provider spec value should be set")
 		Expect(machine.Spec.ProviderSpec.Value.Raw).ToNot(BeEmpty(), "Machine provider spec raw payload should be set")
@@ -112,6 +115,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API AWS MachineSet", framework
 		}
 
 		By("Creating a new MachineSet with user defined tags")
+
 		mapiMachineSet, err = framework.CreateMachineSet(cl, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "MachineSet should be able to be created")
 
@@ -119,6 +123,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API AWS MachineSet", framework
 		framework.WaitForMachineSet(ctx, cl, mapiMachineSet.GetName())
 
 		By("Verifying that machine has user defined tags applied")
+
 		machineProviderSpec := getMachineProviderSpec(mapiMachineSet)
 
 		// Verify the tags are present in the machine's provider spec
@@ -170,6 +175,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API AWS MachineSet", framework
 		}
 
 		By("Creating a new MachineSet with EFA network interface type")
+
 		mapiMachineSet, err = framework.CreateMachineSet(cl, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "MachineSet should be able to be created")
 
@@ -177,6 +183,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API AWS MachineSet", framework
 		framework.WaitForMachineSet(ctx, cl, mapiMachineSet.GetName())
 
 		By("Verifying that machine has EFA network interface type applied")
+
 		machineProviderSpec := getMachineProviderSpec(mapiMachineSet)
 
 		// Verify the instance type and network interface type
@@ -198,7 +205,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API AWS MachineSet", framework
 		Expect(json.Unmarshal(machineSetParams.ProviderSpec.Value.Raw, providerSpec)).To(Succeed(), "Should be able to unmarshal provider spec")
 
 		// Create AWS client and placement group
-		awsClient := framework.NewAwsClient(framework.GetCredentialsFromCluster(oc))
+		awsClient := framework.NewAwsClient(framework.GetCredentialsFromClusterCtx(ctx, oc))
 		placementGroupName := clusterName + "-pgcluster"
 		_, err := awsClient.CreatePlacementGroup(placementGroupName, "cluster")
 		Expect(err).ToNot(HaveOccurred(), "Failed to create placement group %q", placementGroupName)
@@ -222,6 +229,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API AWS MachineSet", framework
 		}
 
 		By("Creating a new MachineSet with placement group")
+
 		mapiMachineSet, err = framework.CreateMachineSet(cl, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "MachineSet should be able to be created")
 
@@ -229,6 +237,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API AWS MachineSet", framework
 		framework.WaitForMachineSet(ctx, cl, mapiMachineSet.GetName())
 
 		By("Verifying that machine has placement group applied")
+
 		machineProviderSpec := getMachineProviderSpec(mapiMachineSet)
 
 		// Verify the placement group name
@@ -278,6 +287,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API AWS MachineSet", framework
 		}
 
 		By("Creating a new MachineSet with multiple block devices")
+
 		mapiMachineSet, err = framework.CreateMachineSet(cl, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "MachineSet should be able to be created")
 
@@ -285,6 +295,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API AWS MachineSet", framework
 		framework.WaitForMachineSet(ctx, cl, mapiMachineSet.GetName())
 
 		By("Verifying that machine has multiple block devices applied")
+
 		machineProviderSpec := getMachineProviderSpec(mapiMachineSet)
 
 		// Verify multiple block devices are configured
@@ -307,7 +318,8 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API AWS MachineSet", framework
 		Expect(json.Unmarshal(machineSetParams.ProviderSpec.Value.Raw, providerSpec)).To(Succeed(), "Should be able to unmarshal provider spec")
 
 		// Create KMS key
-		awskmsClient := framework.NewAwsKmsClient(framework.GetCredentialsFromCluster(oc))
+		awskmsClient := framework.NewAwsKmsClient(framework.GetCredentialsFromClusterCtx(ctx, oc))
+
 		key, err := awskmsClient.CreateKey(clusterName + " key 75396")
 		if err != nil {
 			Skip("Create key failed, skip the cases!!")
@@ -343,6 +355,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API AWS MachineSet", framework
 		}
 
 		By("Creating a new MachineSet with KMS encrypted volume")
+
 		mapiMachineSet, err = framework.CreateMachineSet(cl, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "MachineSet should be able to be created")
 
@@ -350,6 +363,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API AWS MachineSet", framework
 		framework.WaitForMachineSet(ctx, cl, mapiMachineSet.GetName())
 
 		By("Verifying that machine has KMS key applied")
+
 		machineProviderSpec := getMachineProviderSpec(mapiMachineSet)
 
 		// Verify the KMS key is set

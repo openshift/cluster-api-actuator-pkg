@@ -40,6 +40,7 @@ func newEventWatcher(clientset kubernetes.Interface) (*eventWatcher, error) {
 	}
 
 	w.eventInformer = w.informerFactory.Core().V1().Events().Informer()
+
 	_, err := w.eventInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			event, ok := obj.(*corev1.Event)
@@ -63,7 +64,6 @@ func newEventWatcher(clientset kubernetes.Interface) (*eventWatcher, error) {
 			}
 		},
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("could not add event handler: %w", err)
 	}
@@ -88,6 +88,7 @@ func (w *eventWatcher) onEvent(matcher matchEventFunc, handler eventHandlerFunc)
 
 	w.eventHandlerLock.Lock()
 	defer w.eventHandlerLock.Unlock()
+
 	w.eventHandlers = append(w.eventHandlers, h)
 
 	return h
@@ -96,6 +97,7 @@ func (w *eventWatcher) onEvent(matcher matchEventFunc, handler eventHandlerFunc)
 func (h *eventHandler) enable() {
 	h.Lock()
 	defer h.Unlock()
+
 	h.enabled = true
 }
 

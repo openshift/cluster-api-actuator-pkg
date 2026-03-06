@@ -25,18 +25,22 @@ var (
 )
 
 var _ = Describe("[sig-cluster-lifecycle] Machine API GCP MachineSet", framework.LabelMAPI, framework.LabelDisruptive, Ordered, func() {
-	var mapiMachineSet *mapiv1.MachineSet
-	var ctx context.Context
-	var platform configv1.PlatformType
-	var err error
+	var (
+		mapiMachineSet *mapiv1.MachineSet
+		ctx            context.Context
+		platform       configv1.PlatformType
+		err            error
+	)
 
 	BeforeAll(func() {
 		cl, err = framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred(), "Failed to create Kubernetes client for test")
 		komega.SetClient(cl)
+
 		ctx = framework.GetContext()
 		platform, err = framework.GetPlatform(ctx, cl)
 		Expect(err).ToNot(HaveOccurred(), "Failed to get platform")
+
 		if platform != configv1.GCPPlatformType {
 			Skip("Skipping GCP E2E tests")
 		}
@@ -84,6 +88,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API GCP MachineSet", framework
 		}
 
 		By("Creating a new MachineSet with Red Hat CoreOS(nonUefi) image")
+
 		mapiMachineSet, err = framework.CreateMachineSet(cl, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "MachineSet should be able to be created")
 
@@ -97,6 +102,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API GCP MachineSet", framework
 		// Get the first machine created by this MachineSet and verify its provider spec
 		machine := machines[0]
 		machineProviderSpec := &mapiv1.GCPMachineProviderSpec{}
+
 		By(fmt.Sprintf("Getting machine %q created by MachineSet %q", machine.Name, mapiMachineSet.Name))
 		Expect(json.Unmarshal(machine.Spec.ProviderSpec.Value.Raw, machineProviderSpec)).To(Succeed(), "Should be able to unmarshal machine provider spec")
 
@@ -112,6 +118,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API GCP MachineSet", framework
 	// Test for provisioningModel: Spot
 	It("should provision Spot instance with provisioningModel: Spot successfully", framework.LabelPeriodic, func() {
 		By("Building MachineSet parameters from existing cluster")
+
 		machineSetParams := framework.BuildMachineSetParams(ctx, cl, 1)
 
 		// Override the name to include testcaseid 85973
@@ -121,6 +128,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API GCP MachineSet", framework
 		machineSetParams.Name = infra.Status.InfrastructureName + "-85973-spot-" + uuid.New().String()[0:5]
 
 		By("Modifying providerSpec to use provisioningModel: Spot")
+
 		providerSpec := &mapiv1.GCPMachineProviderSpec{}
 		Expect(json.Unmarshal(machineSetParams.ProviderSpec.Value.Raw, providerSpec)).To(Succeed(), "Should be able to unmarshal provider spec")
 
@@ -139,6 +147,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API GCP MachineSet", framework
 		}
 
 		By("Creating MachineSet with Spot provisioning model")
+
 		mapiMachineSet, err = framework.CreateMachineSet(cl, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "MachineSet should be able to be created")
 
@@ -146,6 +155,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API GCP MachineSet", framework
 		framework.WaitForMachineSet(ctx, cl, mapiMachineSet.GetName())
 
 		By("Verifying machine has interruptible-instance label set")
+
 		machines, err := framework.GetMachinesFromMachineSet(ctx, cl, mapiMachineSet)
 		Expect(err).ToNot(HaveOccurred(), "Getting machines from MachineSet should succeed")
 		Expect(machines).To(HaveLen(1), "MachineSet should have exactly 1 machine")
@@ -163,6 +173,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API GCP MachineSet", framework
 	// Webhook validation test: preemptible and provisioningModel should not be used together
 	It("should reject when both preemptible: true and provisioningModel: Spot are set", framework.LabelPeriodic, func() {
 		By("Building MachineSet parameters from existing cluster")
+
 		machineSetParams := framework.BuildMachineSetParams(ctx, cl, 0)
 
 		// Override the name to include testcaseid 85973
@@ -172,6 +183,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API GCP MachineSet", framework
 		machineSetParams.Name = infra.Status.InfrastructureName + "-85973-conflict-" + uuid.New().String()[0:5]
 
 		By("Setting both preemptible: true and provisioningModel: Spot")
+
 		providerSpec := &mapiv1.GCPMachineProviderSpec{}
 		Expect(json.Unmarshal(machineSetParams.ProviderSpec.Value.Raw, providerSpec)).To(Succeed(), "Should be able to unmarshal provider spec")
 
@@ -189,6 +201,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API GCP MachineSet", framework
 		}
 
 		By("Attempting to create MachineSet - expecting webhook rejection")
+
 		mapiMachineSet, err = framework.CreateMachineSet(cl, machineSetParams)
 		Expect(err).To(HaveOccurred(), "Webhook should reject MachineSet with both preemptible and provisioningModel set")
 		Expect(err.Error()).To(ContainSubstring("admission webhook"), "Should be a webhook validation error")
@@ -201,6 +214,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API GCP MachineSet", framework
 	// Test: webhook should allow MachineSet update when preemptible is set and provisioningModel is not set
 	It("should allow MachineSet update to set preemptible when provisioningModel is not set", framework.LabelPeriodic, func() {
 		By("Building MachineSet parameters from existing cluster")
+
 		machineSetParams := framework.BuildMachineSetParams(ctx, cl, 0)
 
 		// Override the name to include testcaseid 85973
@@ -210,6 +224,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API GCP MachineSet", framework
 		machineSetParams.Name = infra.Status.InfrastructureName + "-85973-update-" + uuid.New().String()[0:5]
 
 		By("Creating initial MachineSet with provisioningModel: Spot and 0 replicas")
+
 		providerSpec := &mapiv1.GCPMachineProviderSpec{}
 		Expect(json.Unmarshal(machineSetParams.ProviderSpec.Value.Raw, providerSpec)).To(Succeed(), "Should be able to unmarshal provider spec")
 
@@ -228,6 +243,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API GCP MachineSet", framework
 		Expect(err).ToNot(HaveOccurred(), "MachineSet should be able to be created")
 
 		By("Verifying initial MachineSet template has provisioningModel set to Spot")
+
 		initialProviderSpec := &mapiv1.GCPMachineProviderSpec{}
 		Expect(json.Unmarshal(mapiMachineSet.Spec.Template.Spec.ProviderSpec.Value.Raw, initialProviderSpec)).To(Succeed(), "Should be able to unmarshal provider spec")
 		Expect(initialProviderSpec.ProvisioningModel).ToNot(BeNil(), "MachineSet template should have provisioningModel set")
@@ -252,6 +268,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API GCP MachineSet", framework
 		})).Should(Succeed(), "Should be able to update MachineSet template with preemptible when provisioningModel is not set to Spot")
 
 		By("Verifying MachineSet template has preemptible set and provisioningModel is not set to Spot")
+
 		verifyMachineSet := &mapiv1.MachineSet{}
 		err = cl.Get(ctx, client.ObjectKey{Namespace: mapiMachineSet.Namespace, Name: mapiMachineSet.Name}, verifyMachineSet)
 		Expect(err).ToNot(HaveOccurred(), "Should be able to get updated MachineSet")

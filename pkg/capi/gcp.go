@@ -31,26 +31,32 @@ var (
 )
 
 var _ = Describe("[sig-cluster-lifecycle] Cluster API GCP MachineSet", framework.LabelCAPI, framework.LabelDisruptive, Ordered, func() {
-	var gcpMachineTemplate *gcpv1.GCPMachineTemplate
-	var machineSet *clusterv1beta1.MachineSet
-	var mapiMachineSpec *mapiv1.GCPMachineProviderSpec
-	var ctx context.Context
-	var platform configv1.PlatformType
-	var clusterName string
-	var err error
+	var (
+		gcpMachineTemplate *gcpv1.GCPMachineTemplate
+		machineSet         *clusterv1beta1.MachineSet
+		mapiMachineSpec    *mapiv1.GCPMachineProviderSpec
+		ctx                context.Context
+		platform           configv1.PlatformType
+		clusterName        string
+		err                error
+	)
 
 	BeforeAll(func() {
 		cl, err = framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred(), "Failed to create Kubernetes client for test")
 		komega.SetClient(cl)
+
 		ctx = framework.GetContext()
 		platform, err = framework.GetPlatform(ctx, cl)
 		Expect(err).ToNot(HaveOccurred(), "Failed to get platform")
+
 		if platform != configv1.GCPPlatformType {
 			Skip("Skipping GCP E2E tests")
 		}
-		oc, _ := framework.NewCLI()
-		framework.SkipIfNotTechPreviewNoUpgrade(oc, cl)
+
+		oc, err := framework.NewCLI()
+		Expect(err).ToNot(HaveOccurred(), "Failed to create CLI")
+		framework.SkipIfNotTechPreviewNoUpgradeCtx(ctx, oc, cl)
 
 		infra, err := framework.GetInfrastructure(ctx, cl)
 		Expect(err).NotTo(HaveOccurred(), "Failed to get cluster infrastructure object")
@@ -66,6 +72,7 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API GCP MachineSet", framework
 		if CurrentSpecReport().State == gotypes.SpecStateSkipped {
 			return
 		}
+
 		framework.DeleteCAPIMachineSets(ctx, cl, machineSet)
 		framework.WaitForCAPIMachineSetsDeleted(ctx, cl, machineSet)
 		framework.DeleteObjects(ctx, cl, gcpMachineTemplate)
@@ -88,6 +95,7 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API GCP MachineSet", framework
 					Name:       gcpMachineTemplate.Name,
 				},
 			))
+
 			Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
 			framework.WaitForCAPIMachinesRunning(framework.GetContext(), cl, machineSet.Name)
 		},
@@ -98,9 +106,11 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API GCP MachineSet", framework
 		func(enableSecureBoot gcpv1.SecureBootPolicy, enableVtpm gcpv1.VirtualizedTrustedPlatformModulePolicy, enableIntegrityMonitoring gcpv1.IntegrityMonitoringPolicy) {
 			mapiProviderSpec := getGCPMAPIProviderSpec(cl)
 			Expect(mapiProviderSpec).ToNot(BeNil())
-			if mapiProviderSpec.ObjectMeta.Annotations["capacity.cluster-autoscaler.kubernetes.io/labels"] == "kubernetes.io/arch=arm64" {
+
+			if mapiProviderSpec.Annotations["capacity.cluster-autoscaler.kubernetes.io/labels"] == "kubernetes.io/arch=arm64" {
 				Skip("this is arm cluster - not supported until OCPBUGS-17904 is implemeted")
 			}
+
 			gcpMachineTemplate = createGCPMachineTemplate(mapiProviderSpec)
 			mapiProviderSpec.OnHostMaintenance = OnHostMaintenanceMigrate
 			gcpMachineTemplate.Spec.Template.Spec.OnHostMaintenance = (*gcpv1.HostMaintenancePolicy)(&mapiProviderSpec.OnHostMaintenance)
@@ -126,6 +136,7 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API GCP MachineSet", framework
 			framework.WaitForCAPIMachinesRunning(framework.GetContext(), cl, machineSet.Name)
 
 			By("Verifying the Shielded VM configuration on the created GCP MachineTemplate")
+
 			createdTemplate := &gcpv1.GCPMachineTemplate{}
 			Expect(cl.Get(ctx, client.ObjectKey{
 				Namespace: framework.ClusterAPINamespace,
@@ -167,6 +178,7 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API GCP MachineSet", framework
 
 			// Create GCP MachineTemplate after relevant fields are updated
 			gcpMachineTemplate = createGCPMachineTemplate(mapiProviderSpec)
+
 			gcpMachineTemplate.Spec.Template.Spec.ConfidentialCompute = ptr.To(confidentialCompute)
 			if confidentialCompute == "IntelTrustedDomainExtensions" {
 				gcpMachineTemplate.Spec.Template.Spec.InstanceType = "c3-standard-4"
@@ -174,6 +186,7 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API GCP MachineSet", framework
 			} else {
 				gcpMachineTemplate.Spec.Template.Spec.InstanceType = "n2d-standard-4"
 			}
+
 			gcpMachineTemplate.Spec.Template.Spec.OnHostMaintenance = ptr.To(gcpv1.HostMaintenancePolicy(mapiProviderSpec.OnHostMaintenance))
 
 			Expect(cl.Create(ctx, gcpMachineTemplate)).To(Succeed())
@@ -193,6 +206,7 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API GCP MachineSet", framework
 			framework.WaitForCAPIMachinesRunning(ctx, cl, machineSet.Name)
 
 			By("Verifying the Confidential VM configuration on the created GCP MachineTemplate")
+
 			createdTemplate := &gcpv1.GCPMachineTemplate{}
 			Expect(cl.Get(framework.GetContext(), client.ObjectKey{
 				Namespace: framework.ClusterAPINamespace,
@@ -217,6 +231,7 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API GCP MachineSet", framework
 		Expect(cl.Create(ctx, gcpMachineTemplate)).To(Succeed())
 
 		By("Creating a MachineSet for preeemptible machine")
+
 		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, framework.NewCAPIMachineSetParams(
 			"gcp-machineset-preemptible-75792",
 			clusterName,
@@ -233,15 +248,16 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API GCP MachineSet", framework
 		framework.WaitForCAPIMachinesRunning(ctx, cl, machineSet.Name)
 
 		By("Verifying the preemptible machinetype configuration on the created GCP MachineTemplate")
+
 		createdTemplate := &gcpv1.GCPMachineTemplate{}
 		Expect(cl.Get(framework.GetContext(), client.ObjectKey{
 			Namespace: framework.ClusterAPINamespace,
 			Name:      gcpMachineTemplate.Name,
 		}, createdTemplate)).To(Succeed())
+
 		var preemptible = createdTemplate.Spec.Template.Spec.Preemptible
 		Expect(preemptible).To(Equal(true))
 	})
-
 })
 
 func getGCPMAPIProviderSpec(cl client.Client) *mapiv1.GCPMachineProviderSpec {

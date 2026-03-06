@@ -41,6 +41,7 @@ func (g *GCPClient) execGCloud(ctx context.Context, args ...string) (string, err
 	cmd := exec.CommandContext(ctx, "gcloud", args...)
 
 	var stdout, stderr bytes.Buffer
+
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 

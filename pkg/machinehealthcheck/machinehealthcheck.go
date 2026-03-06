@@ -17,14 +17,19 @@ import (
 )
 
 var _ = Describe("[sig-cluster-lifecycle] MachineHealthCheck", framework.LabelMachineHealthCheck, framework.LabelDisruptive, func() {
-	var client client.Client
-	var ctx context.Context
+	var (
+		client client.Client
+		ctx    context.Context
+	)
 
 	var gatherer *gatherer.StateGatherer
 
-	var machineSet *machinev1.MachineSet
-	var machinehealthcheck *machinev1.MachineHealthCheck
-	var maxUnhealthy = 1
+	var (
+		machineSet         *machinev1.MachineSet
+		machinehealthcheck *machinev1.MachineHealthCheck
+		maxUnhealthy       = 1
+	)
+
 	const expectedReplicas = 2
 
 	const E2EConditionType = "MachineHealthCheckE2E"
@@ -52,6 +57,7 @@ var _ = Describe("[sig-cluster-lifecycle] MachineHealthCheck", framework.LabelMa
 		machineSetParams := framework.BuildMachineSetParams(ctx, client, expectedReplicas)
 
 		By("Creating a new MachineSet")
+
 		machineSet, err = framework.CreateMachineSet(client, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "failed to create a new machineSet resource")
 
@@ -85,6 +91,7 @@ var _ = Describe("[sig-cluster-lifecycle] MachineHealthCheck", framework.LabelMa
 		Expect(machines).ToNot(BeEmpty(), "expected to get a non empty list of machines, got an empty list of machines")
 
 		By("Setting unhealthy conditions on machine nodes, but not exceding maxUnhealthy threshold")
+
 		unhealthyMachines, healthyMachines := machines[:maxUnhealthy], machines[maxUnhealthy:]
 		for _, machine := range unhealthyMachines {
 			node, err := framework.GetNodeForMachine(ctx, client, machine)
@@ -93,6 +100,7 @@ var _ = Describe("[sig-cluster-lifecycle] MachineHealthCheck", framework.LabelMa
 		}
 
 		By("Creating a MachineHealthCheck resource")
+
 		mhcParams := framework.MachineHealthCheckParams{
 			Name:   machineSet.Name,
 			Labels: machineSet.Labels,
@@ -114,11 +122,13 @@ var _ = Describe("[sig-cluster-lifecycle] MachineHealthCheck", framework.LabelMa
 		framework.WaitForMachinesDeleted(client, unhealthyMachines...)
 
 		By("Waiting for MachineDeleted event from MachineHealthCheck for each unhealthy machine")
+
 		for _, machine := range unhealthyMachines {
 			Expect(framework.WaitForEvent(ctx, client, "Machine", machine.Name, "MachineDeleted")).To(Succeed(), "failed to find event MachineDeleted for machine named %s: %v", machine.GetName(), err)
 		}
 
 		By("Ensure none of the healthy machines were deleted")
+
 		allMachines, err := framework.GetMachines(ctx, client, &selector)
 		Expect(err).ToNot(HaveOccurred(), "failed to get machines using a selector: %v", err)
 		Expect(allMachines).ToNot(BeEmpty(), "expected to get a non empty list of machines, got an empty list of machines")
@@ -137,6 +147,7 @@ var _ = Describe("[sig-cluster-lifecycle] MachineHealthCheck", framework.LabelMa
 		Expect(machines).ToNot(BeEmpty(), "expected to get a non empty list of machines, got an empty list of machines")
 
 		By("Setting unhealthy conditions on machine nodes, but exceding maxUnhealthy threshold")
+
 		unhealthyMachines := machines[:maxUnhealthy+1]
 		for _, machine := range unhealthyMachines {
 			node, err := framework.GetNodeForMachine(ctx, client, machine)
@@ -145,6 +156,7 @@ var _ = Describe("[sig-cluster-lifecycle] MachineHealthCheck", framework.LabelMa
 		}
 
 		By("Creating a MachineHealthCheck resource")
+
 		mhcParams := framework.MachineHealthCheckParams{
 			Name:   machineSet.Name,
 			Labels: machineSet.Labels,
@@ -166,6 +178,7 @@ var _ = Describe("[sig-cluster-lifecycle] MachineHealthCheck", framework.LabelMa
 		Expect(framework.WaitForEvent(ctx, client, "MachineHealthCheck", machineSet.Name, "RemediationRestricted")).To(Succeed(), "failed to find event RemediationRestricted for MHC")
 
 		By("Ensuring none of the machines were deleted")
+
 		allMachines, err := framework.GetMachines(ctx, client, &selector)
 		Expect(err).ToNot(HaveOccurred(), "failed to get machines using a selector")
 		Expect(machines).ToNot(BeEmpty(), "expected to get a non empty list of machines, got an empty list of machines")

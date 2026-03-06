@@ -97,6 +97,7 @@ var _ = Describe("IBMPowerVSCluster", func() {
 
 	Describe("WithControlPlaneEndpoint", func() {
 		endpoint := clusterv1beta1.APIEndpoint{Host: "example.com", Port: 6443}
+
 		It("should return the custom value when specified", func() {
 			powerVSCluster := PowerVSCluster().WithControlPlaneEndpoint(endpoint).Build()
 			Expect(powerVSCluster.Spec.ControlPlaneEndpoint).To(Equal(endpoint))
@@ -105,6 +106,7 @@ var _ = Describe("IBMPowerVSCluster", func() {
 
 	Describe("WithLoadBalancer", func() {
 		loadBalancers := []capibmv1.VPCLoadBalancerSpec{{Name: "loadBalancer"}}
+
 		It("should return the custom value when specified", func() {
 			powerVSCluster := PowerVSCluster().WithLoadBalancer(loadBalancers).Build()
 			Expect(powerVSCluster.Spec.LoadBalancers).To(Equal(loadBalancers))
@@ -113,6 +115,7 @@ var _ = Describe("IBMPowerVSCluster", func() {
 
 	Describe("WithNetwork", func() {
 		network := capibmv1.IBMPowerVSResourceReference{Name: ptr.To("network-name")}
+
 		It("should return the custom value when specified", func() {
 			powerVSCluster := PowerVSCluster().WithNetwork(network).Build()
 			Expect(powerVSCluster.Spec.Network).To(Equal(network))
@@ -121,6 +124,7 @@ var _ = Describe("IBMPowerVSCluster", func() {
 
 	Describe("WithResourceGroup", func() {
 		resourceGroup := &capibmv1.IBMPowerVSResourceReference{Name: ptr.To("resource-group")}
+
 		It("should return the custom value when specified", func() {
 			powerVSCluster := PowerVSCluster().WithResourceGroup(resourceGroup).Build()
 			Expect(powerVSCluster.Spec.ResourceGroup).To(Equal(resourceGroup))
@@ -129,6 +133,7 @@ var _ = Describe("IBMPowerVSCluster", func() {
 
 	Describe("WithServiceInstance", func() {
 		serviceInstance := &capibmv1.IBMPowerVSResourceReference{Name: ptr.To("service-instance")}
+
 		It("should return the custom value when specified", func() {
 			powerVSCluster := PowerVSCluster().WithServiceInstance(serviceInstance).Build()
 			Expect(powerVSCluster.Spec.ServiceInstance).To(Equal(serviceInstance))
@@ -137,6 +142,7 @@ var _ = Describe("IBMPowerVSCluster", func() {
 
 	Describe("WithZone", func() {
 		zone := ptr.To("test-zone")
+
 		It("should return the custom value when specified", func() {
 			powerVSCluster := PowerVSCluster().WithZone(zone).Build()
 			Expect(powerVSCluster.Spec.Zone).To(Equal(zone))
@@ -160,5 +166,4 @@ var _ = Describe("IBMPowerVSCluster", func() {
 			Expect(powerVSCluster.Status.Ready).To(Equal(ready))
 		})
 	})
-
 })

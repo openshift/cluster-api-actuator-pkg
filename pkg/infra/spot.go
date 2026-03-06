@@ -42,11 +42,13 @@ const (
 var _ = Describe("[sig-cluster-lifecycle] Machine API Running on Spot", framework.LabelMAPI, framework.LabelDisruptive, framework.LabelPeriodic, func() {
 	var ctx = context.Background()
 
-	var client runtimeclient.Client
-	var machineSet *machinev1.MachineSet
-	var platform configv1.PlatformType
-	var arch string
-	var delObjects map[string]runtimeclient.Object
+	var (
+		client     runtimeclient.Client
+		machineSet *machinev1.MachineSet
+		platform   configv1.PlatformType
+		arch       string
+		delObjects map[string]runtimeclient.Object
+	)
 
 	var gatherer *gatherer.StateGatherer
 
@@ -85,6 +87,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Running on Spot", framewor
 
 		platform, err = framework.GetPlatform(ctx, client)
 		Expect(err).NotTo(HaveOccurred(), "Should be able to get Platform type")
+
 		switch platform {
 		case configv1.AWSPlatformType, configv1.AzurePlatformType:
 			// Supported platforms, ok to continue.
@@ -98,8 +101,11 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Running on Spot", framewor
 		default:
 			Skip(fmt.Sprintf("Platform %s does not support Spot, skipping.", platform))
 		}
-		oc, _ := framework.NewCLI()
-		if framework.IsCustomerVPC(oc) {
+
+		oc, err := framework.NewCLI()
+		Expect(err).ToNot(HaveOccurred(), "Failed to create CLI")
+
+		if framework.IsCustomerVPCCtx(ctx, oc) {
 			//The termination-simulator will hit network error on customer vpc cluster, cannot mark the node as terminating, skip for now.
 			Skip("Skip this test on customer vpc cluster.")
 		}
@@ -115,15 +121,18 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Running on Spot", framewor
 			Expect(err).NotTo(HaveOccurred(), "unable to get the architecture for the machine set")
 			machineSetParamsList, err := framework.BuildAlternativeMachineSetParams(machineSetParams, platform, arch)
 			Expect(err).ToNot(HaveOccurred(), "Should be able to build list of MachineSet parameters")
+
 			for i, machineSetParams := range machineSetParamsList {
 				if i >= spotMachineSetMaxProvisioningRetryCount {
 					// If there are many alternatives, only try the specified number of times
 					break
 				}
+
 				Expect(setSpotOnProviderSpec(platform, machineSetParams, "")).To(Succeed(), "Should be able to set spot options on ProviderSpec")
 
 				machineSet, err = framework.CreateMachineSet(client, machineSetParams)
 				Expect(err).ToNot(HaveOccurred(), "MachineSet should be able to be created")
+
 				delObjects[machineSet.Name] = machineSet
 
 				err = framework.WaitForSpotMachineSet(ctx, client, machineSet.GetName())
@@ -137,11 +146,14 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Running on Spot", framewor
 
 					continue
 				}
+
 				Expect(err).ToNot(HaveOccurred(), "Error while waiting for all spot MachineSet Machines to be ready")
+
 				machineSetReady = true
 
 				break // MachineSet created successfully
 			}
+
 			Expect(machineSetReady).To(BeTrue(), "Failed to create a spot backed MachineSet")
 		})
 	})
@@ -179,7 +191,9 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Running on Spot", framewor
 
 			for _, node := range nodes {
 				By("Fetching termination Pods running on the Node")
+
 				pods := []corev1.Pod{}
+
 				Eventually(func() ([]corev1.Pod, error) {
 					podList := &corev1.PodList{}
 
@@ -246,6 +260,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Running on Spot", framewor
 			})
 
 			var machine *machinev1.Machine
+
 			By("Choosing a Machine to terminate", func() {
 				machines, err := framework.GetMachinesFromMachineSet(ctx, client, machineSet)
 				Expect(err).ToNot(HaveOccurred(), "Should be able to get Machines from MachineSet")

@@ -84,6 +84,7 @@ var _ = Describe("MachineSet", func() {
 	Describe("WithLabels", func() {
 		It("should return the custom value when specified", func() {
 			labels := map[string]string{"key1": "value1", "key2": "value2"}
+
 			machineSet := MachineSet().WithLabels(labels).Build()
 			for key, value := range labels {
 				Expect(machineSet.Labels[key]).To(Equal(value))
@@ -307,5 +308,4 @@ var _ = Describe("MachineSet", func() {
 			Expect(ptr.Deref(machineSet.Status.UpToDateReplicas, 0)).To(Equal(upToDateReplicas))
 		})
 	})
-
 })

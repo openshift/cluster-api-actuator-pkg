@@ -246,7 +246,6 @@ var _ = Describe("Machine", func() {
 			//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
 			Expect(*machine.Status.FailureReason).To(Equal(reason))
 		})
-
 	})
 
 	Describe("FailureMessage", func() {
@@ -303,5 +302,4 @@ var _ = Describe("Machine", func() {
 			Expect(machine.Status.V1Beta2).To(Equal(v1Beta2Status))
 		})
 	})
-
 })

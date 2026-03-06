@@ -79,7 +79,7 @@ func runAssertion(ctx context.Context, assertion func(context.Context, GomegaAss
 	var err error
 
 	g := gomega.NewGomega(func(message string, callerSkip ...int) {
-		err = errors.New(message) //nolint:goerr113
+		err = errors.New(message) //nolint:err113
 	})
 
 	if !assertion(ctx, g) {

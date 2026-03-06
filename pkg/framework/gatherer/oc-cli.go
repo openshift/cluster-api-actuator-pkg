@@ -65,8 +65,8 @@ func (oc *CLI) setOutput(out io.Writer) *CLI {
 	return oc
 }
 
-func (oc *CLI) outputs(stdOutBuff, stdErrBuff *bytes.Buffer) (string, string, error) {
-	cmd, err := oc.start(stdOutBuff, stdErrBuff)
+func (oc *CLI) outputs(ctx context.Context, stdOutBuff, stdErrBuff *bytes.Buffer) (string, string, error) {
+	cmd, err := oc.start(ctx, stdOutBuff, stdErrBuff)
 	if err != nil {
 		return "", "", err
 	}
@@ -95,13 +95,13 @@ func (oc *CLI) outputs(stdOutBuff, stdErrBuff *bytes.Buffer) (string, string, er
 	}
 }
 
-func (oc *CLI) start(stdOutBuff, stdErrBuff *bytes.Buffer) (*exec.Cmd, error) {
+func (oc *CLI) start(ctx context.Context, stdOutBuff, stdErrBuff *bytes.Buffer) (*exec.Cmd, error) {
 	oc.finalArgs = append(oc.globalArgs, oc.commandArgs...)
 	if oc.verbose {
 		klog.Infof("DEBUG: oc %s\n", oc.printCmd())
 	}
 
-	cmd := exec.Command(oc.execPath, oc.finalArgs...)
+	cmd := exec.CommandContext(ctx, oc.execPath, oc.finalArgs...)
 	cmd.Stdin = oc.stdin
 
 	cmd.Stdout = stdOutBuff
@@ -115,8 +115,15 @@ func (oc *CLI) printCmd() string {
 }
 
 // OutputToFile executes the command and store output to a file.
+//
+// Deprecated: Use OutputToFileCtx instead.
 func (oc *CLI) OutputToFile(filename string) (string, error) {
-	content, _, err := oc.Outputs()
+	return oc.OutputToFileCtx(context.TODO(), filename)
+}
+
+// OutputToFileCtx executes the command and store output to a file.
+func (oc *CLI) OutputToFileCtx(ctx context.Context, filename string) (string, error) {
+	content, _, err := oc.OutputsCtx(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -136,18 +143,33 @@ func (oc *CLI) OutputToFile(filename string) (string, error) {
 }
 
 // Output executes the command and returns stdout/stderr combined into one string.
+//
+// Deprecated: Use OutputCtx instead.
 func (oc *CLI) Output() (string, error) {
+	return oc.OutputCtx(context.TODO())
+}
+
+// OutputCtx executes the command and returns stdout/stderr combined into one string.
+func (oc *CLI) OutputCtx(ctx context.Context) (string, error) {
 	var buff bytes.Buffer
-	_, _, err := oc.outputs(&buff, &buff)
+
+	_, _, err := oc.outputs(ctx, &buff, &buff)
 
 	return strings.TrimSpace(buff.String()), err
 }
 
 // Outputs executes the command and returns the stdout/stderr output as separate strings.
+//
+// Deprecated: Use OutputsCtx instead.
 func (oc *CLI) Outputs() (string, string, error) {
+	return oc.OutputsCtx(context.TODO())
+}
+
+// OutputsCtx executes the command and returns the stdout/stderr output as separate strings.
+func (oc *CLI) OutputsCtx(ctx context.Context) (string, string, error) {
 	var stdOutBuff, stdErrBuff bytes.Buffer
 
-	return oc.outputs(&stdOutBuff, &stdErrBuff)
+	return oc.outputs(ctx, &stdOutBuff, &stdErrBuff)
 }
 
 // Namespace returns the name of the namespace used in the current test case.
@@ -219,13 +241,20 @@ func (oc *CLI) Args(args ...string) *CLI {
 }
 
 // DumpPodLogs will dump any pod logs within namespace.
+//
+// Deprecated: Use DumpPodLogsCtx instead.
 func (oc *CLI) DumpPodLogs(pods *corev1.PodList, extraLogArgs ...string) {
+	oc.DumpPodLogsCtx(context.TODO(), pods, extraLogArgs...)
+}
+
+// DumpPodLogsCtx will dump any pod logs within namespace.
+func (oc *CLI) DumpPodLogsCtx(ctx context.Context, pods *corev1.PodList, extraLogArgs ...string) {
 	for _, pod := range pods.Items {
 		dumpContainer := func(container *corev1.Container) {
 			logArgs := []string{"pod/" + pod.Name, "-c", container.Name, "-n", pod.Namespace}
 			logArgs = append(logArgs, extraLogArgs...)
-			logFilePath, err := oc.Run("logs").WithoutNamespace().Args(logArgs...).OutputToFile(pod.Name + "_" + container.Name)
 
+			logFilePath, err := oc.Run("logs").WithoutNamespace().Args(logArgs...).OutputToFileCtx(ctx, pod.Name+"_"+container.Name)
 			if err == nil {
 				if logFilePath == "" {
 					klog.Infof("No logs found for pod %s/%s, skipping", pod.Name, container.Name)
@@ -255,6 +284,6 @@ func (oc *CLI) DumpPodLogsSinceTime(ctx context.Context, sinceTime time.Time) {
 	}
 
 	if len(pods.Items) > 0 {
-		oc.DumpPodLogs(pods, "--since-time="+sinceTime.Format(time.RFC3339))
+		oc.DumpPodLogsCtx(ctx, pods, "--since-time="+sinceTime.Format(time.RFC3339))
 	}
 }

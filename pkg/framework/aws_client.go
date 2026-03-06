@@ -68,8 +68,8 @@ func (a *AwsClient) CreateCapacityReservation(instanceType string, instancePlatf
 		EndDateType:           aws.String("limited"),
 		EndDate:               timePtr(time.Now().Add(35 * time.Minute)),
 	}
-	result, err := a.svc.CreateCapacityReservation(input)
 
+	result, err := a.svc.CreateCapacityReservation(input)
 	if err != nil {
 		return "", fmt.Errorf("error creating capacity reservation: %w", err)
 	}
@@ -107,7 +107,6 @@ func (a *AwsClient) CreatePlacementGroup(groupName string, strategy string, part
 	}
 
 	result, err := a.svc.CreatePlacementGroup(input)
-
 	if err != nil {
 		return "", fmt.Errorf("error creating placement group: %w", err)
 	}
@@ -123,8 +122,8 @@ func (a *AwsClient) DeletePlacementGroup(groupName string) (string, error) {
 	input := &ec2.DeletePlacementGroupInput{
 		GroupName: aws.String(groupName),
 	}
-	result, err := a.svc.DeletePlacementGroup(input)
 
+	result, err := a.svc.DeletePlacementGroup(input)
 	if err != nil {
 		return "", fmt.Errorf("could not delete placement group: %w", err)
 	}
@@ -137,8 +136,8 @@ func (akms *AwsKmsClient) DescribeKeyByID(kmsKeyID string) (string, error) {
 	input := &kms.DescribeKeyInput{
 		KeyId: aws.String(kmsKeyID),
 	}
-	result, err := akms.kmssvc.DescribeKey(input)
 
+	result, err := akms.kmssvc.DescribeKey(input)
 	if err != nil {
 		return "", fmt.Errorf("could not get the key: %w", err)
 	}

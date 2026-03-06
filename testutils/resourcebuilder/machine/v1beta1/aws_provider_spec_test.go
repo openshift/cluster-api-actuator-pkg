@@ -89,6 +89,7 @@ var _ = Describe("AWSProviderSpec", func() {
 
 		It("should return nil when specified as such", func() {
 			var credentialsSecret *corev1.LocalObjectReference
+
 			awsPs := AWSProviderSpec().WithCredentialsSecret(credentialsSecret).Build()
 			Expect(awsPs.CredentialsSecret).To(BeNil())
 		})
@@ -121,6 +122,7 @@ var _ = Describe("AWSProviderSpec", func() {
 
 		It("should return nil when specified as such", func() {
 			var iamInstanceProfile *machinev1beta1.AWSResourceReference
+
 			awsPs := AWSProviderSpec().WithIAMInstanceProfile(iamInstanceProfile).Build()
 			Expect(awsPs.IAMInstanceProfile).To(BeNil())
 		})

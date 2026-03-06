@@ -228,5 +228,5 @@ func wrap(err error, msg string) error {
 	}
 
 	// We are expecting the passed messages to wrap the error, so skip linting.
-	return fmt.Errorf(msg, err) //nolint:goerr113
+	return fmt.Errorf(msg, err) //nolint:err113
 }

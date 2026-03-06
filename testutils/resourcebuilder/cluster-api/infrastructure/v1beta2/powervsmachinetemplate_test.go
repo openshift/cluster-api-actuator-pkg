@@ -106,6 +106,7 @@ var _ = Describe("PowerVSMachineTemplate", func() {
 
 	Describe("WithServiceInstance", func() {
 		serviceInstance := &capibmv1.IBMPowerVSResourceReference{Name: ptr.To("service-instance")}
+
 		It("should return the custom value when specified", func() {
 			powerVSMachineTemplate := PowerVSMachineTemplate().WithServiceInstance(serviceInstance).Build()
 			Expect(powerVSMachineTemplate.Spec.Template.Spec.ServiceInstance).To(Equal(serviceInstance))
@@ -114,6 +115,7 @@ var _ = Describe("PowerVSMachineTemplate", func() {
 
 	Describe("WithSSHKey", func() {
 		sshKey := "ssh-key"
+
 		It("should return the custom value when specified", func() {
 			powerVSMachineTemplate := PowerVSMachineTemplate().WithSSHKey(sshKey).Build()
 			Expect(powerVSMachineTemplate.Spec.Template.Spec.SSHKey).To(Equal(sshKey))
@@ -122,6 +124,7 @@ var _ = Describe("PowerVSMachineTemplate", func() {
 
 	Describe("WithImage", func() {
 		image := &capibmv1.IBMPowerVSResourceReference{Name: ptr.To("image")}
+
 		It("should return the custom value when specified", func() {
 			powerVSMachineTemplate := PowerVSMachineTemplate().WithImage(image).Build()
 			Expect(powerVSMachineTemplate.Spec.Template.Spec.Image).To(Equal(image))
@@ -130,6 +133,7 @@ var _ = Describe("PowerVSMachineTemplate", func() {
 
 	Describe("WithImageRef", func() {
 		imageRef := &corev1.LocalObjectReference{Name: "image"}
+
 		It("should return the custom value when specified", func() {
 			powerVSMachineTemplate := PowerVSMachineTemplate().WithImageRef(imageRef).Build()
 			Expect(powerVSMachineTemplate.Spec.Template.Spec.ImageRef).To(Equal(imageRef))
@@ -138,6 +142,7 @@ var _ = Describe("PowerVSMachineTemplate", func() {
 
 	Describe("WithSystemType", func() {
 		systemType := "systemType"
+
 		It("should return the custom value when specified", func() {
 			powerVSMachineTemplate := PowerVSMachineTemplate().WithSystemType(systemType).Build()
 			Expect(powerVSMachineTemplate.Spec.Template.Spec.SystemType).To(Equal(systemType))
@@ -146,6 +151,7 @@ var _ = Describe("PowerVSMachineTemplate", func() {
 
 	Describe("WithProcessorType", func() {
 		processorType := capibmv1.PowerVSProcessorTypeShared
+
 		It("should return the custom value when specified", func() {
 			powerVSMachineTemplate := PowerVSMachineTemplate().WithProcessorType(processorType).Build()
 			Expect(powerVSMachineTemplate.Spec.Template.Spec.ProcessorType).To(Equal(processorType))
@@ -154,6 +160,7 @@ var _ = Describe("PowerVSMachineTemplate", func() {
 
 	Describe("WithProcessors", func() {
 		processors := intstr.FromString("2")
+
 		It("should return the custom value when specified", func() {
 			powerVSMachineTemplate := PowerVSMachineTemplate().WithProcessors(processors).Build()
 			Expect(powerVSMachineTemplate.Spec.Template.Spec.Processors).To(Equal(processors))
@@ -162,6 +169,7 @@ var _ = Describe("PowerVSMachineTemplate", func() {
 
 	Describe("WithMemoryGiB", func() {
 		var memory int32 = 3
+
 		It("should return the custom value when specified", func() {
 			powerVSMachineTemplate := PowerVSMachineTemplate().WithMemoryGiB(memory).Build()
 			Expect(powerVSMachineTemplate.Spec.Template.Spec.MemoryGiB).To(Equal(memory))
@@ -170,6 +178,7 @@ var _ = Describe("PowerVSMachineTemplate", func() {
 
 	Describe("WithNetwork", func() {
 		network := capibmv1.IBMPowerVSResourceReference{Name: ptr.To("network-name")}
+
 		It("should return the custom value when specified", func() {
 			powerVSMachineTemplate := PowerVSMachineTemplate().WithNetwork(network).Build()
 			Expect(powerVSMachineTemplate.Spec.Template.Spec.Network).To(Equal(network))
@@ -178,6 +187,7 @@ var _ = Describe("PowerVSMachineTemplate", func() {
 
 	Describe("WithProviderID", func() {
 		providerID := ptr.To("provider-id")
+
 		It("should return the custom value when specified", func() {
 			powerVSMachineTemplate := PowerVSMachineTemplate().WithProviderID(providerID).Build()
 			Expect(powerVSMachineTemplate.Spec.Template.Spec.ProviderID).To(Equal(providerID))

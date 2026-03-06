@@ -86,12 +86,12 @@ func (m *matchViaJSON) prettyPrint(actual interface{}) (actualFormatted, expecte
 
 	if err := json.Indent(abuf, actualMachineJSON, "", "  "); err != nil {
 		// Ignore the style linter so that we are consistent with the gomega.MatchJSON matcher.
-		return "", "", fmt.Errorf("Actual '%s' should be valid JSON, but it is not.\nUnderlying error:%w", string(actualMachineJSON), err) //nolint:stylecheck
+		return "", "", fmt.Errorf("Actual '%s' should be valid JSON, but it is not.\nUnderlying error:%w", string(actualMachineJSON), err) //nolint:staticcheck
 	}
 
 	if err := json.Indent(ebuf, expectedMachineJSON, "", "  "); err != nil {
 		// Ignore the style linter so that we are consistent with the gomega.MatchJSON matcher.
-		return "", "", fmt.Errorf("Expected '%s' should be valid JSON, but it is not.\nUnderlying error:%w", string(expectedMachineJSON), err) //nolint:stylecheck
+		return "", "", fmt.Errorf("Expected '%s' should be valid JSON, but it is not.\nUnderlying error:%w", string(expectedMachineJSON), err) //nolint:staticcheck
 	}
 
 	return abuf.String(), ebuf.String(), nil

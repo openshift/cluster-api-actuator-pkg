@@ -46,10 +46,12 @@ var _ = Describe("[sig-cluster-lifecycle] CCM Service Annotation tests GCP", fra
 		cl, err = client.New(cfg, client.Options{})
 		Expect(err).NotTo(HaveOccurred(), "Failed to create Kubernetes client for test")
 		komega.SetClient(cl)
+
 		ctx = framework.GetContext()
 		platform, err = framework.GetPlatform(ctx, cl)
 		fmt.Println("platform is ", platform)
 		Expect(err).ToNot(HaveOccurred(), "Failed to get platform")
+
 		if platform != configv1.GCPPlatformType {
 			Skip("Skipping GCP E2E tests")
 		}
@@ -57,6 +59,7 @@ var _ = Describe("[sig-cluster-lifecycle] CCM Service Annotation tests GCP", fra
 		// Get GCP credentials from infrastructure
 		project, region, err := framework.GetGCPCredentialsFromInfrastructure(ctx, cl)
 		Expect(err).ToNot(HaveOccurred(), "Failed to get GCP credentials from infrastructure")
+
 		gcpClient = framework.NewGCPClient(project, region)
 	})
 
@@ -77,6 +80,7 @@ var _ = Describe("[sig-cluster-lifecycle] CCM Service Annotation tests GCP", fra
 
 		// Step 1: Create service with network-tier: Standard
 		By("Creating service with network-tier: Standard")
+
 		service := &corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      serviceName,
@@ -98,12 +102,15 @@ var _ = Describe("[sig-cluster-lifecycle] CCM Service Annotation tests GCP", fra
 
 		// Wait for service to get an external IP
 		var ingressIP string
+
 		Eventually(func() (string, error) {
 			updatedService := &corev1.Service{}
+
 			err := cl.Get(ctx, client.ObjectKey{Name: service.Name, Namespace: namespace}, updatedService)
 			if err != nil {
 				return "", fmt.Errorf("failed to get updated service: %w", err)
 			}
+
 			if len(updatedService.Status.LoadBalancer.Ingress) > 0 {
 				ingressIP = updatedService.Status.LoadBalancer.Ingress[0].IP
 
@@ -115,6 +122,7 @@ var _ = Describe("[sig-cluster-lifecycle] CCM Service Annotation tests GCP", fra
 
 		// Verify with GCP CLI that LB has network-tier: Standard (skip if gcloud not available)
 		By("Verifying with GCP CLI that load balancer has network-tier: Standard")
+
 		gcpErr := gcpClient.WaitForLoadBalancerNetworkTier(ctx, ingressIP, "STANDARD", 2*time.Minute)
 		if gcpErr != nil && (strings.Contains(gcpErr.Error(), "executable file not found") || strings.Contains(gcpErr.Error(), "gcloud CLI is not available")) {
 			klog.Warningf("Skipping GCP CLI verification - gcloud not available: %v", gcpErr)
@@ -124,6 +132,7 @@ var _ = Describe("[sig-cluster-lifecycle] CCM Service Annotation tests GCP", fra
 
 		// Step 2: Update service annotation to network-tier: Premium
 		By("Updating service annotation to network-tier: Premium")
+
 		latestService := &corev1.Service{}
 		Expect(cl.Get(ctx, client.ObjectKey{Name: service.Name, Namespace: namespace}, latestService)).To(Succeed())
 		latestService.Annotations["cloud.google.com/network-tier"] = "Premium"
@@ -131,15 +140,19 @@ var _ = Describe("[sig-cluster-lifecycle] CCM Service Annotation tests GCP", fra
 
 		// Wait for IP to change (network tier change requires new IP)
 		var newIngressIP string
+
 		Eventually(func() (string, error) {
 			updatedService := &corev1.Service{}
+
 			err := cl.Get(ctx, client.ObjectKey{Name: service.Name, Namespace: namespace}, updatedService)
 			if err != nil {
 				return "", fmt.Errorf("failed to get updated service: %w", err)
 			}
+
 			if len(updatedService.Status.LoadBalancer.Ingress) > 0 {
 				currentIP := updatedService.Status.LoadBalancer.Ingress[0].IP
 				klog.Infof("Polling for IP change - Current IP: %s, Original IP: %s", currentIP, ingressIP)
+
 				if currentIP != ingressIP && currentIP != "" {
 					klog.Infof("IP successfully changed from %s to %s", ingressIP, currentIP)
 					newIngressIP = currentIP
@@ -159,6 +172,7 @@ var _ = Describe("[sig-cluster-lifecycle] CCM Service Annotation tests GCP", fra
 
 		// Verify with GCP CLI that LB has network-tier: Premium (skip if gcloud not available)
 		By("Verifying with GCP CLI that load balancer has network-tier: Premium")
+
 		gcpErr = gcpClient.WaitForLoadBalancerNetworkTier(ctx, newIngressIP, "Premium", 2*time.Minute)
 		if gcpErr != nil && (strings.Contains(gcpErr.Error(), "executable file not found") || strings.Contains(gcpErr.Error(), "gcloud CLI is not available")) {
 			klog.Warningf("Skipping GCP CLI verification - gcloud not available: %v", gcpErr)
@@ -168,6 +182,7 @@ var _ = Describe("[sig-cluster-lifecycle] CCM Service Annotation tests GCP", fra
 
 		// Step 3: Test that empty string value is rejected by validation policy
 		By("Testing that empty string value is rejected by validation policy")
+
 		latestService = &corev1.Service{}
 		Expect(cl.Get(ctx, client.ObjectKey{Name: service.Name, Namespace: namespace}, latestService)).To(Succeed())
 		latestService.Annotations["cloud.google.com/network-tier"] = ""
@@ -183,7 +198,6 @@ var _ = Describe("[sig-cluster-lifecycle] CCM Service Annotation tests GCP", fra
 		Expect(cl.Get(ctx, client.ObjectKey{Name: service.Name, Namespace: namespace}, updatedService)).To(Succeed())
 		Expect(updatedService.Annotations["cloud.google.com/network-tier"]).To(Equal("Premium"),
 			"Service should retain Premium annotation after failed update")
-
 	})
 
 	It("should reject invalid network-tier annotation values", framework.LabelPeriodic, func() {
@@ -191,6 +205,7 @@ var _ = Describe("[sig-cluster-lifecycle] CCM Service Annotation tests GCP", fra
 
 		// Step 4: Create service with invalid network-tier value
 		By("Creating service with invalid network-tier: InvalidValue")
+
 		service := &corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      serviceName,
@@ -230,6 +245,7 @@ var _ = Describe("[sig-cluster-lifecycle] CCM Service Annotation tests GCP", fra
 		}
 
 		By("Creating service with other GCP annotations")
+
 		service := &corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        serviceName,
@@ -250,12 +266,13 @@ var _ = Describe("[sig-cluster-lifecycle] CCM Service Annotation tests GCP", fra
 		// Wait for service to get an external IP
 		Eventually(func() (string, error) {
 			updatedService := &corev1.Service{}
+
 			err := cl.Get(ctx, client.ObjectKey{Name: service.Name, Namespace: namespace}, updatedService)
 			if err != nil {
 				return "", fmt.Errorf("failed to get updated service: %w", err)
 			}
-			if len(updatedService.Status.LoadBalancer.Ingress) > 0 {
 
+			if len(updatedService.Status.LoadBalancer.Ingress) > 0 {
 				return updatedService.Status.LoadBalancer.Ingress[0].IP, nil
 			}
 
@@ -265,6 +282,7 @@ var _ = Describe("[sig-cluster-lifecycle] CCM Service Annotation tests GCP", fra
 		// Verify annotations are preserved
 		updatedService := &corev1.Service{}
 		Expect(cl.Get(ctx, client.ObjectKey{Name: service.Name, Namespace: namespace}, updatedService)).To(Succeed())
+
 		for key, value := range annotationsToTest {
 			Expect(updatedService.Annotations).To(HaveKeyWithValue(key, value),
 				fmt.Sprintf("Annotation %s should be preserved", key))
