@@ -53,7 +53,7 @@ var (
 	// AWS Variables / Defaults
 
 	// awsDedicatedHostNamePattern is used to validate the id of a dedicated host
-	awsDedicatedHostNamePattern = regexp.MustCompile(`^h-[0-9a-f]{17}$`)
+	awsDedicatedHostNamePattern = regexp.MustCompile(`^h-([0-9a-f]{8}|[0-9a-f]{17})$`)
 
 	// Azure Defaults
 	defaultAzureVnet = func(clusterID string) string {
@@ -65,23 +65,26 @@ var (
 	defaultAzureNetworkResourceGroup = func(clusterID string) string {
 		return fmt.Sprintf("%s-rg", clusterID)
 	}
-	defaultAzureImageResourceID = func(clusterID string) string {
-		// image gallery names cannot have dashes
-		galleryName := strings.Replace(clusterID, "-", "_", -1)
-		imageName := clusterID
+	defaultAzureImage = func() machinev1beta1.Image {
 		if arch == ARM64 {
-			// append gen2 to the image name for ARM64.
-			// Although the installer creates a gen2 image for AMD64, we cannot guarantee that clusters created
-			// before that change will have a -gen2 image.
-			imageName = fmt.Sprintf("%s-gen2", clusterID)
+			return urnToImage(defaultAzureARMImageURN)
 		}
-		return fmt.Sprintf("/resourceGroups/%s/providers/Microsoft.Compute/galleries/gallery_%s/images/%s/versions/%s", clusterID+"-rg", galleryName, imageName, azureRHCOSVersion)
+		return urnToImage(defaultAzureX86ImageURN)
 	}
 	defaultAzureManagedIdentiy = func(clusterID string) string {
 		return fmt.Sprintf("%s-identity", clusterID)
 	}
 	defaultAzureResourceGroup = func(clusterID string) string {
 		return fmt.Sprintf("%s-rg", clusterID)
+	}
+	urnToImage = func(urn string) machinev1beta1.Image {
+		attributes := strings.Split(urn, ":")
+		return machinev1beta1.Image{
+			Publisher: attributes[0],
+			Offer:     attributes[1],
+			SKU:       attributes[2],
+			Version:   attributes[3],
+		}
 	}
 
 	// GCP Defaults
@@ -164,6 +167,8 @@ const (
 	defaultAzureCredentialsSecret = "azure-cloud-credentials"
 	defaultAzureOSDiskOSType      = "Linux"
 	defaultAzureOSDiskStorageType = "Premium_LRS"
+	defaultAzureX86ImageURN       = "azureopenshift:aro4:aro_420:9.6.20251015" // hyperV Gen1
+	defaultAzureARMImageURN       = "azureopenshift:aro4:420-arm:9.6.20251015"
 
 	// Azure OSDisk constants
 	azureMaxDiskSizeGB                 = 32768
@@ -799,20 +804,34 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 
 	// TODO(alberto): Validate providerSpec.BlockDevices.
 	// https://github.com/openshift/cluster-api-provider-aws/pull/299#discussion_r433920532
+	for i, blockDevice := range providerSpec.BlockDevices {
+		ebs := blockDevice.EBS
+		if ebs == nil || ebs.VolumeType == nil || ebs.ThroughputMib == nil {
+			continue
+		}
 
-	switch providerSpec.Placement.Tenancy {
-	case "", machinev1beta1.DefaultTenancy, machinev1beta1.DedicatedTenancy, machinev1beta1.HostTenancy:
-		// Do nothing, valid values
-	default:
-		errs = append(
-			errs,
-			field.Invalid(
-				field.NewPath("providerSpec", "tenancy"),
-				providerSpec.Placement.Tenancy,
-				fmt.Sprintf("Invalid providerSpec.tenancy, the only allowed options are: %s, %s, %s", machinev1beta1.DefaultTenancy, machinev1beta1.DedicatedTenancy, machinev1beta1.HostTenancy),
-			),
-		)
+		throughputPath := field.NewPath("providerSpec", "blockDevices").Index(i).Child("ebs", "throughputMib")
+		throughputValue := *ebs.ThroughputMib
+
+		if *ebs.VolumeType != "gp3" {
+			errs = append(errs, field.Invalid(
+				throughputPath,
+				throughputValue,
+				"only valid for gp3 volumes",
+			))
+			continue
+		}
+
+		if throughputValue < 125 || throughputValue > 2000 {
+			errs = append(errs, field.Invalid(
+				throughputPath,
+				throughputValue,
+				"must be a value between 125 and 2000",
+			))
+		}
 	}
+
+	errs = append(errs, processAWSPlacementTenancy(providerSpec.Placement)...)
 
 	if providerSpec.PlacementGroupPartition != nil {
 		partition := *providerSpec.PlacementGroupPartition
@@ -902,43 +921,130 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 		}
 	}
 
-	// Dedicated host support.
-	// Check if host placement is configured.  If so, then we need to determine placement affinity and validate configs.
-	if providerSpec.HostPlacement != nil {
-		klog.V(4).Infof("Validating AWS Host Placement")
-		placement := *providerSpec.HostPlacement
-		if placement.Affinity == nil {
-			errs = append(errs, field.Required(field.NewPath("spec.hostPlacement.affinity"), "affinity is required and must be set to either AnyAvailable or DedicatedHost"))
-		} else {
-			switch *placement.Affinity {
-			case machinev1beta1.HostAffinityAnyAvailable:
-				// Cannot have DedicatedHost set
-				if placement.DedicatedHost != nil {
-					errs = append(errs, field.Forbidden(field.NewPath("spec.hostPlacement.dedicatedHost"), "dedicatedHost is required when affinity is DedicatedHost, and forbidden otherwise"))
-				}
-			case machinev1beta1.HostAffinityDedicatedHost:
-				// We need to make sure DedicatedHost is set with a HostID
-				if placement.DedicatedHost == nil {
-					errs = append(errs, field.Required(field.NewPath("spec.hostPlacement.dedicatedHost"), "dedicatedHost is required when affinity is DedicatedHost, and forbidden otherwise"))
-				} else {
-					// If not set, return required error.  If it does not match pattern, return pattern failure message.
-					if placement.DedicatedHost.ID == "" {
-						errs = append(errs, field.Required(field.NewPath("spec.hostPlacement.dedicatedHost.id"), "id is required and must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)"))
-					} else if awsDedicatedHostNamePattern.FindStringSubmatch(placement.DedicatedHost.ID) == nil {
-						errs = append(errs, field.Invalid(field.NewPath("spec.hostPlacement.dedicatedHost.id"), placement.DedicatedHost.ID, "id must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)"))
-					}
-				}
-			default:
-				errs = append(errs, field.Invalid(field.NewPath("spec.hostPlacement.affinity"), placement.Affinity, "affinity must be either AnyAvailable or DedicatedHost"))
-			}
-		}
-	}
-
 	if len(errs) > 0 {
 		return false, warnings, errs
 	}
 
 	return true, warnings, nil
+}
+
+// processAWSPlacement analyzes the Placement field in relation to Tenancy and host placement.  These are analyzed
+// together based based on their relations to one another.
+func processAWSPlacementTenancy(placement machinev1beta1.Placement) field.ErrorList {
+	var errs field.ErrorList
+
+	switch placement.Tenancy {
+	case "", machinev1beta1.DefaultTenancy, machinev1beta1.DedicatedTenancy:
+		// Host is not supported for these cases
+		if placement.Host != nil {
+			errs = append(errs, field.Forbidden(field.NewPath("spec.placement.host"), "host may only be specified when tenancy is 'host'"))
+		}
+	case machinev1beta1.HostTenancy:
+		if placement.Host != nil {
+			klog.V(4).Infof("Validating AWS Host Placement")
+
+			if placement.Host.Affinity == nil {
+				errs = append(errs, field.Required(field.NewPath("spec.placement.host.affinity"), "affinity is required and must be set to either AnyAvailable or DedicatedHost"))
+			} else {
+				switch *placement.Host.Affinity {
+				case machinev1beta1.HostAffinityAnyAvailable:
+					// DedicatedHost is optional.  If it is set, make sure it follows conventions
+					if placement.Host.DedicatedHost != nil {
+						errs = append(errs, validateDedicatedHost(placement.Host.DedicatedHost)...)
+					}
+				case machinev1beta1.HostAffinityDedicatedHost:
+					// We need to make sure DedicatedHost is set with an ID
+					if placement.Host.DedicatedHost == nil {
+						errs = append(errs, field.Required(field.NewPath("spec.placement.host.dedicatedHost"), "dedicatedHost is required when hostAffinity is DedicatedHost, and optional otherwise"))
+					} else {
+						errs = append(errs, validateDedicatedHost(placement.Host.DedicatedHost)...)
+					}
+				default:
+					errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.affinity"), placement.Host.Affinity, "hostAffinity must be either AnyAvailable or DedicatedHost"))
+				}
+			}
+		}
+	default:
+		errs = append(
+			errs,
+			field.Invalid(
+				field.NewPath("providerSpec", "tenancy"),
+				placement.Tenancy,
+				fmt.Sprintf("Invalid providerSpec.tenancy, the only allowed options are: %s, %s, %s, or omitted", machinev1beta1.DefaultTenancy, machinev1beta1.DedicatedTenancy, machinev1beta1.HostTenancy),
+			),
+		)
+	}
+
+	return errs
+}
+
+// validateDedicatedHost validates that all fields in the DedicatedHost are configured correctly.
+func validateDedicatedHost(host *machinev1beta1.DedicatedHost) field.ErrorList {
+	var errs field.ErrorList
+
+	// If host is nil, then nothing to validate
+	if host == nil {
+		return errs
+	}
+
+	strategy := machinev1beta1.AllocationStrategyUserProvided
+	if host.AllocationStrategy != nil {
+		strategy = *host.AllocationStrategy
+	}
+
+	switch strategy {
+	// Empty string is for backward compatability in case an existing config exists with the allocation strategy not set.
+	// Default is User Provided.
+	case machinev1beta1.AllocationStrategyUserProvided, "":
+		// User Provided requires the ID being set of the host to use
+		if host.ID == "" {
+			errs = append(errs, field.Required(field.NewPath("spec.placement.host.dedicatedHost.id"), "id is required when allocationStrategy is UserProvided and must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)"))
+		} else if !awsDedicatedHostNamePattern.MatchString(host.ID) {
+			errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.dedicatedHost.id"), host.ID, "id must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)"))
+		}
+
+		// DynamicHostAllocation is not allowed if user provided
+		if host.DynamicHostAllocation != nil {
+			errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.dedicatedHost.dynamicHostAllocation"), host.ID, "dynamicHostAllocation is only allowed when allocationStrategy is Dynamic"))
+		}
+	case machinev1beta1.AllocationStrategyDynamic:
+		// ID must not be set
+		if host.ID != "" {
+			errs = append(errs, field.Forbidden(field.NewPath("spec.placement.host.dedicatedHost.id"), "id is only allowed when allocationStrategy is Provided"))
+		}
+
+		// Validate DynamicHostAllocation if present
+		if host.DynamicHostAllocation != nil {
+			// MinProperties=1: At least one property must be set
+			// Currently only Tags exists, so if Tags is nil, the struct is empty
+			if host.DynamicHostAllocation.Tags == nil {
+				errs = append(errs, field.Required(field.NewPath("spec.placement.host.dedicatedHost.dynamicHostAllocation.tags"), "at least one property must be specified in dynamicHostAllocation"))
+			} else {
+				tags := *host.DynamicHostAllocation.Tags
+
+				// MinItems=1: At least 1 tag must be specified
+				if len(tags) < 1 {
+					errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.dedicatedHost.dynamicHostAllocation.tags"), len(tags), "at least 1 tag must be specified"))
+				}
+
+				// MaxItems=50: Maximum 50 tags can be specified
+				if len(tags) > 50 {
+					errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.dedicatedHost.dynamicHostAllocation.tags"), len(tags), "maximum 50 tags can be specified"))
+				}
+			}
+		}
+	default:
+		errs = append(
+			errs,
+			field.Invalid(
+				field.NewPath("spec.placement.host.dedicatedHost.allocationStrategy"),
+				host.AllocationStrategy,
+				fmt.Sprintf("Invalid allocationStrategy, the only allowed options are: %s, %s", machinev1beta1.AllocationStrategyUserProvided, machinev1beta1.AllocationStrategyDynamic),
+			),
+		)
+	}
+
+	return errs
 }
 
 // getDuplicatedTags iterates through the AWS TagSpecifications
@@ -986,7 +1092,7 @@ func defaultAzure(m *machinev1beta1.Machine, config *admissionConfig) (bool, []s
 	}
 
 	if providerSpec.Image == (machinev1beta1.Image{}) {
-		providerSpec.Image.ResourceID = defaultAzureImageResourceID(config.clusterID)
+		providerSpec.Image = defaultAzureImage()
 	}
 
 	if providerSpec.UserDataSecret == nil {
