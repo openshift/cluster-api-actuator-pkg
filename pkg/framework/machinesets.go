@@ -342,7 +342,7 @@ func GetWorkerMachineSets(ctx context.Context, client runtimeclient.Client) ([]*
 	// but the Machines themselves are labelled as such via the template, so we
 	// can reach into the template and check the lables there.
 	for i, ms := range machineSets.Items {
-		labels := ms.Spec.Template.ObjectMeta.Labels
+		labels := ms.Spec.Template.Labels
 
 		if labels == nil {
 			continue
@@ -469,8 +469,8 @@ func NewMachineSet(
 	}
 
 	for k, v := range templateLabels {
-		if _, exists := ms.Spec.Template.ObjectMeta.Labels[k]; !exists {
-			ms.Spec.Template.ObjectMeta.Labels[k] = v
+		if _, exists := ms.Spec.Template.Labels[k]; !exists {
+			ms.Spec.Template.Labels[k] = v
 		}
 	}
 
@@ -553,18 +553,22 @@ func WaitForMachineSet(ctx context.Context, c runtimeclient.Client, name string)
 		if len(failed) > 0 {
 			// if there are failed machines, print them out before we exit
 			klog.Errorf("found %d Machines in failed phase: ", len(failed))
+
 			for _, m := range failed {
 				reason := "failureReason not present in Machine.status"
 				if m.Status.ErrorReason != nil {
 					reason = string(*m.Status.ErrorReason)
 				}
+
 				message := "failureMessage not present in Machine.status"
 				if m.Status.ErrorMessage != nil {
 					message = *m.Status.ErrorMessage
 				}
+
 				klog.Errorf("Failed machine: %s, Reason: %s, Message: %s", m.Name, reason, message)
 			}
 		}
+
 		Expect(len(failed)).To(Equal(0), "zero machines should be in a Failed phase")
 
 		running := FilterRunningMachines(machines)
@@ -717,6 +721,7 @@ func WaitForMachineSetsDeleted(ctx context.Context, c runtimeclient.Client, mach
 		// If it doesn't show there's no reason to run the longer check.
 		Eventually(func() error {
 			machineSet := &machinev1.MachineSet{}
+
 			err := c.Get(ctx, runtimeclient.ObjectKey{
 				Name:      ms.GetName(),
 				Namespace: ms.GetNamespace(),

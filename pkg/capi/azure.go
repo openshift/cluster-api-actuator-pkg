@@ -29,27 +29,32 @@ const (
 )
 
 var _ = Describe("[sig-cluster-lifecycle] Cluster API Azure MachineSet", framework.LabelCAPI, framework.LabelDisruptive, Ordered, func() {
-	var azureMachineTemplate *azurev1.AzureMachineTemplate
-	var machineSet *clusterv1beta1.MachineSet
-	var mapiMachineSpec *mapiv1.AzureMachineProviderSpec
-	var client runtimeclient.Client
-	var ctx context.Context
-	var platform configv1.PlatformType
-	var clusterName string
-	var err error
+	var (
+		azureMachineTemplate *azurev1.AzureMachineTemplate
+		machineSet           *clusterv1beta1.MachineSet
+		mapiMachineSpec      *mapiv1.AzureMachineProviderSpec
+		client               runtimeclient.Client
+		ctx                  context.Context
+		platform             configv1.PlatformType
+		clusterName          string
+		err                  error
+	)
 
 	BeforeAll(func() {
 		client, err = framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred(), "Failed to create Kubernetes client for test")
 		komega.SetClient(client)
+
 		ctx = framework.GetContext()
 		platform, err = framework.GetPlatform(ctx, client)
 		Expect(err).ToNot(HaveOccurred(), "Failed to get platform")
+
 		if platform != configv1.AzurePlatformType {
 			Skip("Skipping Azure E2E tests")
 		}
+
 		oc, _ := framework.NewCLI()
-		framework.SkipIfNotTechPreviewNoUpgrade(oc, client)
+		framework.SkipIfNotTechPreviewNoUpgradeCtx(ctx, oc, client)
 
 		infra, err := framework.GetInfrastructure(ctx, client)
 		Expect(err).NotTo(HaveOccurred(), "Failed to get cluster infrastructure object")
@@ -153,6 +158,7 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API Azure MachineSet", framewo
 		if region == "northcentralus" || region == "westus" || region == "usgovtexas" {
 			Skip("Skipping this test scenario on the " + region + " region, because this region doesn't have zones")
 		}
+
 		azureMachineTemplate = newAzureMachineTemplate(client, azureMachineTemplateName, mapiMachineSpec)
 		azureMachineTemplate.Spec.Template.Spec.SpotVMOptions = &azurev1.SpotVMOptions{}
 		Expect(client.Create(ctx, azureMachineTemplate)).To(Succeed(), "Failed to create azuremachinetemplate")

@@ -1,44 +1,26 @@
+version: "2"
 linters:
-  disable-all: true
-  # Enable specific linter
-  # https://golangci-lint.run/usage/linters/#enabled-by-default-linters
+  default: none
   enable:
-    # Default linters
-    - errcheck
-    - gosimple
-    - govet
-    - ineffassign
-    - staticcheck
-    - typecheck
-    - unused
-    # Additional linters
     - asciicheck
     - bidichk
     - bodyclose
     - contextcheck
-    # - cyclop
+    - copyloopvar
     - dogsled
-    # - dupl
     - durationcheck
+    - errcheck
     - errname
     - errorlint
-    # - exhaustive
-    - copyloopvar
     - forcetypeassert
-    # - funlen
-    # - gochecknoglobals
-    # - gocognit
     - goconst
-    # - gocritic
     - gocyclo
     - godot
-    # - goerr113
-    - gofmt
     - goheader
-    - goimports
     - goprintffuncname
-    # - gosec
+    - govet
     - importas
+    - ineffassign
     - makezero
     - misspell
     - nakedret
@@ -48,50 +30,65 @@ linters:
     - nlreturn
     - noctx
     - nolintlint
-    # - prealloc
     - predeclared
     - revive
-    - stylecheck
-    # - tagliatelle
-    - usetesting
+    - staticcheck
     - unconvert
     - unparam
+    - unused
+    - usetesting
     - whitespace
-    # - wrapcheck
-    - wsl
-linters-settings:
-  nlreturn:
-    block-size: 2
-  revive:
-    confidence: 0
+    - wsl_v5
+  settings:
+    importas:
+      alias:
+        - pkg: sigs.k8s.io/cluster-api/api/core/v1beta2
+          alias: clusterv1
+        - pkg: sigs.k8s.io/cluster-api/api/core/v1beta1
+          alias: clusterv1beta1
+    nlreturn:
+      block-size: 2
+    revive:
+      confidence: 0
+      rules:
+        - name: exported
+          arguments:
+            - checkPrivateReceivers
+            - disableStutteringCheck
+          severity: warning
+          disabled: false
+    staticcheck:
+      checks:
+        - all
+        - -ST1000
+      dot-import-whitelist:
+        - github.com/onsi/ginkgo/v2
+        - github.com/onsi/gomega
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
     rules:
-    - name: exported
-      severity: warning
-      disabled: false
-      arguments:
-        - "checkPrivateReceivers"
-        - "disableStutteringCheck"
-  stylecheck:
-    # https://staticcheck.io/docs/options#checks
-    checks: ["all", "-ST1000"]
-    dot-import-whitelist:
-      - "github.com/onsi/ginkgo/v2"
-      - "github.com/onsi/gomega"
-  importas:
-    alias:
-    - pkg: "sigs.k8s.io/cluster-api/api/core/v1beta2"
-      alias: clusterv1
-    - pkg: "sigs.k8s.io/cluster-api/api/core/v1beta1"
-      alias: clusterv1beta1
-issues:
-  exclude-rules:
-    - linters:
-      - staticcheck
-      text: "SA1019: \"sigs.k8s.io/cluster-api/api/core/v1beta1\" is deprecated:"
-    - linters:
-      - staticcheck
-      text: "SA1019: \"sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions\" is deprecated:"
-
-    # # - linters:
-    # #   - staticcheck
-    # - text: "SA1019:"
+      - linters:
+          - staticcheck
+        text: 'SA1019: "sigs.k8s.io/cluster-api/api/core/v1beta1" is deprecated:'
+      - linters:
+          - staticcheck
+        text: 'SA1019: "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions" is deprecated:'
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

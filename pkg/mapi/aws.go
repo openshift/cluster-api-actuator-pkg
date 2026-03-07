@@ -31,10 +31,12 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API AWS MachineSet", framework
 		cl, err = framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred(), "Failed to create Kubernetes client for test")
 		komega.SetClient(cl)
+
 		ctx = framework.GetContext()
 
 		platform, err = framework.GetPlatform(ctx, cl)
 		Expect(err).ToNot(HaveOccurred(), "Failed to get platform")
+
 		if platform != configv1.AWSPlatformType {
 			Skip("Skipping AWS E2E tests")
 		}
@@ -81,6 +83,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API AWS MachineSet", framework
 		}
 
 		By("Creating a new MachineSet with user defined tags")
+
 		mapiMachineSet, err = framework.CreateMachineSet(cl, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "MachineSet should be able to be created")
 
@@ -96,6 +99,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API AWS MachineSet", framework
 		// Get the first machine created by this MachineSet and verify its provider spec
 		machine := machines[0]
 		machineProviderSpec := &mapiv1.AWSMachineProviderConfig{}
+
 		By(fmt.Sprintf("Getting machine %q created by MachineSet %q", machine.Name, mapiMachineSet.Name))
 		Expect(json.Unmarshal(machine.Spec.ProviderSpec.Value.Raw, machineProviderSpec)).To(Succeed(), "Should be able to unmarshal machine provider spec")
 

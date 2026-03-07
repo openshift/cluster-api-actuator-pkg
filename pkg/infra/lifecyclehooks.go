@@ -30,11 +30,13 @@ const (
 )
 
 var _ = Describe("[sig-cluster-lifecycle] Machine API Lifecycle Hooks should", framework.LabelMAPI, framework.LabelDisruptive, framework.LabelPeriodic, func() {
-	var client runtimeclient.Client
-	var machineSet *machinev1.MachineSet
-	var workload *batchv1.Job
-	var pod corev1.Pod
-	var ctx context.Context
+	var (
+		client     runtimeclient.Client
+		machineSet *machinev1.MachineSet
+		workload   *batchv1.Job
+		pod        corev1.Pod
+		ctx        context.Context
+	)
 
 	var gatherer *gatherer.StateGatherer
 
@@ -47,6 +49,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Lifecycle Hooks should", f
 		Expect(err).ToNot(HaveOccurred(), "StateGatherer should be able to be created")
 
 		By("Creating the machineset")
+
 		client, err = framework.LoadClient()
 		Expect(err).ToNot(HaveOccurred(), "Controller-runtime client should be able to be created")
 
@@ -62,6 +65,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Lifecycle Hooks should", f
 		// Make sure to clean up the machineSet, if we create one.
 		DeferCleanup(func() {
 			By("Deleting the machineset")
+
 			cascadeDelete := metav1.DeletePropagationForeground
 			Expect(client.Delete(context.Background(), machineSet, &runtimeclient.DeleteOptions{
 				PropagationPolicy: &cascadeDelete,
@@ -87,6 +91,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Lifecycle Hooks should", f
 		// Make sure to clean up the workload job, if we create one.
 		DeferCleanup(func() {
 			cascadeDelete := metav1.DeletePropagationForeground
+
 			By("Deleting workload job")
 			Expect(client.Delete(context.Background(), workload, &runtimeclient.DeleteOptions{
 				PropagationPolicy: &cascadeDelete,
@@ -99,6 +104,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Lifecycle Hooks should", f
 			if err != nil {
 				return false, err
 			}
+
 			if len(jobPodList.Items) == expectedReplicas {
 				pod = jobPodList.Items[0]
 				return pod.Status.Phase == corev1.PodRunning, nil
@@ -126,6 +132,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Lifecycle Hooks should", f
 		machineKey := types.NamespacedName{Namespace: machine.Namespace, Name: machine.Name}
 
 		By("Setting lifecycle hooks on the machine")
+
 		predrainHook := machinev1.LifecycleHook{
 			Name:  "cluster-api-actuator-pkg/pre-drainHook",
 			Owner: "cluster-api-actuator-pkg",
@@ -134,11 +141,14 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Lifecycle Hooks should", f
 			Name:  "cluster-api-actuator-pkg/pre-terminateHook",
 			Owner: "cluster-api-actuator-pkg",
 		}
+
 		Eventually(func() (bool, error) {
 			if err = client.Get(context.Background(), machineKey, machine); err != nil {
 				return false, err
 			}
+
 			machine.Spec.LifecycleHooks.PreDrain = []machinev1.LifecycleHook{predrainHook}
+
 			machine.Spec.LifecycleHooks.PreTerminate = []machinev1.LifecycleHook{preterminateHook}
 			if err := client.Update(context.Background(), machine); err != nil {
 				return false, err
@@ -158,6 +168,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Lifecycle Hooks should", f
 			if err := client.Get(context.Background(), podKey, &pod); err != nil {
 				return false, err
 			}
+
 			if err := client.Get(context.Background(), machineKey, machine); err != nil {
 				return false, err
 			}
@@ -177,6 +188,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Lifecycle Hooks should", f
 			if err := client.Get(context.Background(), machineKey, machine); err != nil {
 				return false, err
 			}
+
 			machine.Spec.LifecycleHooks.PreDrain = []machinev1.LifecycleHook{}
 			if err := client.Update(context.Background(), machine); err != nil {
 				return false, err
@@ -211,6 +223,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Lifecycle Hooks should", f
 			if err := client.Get(context.Background(), machineKey, machine); err != nil {
 				return false, err
 			}
+
 			machine.Spec.LifecycleHooks.PreTerminate = []machinev1.LifecycleHook{}
 			if err = client.Update(context.Background(), machine); err != nil {
 				return false, err

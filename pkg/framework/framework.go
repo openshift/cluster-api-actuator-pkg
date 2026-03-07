@@ -148,14 +148,17 @@ func expectStatusAvailableIn(ctx context.Context, client runtimeclient.Client, n
 			klog.Errorf("error querying api for OperatorStatus object: %v, retrying...", err)
 			return false, nil
 		}
+
 		if cov1helpers.IsStatusConditionFalse(clusterOperator.Status.Conditions, configv1.OperatorAvailable) {
 			klog.Errorf("Condition: %q is false", configv1.OperatorAvailable)
 			return false, nil
 		}
+
 		if cov1helpers.IsStatusConditionTrue(clusterOperator.Status.Conditions, configv1.OperatorProgressing) {
 			klog.Errorf("Condition: %q is true", configv1.OperatorProgressing)
 			return false, nil
 		}
+
 		if cov1helpers.IsStatusConditionTrue(clusterOperator.Status.Conditions, configv1.OperatorDegraded) {
 			klog.Errorf("Condition: %q is true", configv1.OperatorDegraded)
 			return false, nil
@@ -287,8 +290,15 @@ func DeleteObjects(ctx context.Context, cl runtimeclient.Client, objs ...runtime
 }
 
 // SkipIfNotTechPreviewNoUpgrade skip test if a cluster is not a TechPreviewNoUpgrade cluster.
+//
+// Deprecated: Use SkipIfNotTechPreviewNoUpgradeCtx instead.
 func SkipIfNotTechPreviewNoUpgrade(oc *gatherer.CLI, cl runtimeclient.Client) {
-	featureSet, err := oc.WithoutNamespace().Run("get").Args("featuregate", "cluster", "-o=jsonpath={.spec.featureSet}").Output()
+	SkipIfNotTechPreviewNoUpgradeCtx(context.TODO(), oc, cl)
+}
+
+// SkipIfNotTechPreviewNoUpgradeCtx skip test if a cluster is not a TechPreviewNoUpgrade cluster.
+func SkipIfNotTechPreviewNoUpgradeCtx(ctx context.Context, oc *gatherer.CLI, cl runtimeclient.Client) {
+	featureSet, err := oc.WithoutNamespace().Run("get").Args("featuregate", "cluster", "-o=jsonpath={.spec.featureSet}").OutputCtx(ctx)
 	Expect(err).NotTo(HaveOccurred(), "Failed to get featureSet")
 
 	if featureSet != string(configv1.TechPreviewNoUpgrade) {
@@ -297,8 +307,15 @@ func SkipIfNotTechPreviewNoUpgrade(oc *gatherer.CLI, cl runtimeclient.Client) {
 }
 
 // GetCredentialsFromCluster get credentials from cluster.
+//
+// Deprecated: Use GetCredentialsFromClusterCtx instead.
 func GetCredentialsFromCluster(oc *gatherer.CLI) ([]byte, []byte, string) {
-	awscreds, err := oc.WithoutNamespace().Run("get").Args("secret/aws-creds", "-n", "kube-system", "-o", "json").Output()
+	return GetCredentialsFromClusterCtx(context.TODO(), oc)
+}
+
+// GetCredentialsFromClusterCtx gets credentials from cluster.
+func GetCredentialsFromClusterCtx(ctx context.Context, oc *gatherer.CLI) ([]byte, []byte, string) {
+	awscreds, err := oc.WithoutNamespace().Run("get").Args("secret/aws-creds", "-n", "kube-system", "-o", "json").OutputCtx(ctx)
 	if err != nil {
 		Skip("Unable to get AWS credentials secret, skipping the testing.")
 	}
@@ -309,15 +326,32 @@ func GetCredentialsFromCluster(oc *gatherer.CLI) ([]byte, []byte, string) {
 	Expect(err).NotTo(HaveOccurred(), "Failed to decode accessKeyID")
 	secureKey, err := base64.StdEncoding.DecodeString(secureKeyBase64)
 	Expect(err).NotTo(HaveOccurred(), "Failed to decode secureKey")
-	clusterRegion, err := oc.WithoutNamespace().Run("get").Args("infrastructure", "cluster", "-o=jsonpath={.status.platformStatus.aws.region}").Output()
+	clusterRegion, err := oc.WithoutNamespace().Run("get").Args("infrastructure", "cluster", "-o=jsonpath={.status.platformStatus.aws.region}").OutputCtx(ctx)
 	Expect(err).NotTo(HaveOccurred(), "Failed to get clusterRegion")
 
 	return accessKeyID, secureKey, clusterRegion
 }
 
 // IsCustomerVPC check if cluster is customer vpc cluster.
+//
+// Deprecated: Use IsCustomerVPCCtx instead.
 func IsCustomerVPC(oc *gatherer.CLI) bool {
 	installConfig, err := oc.WithoutNamespace().Run("get").Args("cm", "cluster-config-v1", "-n", "kube-system", "-o=jsonpath={.data.install-config}").Output()
+	Expect(err).NotTo(HaveOccurred(), "Failed to get install-config")
+
+	switch platform {
+	case configv1.AWSPlatformType:
+		return strings.Contains(installConfig, "subnets:")
+	case configv1.AzurePlatformType:
+		return strings.Contains(installConfig, "virtualNetwork:")
+	default:
+		return false
+	}
+}
+
+// IsCustomerVPCCtx check if cluster is customer vpc cluster.
+func IsCustomerVPCCtx(ctx context.Context, oc *gatherer.CLI) bool {
+	installConfig, err := oc.WithoutNamespace().Run("get").Args("cm", "cluster-config-v1", "-n", "kube-system", "-o=jsonpath={.data.install-config}").OutputCtx(ctx)
 	Expect(err).NotTo(HaveOccurred(), "Failed to get install-config")
 
 	switch platform {

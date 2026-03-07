@@ -60,13 +60,15 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 		Expect(cl.Get(ctx, infraName, infra)).To(Succeed(), "Failed to get cluster infrastructure object")
 		Expect(infra.Status.PlatformStatus).ToNot(BeNil(), "expected the infrastructure Status.PlatformStatus to not be nil")
 		clusterName = infra.Status.InfrastructureName
+
 		platform = infra.Status.PlatformStatus.Type
 		if platform != configv1.AWSPlatformType {
 			Skip("Skipping AWS E2E tests")
 		}
+
 		oc, err = framework.NewCLI()
 		Expect(err).ToNot(HaveOccurred(), "Failed to new CLI")
-		framework.SkipIfNotTechPreviewNoUpgrade(oc, cl)
+		framework.SkipIfNotTechPreviewNoUpgradeCtx(ctx, oc, cl)
 		mapiDefaultProviderSpec = getDefaultAWSMAPIProviderSpec(cl)
 		machineSetParams = framework.NewCAPIMachineSetParams(
 			"aws-machineset",
@@ -87,6 +89,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 			framework.DeleteCAPIMachineSets(ctx, cl, machineSet)
 			framework.WaitForCAPIMachineSetsDeleted(ctx, cl, machineSet)
 		}
+
 		if awsMachineTemplate != nil {
 			framework.DeleteObjects(ctx, cl, awsMachineTemplate)
 		}
@@ -96,6 +99,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 	It("should be able to run a machine with a default provider spec", func() {
 		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
 		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
+
 		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-51071", machineSetParams)
 		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
@@ -104,7 +108,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 
 	//huliu-OCP-75395 - [CAPI] AWS Placement group support.
 	It("should be able to run a machine with cluster placement group", framework.LabelPeriodic, func() {
-		awsClient := framework.NewAwsClient(framework.GetCredentialsFromCluster(oc))
+		awsClient := framework.NewAwsClient(framework.GetCredentialsFromClusterCtx(ctx, oc))
 		placementGroupName := clusterName + "pgcluster"
 		placementGroupID, err := awsClient.CreatePlacementGroup(placementGroupName, "cluster")
 		Expect(err).ToNot(HaveOccurred(), "Failed to create placementgroup")
@@ -119,6 +123,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
 		awsMachineTemplate.Spec.Template.Spec.PlacementGroupName = placementGroupName
 		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
+
 		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-75395", machineSetParams)
 		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
@@ -128,11 +133,13 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 	//huliu-OCP-75396 - [CAPI] Creating machines using KMS keys from AWS.
 	It("should be able to run a machine using KMS keys", framework.LabelQEOnly, framework.LabelPeriodic, func() {
 		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
-		awskmsClient := framework.NewAwsKmsClient(framework.GetCredentialsFromCluster(oc))
+		awskmsClient := framework.NewAwsKmsClient(framework.GetCredentialsFromClusterCtx(ctx, oc))
+
 		key, err := awskmsClient.CreateKey(infrastructureName + " key 75396")
 		if err != nil {
 			Skip("Create key failed, skip the cases!!")
 		}
+
 		defer func() {
 			err := awskmsClient.DeleteKey(key)
 			Expect(err).ToNot(HaveOccurred(), "Failed to delete the key")
@@ -150,6 +157,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 			},
 		}
 		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
+
 		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-75396", machineSetParams)
 		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
@@ -159,6 +167,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 	//OCP-78677 - [CAPI] Dedicated tenancy should be exposed on aws providerspec.
 	It("should be able to run a machine with dedicated instance", framework.LabelPeriodic, func() {
 		var success bool
+
 		machineSet, awsMachineTemplate, success = createAWSCAPIMachineSetWithRetry(ctx, cl, "aws-machineset-78677", clusterName, mapiDefaultProviderSpec, 4, func(template *awsv1.AWSMachineTemplate, instanceType string) {
 			template.Spec.Template.Spec.Tenancy = "dedicated"
 		})
@@ -166,6 +175,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 			// Resources have been cleaned up during retry, set to nil to avoid duplicate cleanup in AfterEach
 			machineSet = nil
 			awsMachineTemplate = nil
+
 			Skip("Unable to create machine with dedicated instance after 4 retries due to insufficient capacity")
 		}
 	})
@@ -189,6 +199,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 			},
 		}
 		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
+
 		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-75662", machineSetParams)
 		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
@@ -205,6 +216,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 			"Email":        "qe@redhat.com",
 		}
 		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
+
 		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-75663", machineSetParams)
 		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
@@ -214,8 +226,10 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 	//OCP-76794 - [CAPI] Support AWS capacity-reservations in CAPA.
 	It("should be able to run a machine with capacity-reservations", framework.LabelPeriodic, func() {
 		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
+
 		By("Access AWS to create CapacityReservation")
-		awsClient := framework.NewAwsClient(framework.GetCredentialsFromCluster(oc))
+
+		awsClient := framework.NewAwsClient(framework.GetCredentialsFromClusterCtx(ctx, oc))
 		capacityReservationID, err := awsClient.CreateCapacityReservation(mapiDefaultProviderSpec.InstanceType, "Linux/UNIX", mapiDefaultProviderSpec.Placement.AvailabilityZone, 1, "targeted")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(capacityReservationID).ToNot(Equal(""))
@@ -224,8 +238,10 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 			_, err := awsClient.CancelCapacityReservation(capacityReservationID)
 			Expect(err).ToNot(HaveOccurred(), "Failed to cancel capacityreservation")
 		})
+
 		awsMachineTemplate.Spec.Template.Spec.CapacityReservationID = &capacityReservationID
 		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
+
 		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-76794", machineSetParams)
 		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
@@ -243,6 +259,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 		awsMachineTemplate.Spec.Template.Spec.InstanceType = "c5n.9xlarge"
 		awsMachineTemplate.Spec.Template.Spec.NetworkInterfaceType = awsv1.NetworkInterfaceTypeEFAWithENAInterface
 		Expect(cl.Create(ctx, awsMachineTemplate)).To(Succeed(), "Failed to create awsmachinetemplate")
+
 		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-81293", machineSetParams)
 		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
@@ -252,6 +269,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 	//OCP-79026 - [CAPI] Spot instance can be created successfully with CAPI on aws.
 	It("should be able to run a machine with SpotMarketOptions", framework.LabelPeriodic, func() {
 		var success bool
+
 		machineSet, awsMachineTemplate, success = createAWSCAPIMachineSetWithRetry(ctx, cl, "aws-machineset-79026a", clusterName, mapiDefaultProviderSpec, 4, func(template *awsv1.AWSMachineTemplate, instanceType string) {
 			template.Spec.Template.Spec.SpotMarketOptions = &awsv1.SpotMarketOptions{}
 		})
@@ -259,6 +277,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 			// Resources have been cleaned up during retry, set to nil to avoid duplicate cleanup in AfterEach
 			machineSet = nil
 			awsMachineTemplate = nil
+
 			Skip("Unable to create machine with SpotMarketOptions after 4 retries due to insufficient capacity")
 		}
 	})
@@ -267,9 +286,11 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 	It("should be able to run a machine with capacity reservation preference None", framework.LabelPeriodic, func() {
 		awsMachineTemplate = newAWSMachineTemplate(awsMachineTemplateName, mapiDefaultProviderSpec)
 		awsMachineTemplate.Spec.Template.Spec.CapacityReservationPreference = awsv1.CapacityReservationPreferenceNone
+
 		Eventually(func() error {
 			return cl.Create(ctx, awsMachineTemplate)
 		}, framework.WaitShort, framework.RetryShort).Should(Succeed(), "Failed to create awsmachinetemplate")
+
 		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-84243-none", machineSetParams)
 		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
@@ -287,7 +308,8 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 		awsMachineTemplate.Spec.Template.Spec.CapacityReservationPreference = awsv1.CapacityReservationPreferenceOnly
 
 		By("Access AWS to create CapacityReservation")
-		awsClient := framework.NewAwsClient(framework.GetCredentialsFromCluster(oc))
+
+		awsClient := framework.NewAwsClient(framework.GetCredentialsFromClusterCtx(ctx, oc))
 		capacityReservationID, err := awsClient.CreateCapacityReservation(awsMachineTemplate.Spec.Template.Spec.InstanceType, "Linux/UNIX", mapiDefaultProviderSpec.Placement.AvailabilityZone, 1, "open")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(capacityReservationID).ToNot(Equal(""))
@@ -300,13 +322,17 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 		Eventually(func() error {
 			return cl.Create(ctx, awsMachineTemplate)
 		}, framework.WaitShort, framework.RetryShort).Should(Succeed(), "Failed to create awsmachinetemplate")
+
 		machineSetParams = framework.UpdateCAPIMachineSetName("aws-machineset-84243-only", machineSetParams)
 		machineSet, err = framework.CreateCAPIMachineSet(ctx, cl, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
 
 		// Check for capacity issues or successful provisioning
-		var hasCapacityIssues bool
-		var capacityErrorMessage string
+		var (
+			hasCapacityIssues    bool
+			capacityErrorMessage string
+		)
+
 		Eventually(func() bool {
 			machines, err := framework.GetCAPIMachinesFromMachineSet(ctx, cl, machineSet)
 			if err != nil || len(machines) == 0 {
@@ -327,6 +353,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 				if err == nil && hasCapacityIssue {
 					hasCapacityIssues = true
 					capacityErrorMessage = errorMessage
+
 					By("Detected capacity issue - this is expected behavior when no capacity reservation is available")
 
 					return true
@@ -550,7 +577,7 @@ func getAWSInstanceConfig(ctx context.Context, cl client.Client, oc *gatherer.CL
 	Expect(found).To(BeTrue(), "InfraMachine should have an instanceID")
 	Expect(instanceID).ToNot(BeEmpty(), "instanceID should not be empty")
 
-	awsClient := framework.NewAwsClient(framework.GetCredentialsFromCluster(oc))
+	awsClient := framework.NewAwsClient(framework.GetCredentialsFromClusterCtx(ctx, oc))
 	instance, err := awsClient.DescribeInstance(instanceID)
 	Expect(err).ToNot(HaveOccurred(), "Failed to describe instaces")
 

@@ -52,10 +52,12 @@ func IsServiceAvailable(ctx context.Context, c runtimeclient.Client, name, names
 			klog.Errorf("Error getting Service: %v", err)
 			return false, nil
 		}
+
 		if s.Spec.ClusterIP == "" {
 			klog.Errorf("Service doesn't have a clusterIP: %v", err)
 			return false, nil
 		}
+
 		klog.Infof("Service %q is available. Status: %s",
 			s.Name, serviceInfo(s))
 

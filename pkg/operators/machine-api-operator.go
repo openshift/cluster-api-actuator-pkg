@@ -32,6 +32,7 @@ var _ = Describe(
 
 		BeforeEach(func() {
 			var err error
+
 			gatherer, err = framework.NewGatherer()
 			Expect(err).ToNot(HaveOccurred(), "Failed to load gatherer")
 		})
@@ -102,7 +103,6 @@ var _ = Describe(
 			By(fmt.Sprintf("checking deployment %q is available again", maoManagedDeployment))
 			Expect(framework.IsDeploymentAvailable(ctx, client, maoManagedDeployment, framework.MachineAPINamespace)).To(BeTrue(),
 				fmt.Sprintf("Failed to wait for %s Deployment to become available", maoManagedDeployment))
-
 		})
 
 		It("reconcile mutating webhook configuration", func() {
@@ -142,6 +142,7 @@ var _ = Describe(
 
 			// Ensure that either UID changes (to show a new object) or that the existing object is gone
 			key := runtimeclient.ObjectKey{Name: initial.Name}
+
 			Eventually(func() (apitypes.UID, error) {
 				current := &admissionregistrationv1.ValidatingWebhookConfiguration{}
 				if err := client.Get(context.Background(), key, current); err != nil && !apierrors.IsNotFound(err) {
@@ -172,6 +173,7 @@ var _ = Describe(
 
 			// Ensure that either UID changes (to show a new object) or that the existing object is gone
 			key := runtimeclient.ObjectKey{Name: initial.Name}
+
 			Eventually(func() (apitypes.UID, error) {
 				current := &admissionregistrationv1.MutatingWebhookConfiguration{}
 				if err := client.Get(context.Background(), key, current); err != nil && !apierrors.IsNotFound(err) {
@@ -270,12 +272,15 @@ var _ = Describe(
 	Serial,
 	func() {
 		var gatherer *gatherer.StateGatherer
+
 		client, err := framework.LoadClient()
 		ctx := framework.GetContext()
+
 		Expect(err).NotTo(HaveOccurred(), "Failed to load client")
 
 		BeforeEach(func() {
 			var err error
+
 			gatherer, err = framework.NewGatherer()
 			Expect(err).ToNot(HaveOccurred(), "Failed to load gatherer")
 
@@ -290,6 +295,7 @@ var _ = Describe(
 		// Reason: Tests that machine creation is possible behind a proxy.
 		It("create machines when configured behind a proxy", framework.LabelDevOnly, func() {
 			By("creating a machineset")
+
 			machineSet, err := framework.CreateMachineSet(client, framework.BuildMachineSetParams(ctx, client, 1))
 			Expect(err).ToNot(HaveOccurred(), "Failed to create MachineSet")
 
@@ -311,6 +317,7 @@ var _ = Describe(
 			}
 
 			By("waiting for MAO, KAPI and KCM cluster operators to become available")
+
 			client, err := framework.LoadClient()
 			Expect(err).NotTo(HaveOccurred(), "Failed to load client")
 
@@ -331,8 +338,10 @@ var _ = Describe(
 				"Failed to wait for all nodes to become ready")
 
 			By("waiting for all cluster operators to become available")
+
 			coList := &configv1.ClusterOperatorList{}
 			Eventually(client.List(ctx, coList)).Should(Succeed(), "failed to list ClusterOperators.")
+
 			for _, co := range coList.Items {
 				Expect(framework.WaitForStatusAvailableOverLong(ctx, client, co.Name)).To(BeTrue(),
 					"Failed to wait for %s Cluster Operator to become available", co.Name)
