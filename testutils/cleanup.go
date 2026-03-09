@@ -138,6 +138,7 @@ func removeNamespace(g gomega.Gomega, ctx context.Context, cfg *rest.Config, k8s
 		if err := komega.Get(ns)(); err != nil {
 			return fmt.Errorf("could not get namespace: %w", err)
 		}
+
 		ns.Spec.Finalizers = []corev1.FinalizerName{}
 
 		_, err := coreClient.Namespaces().Finalize(ctx, ns, metav1.UpdateOptions{})

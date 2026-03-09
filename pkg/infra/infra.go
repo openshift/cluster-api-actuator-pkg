@@ -12,7 +12,6 @@ import (
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -20,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/klog"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/envtest/komega"
 
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
@@ -148,10 +148,12 @@ func deleteObjects(client runtimeclient.Client, delObjects map[string]runtimecli
 }
 
 var _ = Describe("[sig-cluster-lifecycle] Machine API Managed cluster should", framework.LabelMAPI, func() {
-	var client runtimeclient.Client
-	var ctx context.Context
-	var machineSet *machinev1.MachineSet
-	var machineSetParams framework.MachineSetParams
+	var (
+		client           runtimeclient.Client
+		ctx              context.Context
+		machineSet       *machinev1.MachineSet
+		machineSetParams framework.MachineSetParams
+	)
 
 	var gatherer *gatherer.StateGatherer
 
@@ -165,6 +167,8 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Managed cluster should", f
 
 		client, err = framework.LoadClient()
 		Expect(err).ToNot(HaveOccurred(), "Controller-runtime client should be able to be created")
+
+		komega.SetClient(client)
 
 		// Reset the machineSet between each test
 		machineSet = nil
@@ -189,9 +193,11 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Managed cluster should", f
 	When("machineset has one replica", framework.LabelDisruptive, func() {
 		BeforeEach(func() {
 			var err error
+
 			machineSetParams = framework.BuildMachineSetParams(ctx, client, 1)
 
 			By("Creating a new MachineSet")
+
 			machineSet, err = framework.CreateMachineSet(client, machineSetParams)
 			Expect(err).ToNot(HaveOccurred(), "MachineSet should be able to be created")
 
@@ -219,14 +225,10 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Managed cluster should", f
 				Effect: corev1.TaintEffectNoSchedule,
 			}
 			By(fmt.Sprintf("updating node %q with taint: %v", node.Name, nodeTaint))
-			for {
+
+			Eventually(komega.Update(node, func() {
 				node.Spec.Taints = append(node.Spec.Taints, nodeTaint)
-				err = client.Update(ctx, node)
-				if !apierrors.IsConflict(err) {
-					break
-				}
-			}
-			Expect(err).NotTo(HaveOccurred(), "Node update should succeed")
+			})).Should(Succeed(), "Node update should succeed")
 
 			machineTaint := corev1.Taint{
 				Key:    fmt.Sprintf("from-machine-%v", string(uuid.NewUUID())),
@@ -234,44 +236,46 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Managed cluster should", f
 				Effect: corev1.TaintEffectNoSchedule,
 			}
 			By(fmt.Sprintf("updating machine %q with taint: %v", machine.Name, machineTaint))
-			for {
+
+			Eventually(komega.Update(machine, func() {
 				machine.Spec.Taints = append(machine.Spec.Taints, machineTaint)
-				err = client.Update(ctx, machine)
-				if !apierrors.IsConflict(err) {
-					break
-				}
-			}
-			Expect(err).NotTo(HaveOccurred(), "Machine update should succeed")
+			})).Should(Succeed(), "Machine update should succeed")
 
 			var expectedTaints = sets.NewString("not-from-machine", machineTaint.Key)
+
 			Eventually(func() bool {
 				klog.Info("Getting node from machine again for verification of taints")
+
 				node, err := framework.GetNodeForMachine(ctx, client, machine)
 				if err != nil {
 					return false
 				}
+
 				var observedTaints = sets.NewString()
 				for _, taint := range node.Spec.Taints {
 					observedTaints.Insert(taint.Key)
 				}
+
 				if !expectedTaints.Difference(observedTaints).HasAny("not-from-machine", machineTaint.Key) {
 					klog.Infof("Expected : %v, observed %v , difference %v, ", expectedTaints, observedTaints, expectedTaints.Difference(observedTaints))
 					return true
 				}
+
 				klog.Infof("Did not find all expected taints on the node. Missing: %v", expectedTaints.Difference(observedTaints))
 
 				return false
 			}, framework.WaitMedium, 5*time.Second).Should(BeTrue(), "Should find all the expected taints on the Node")
 		})
-
 	})
 
 	When("machineset has 2 replicas", framework.LabelDisruptive, func() {
 		BeforeEach(func() {
 			var err error
+
 			machineSetParams = framework.BuildMachineSetParams(ctx, client, 2)
 
 			By("Creating a new MachineSet")
+
 			machineSet, err = framework.CreateMachineSet(client, machineSetParams)
 			Expect(err).ToNot(HaveOccurred(), "MachineSet creation should succeed")
 
@@ -297,6 +301,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Managed cluster should", f
 		// Reason: MachineSet scales 2->0 and MachineSet2 scales 0->2. Changing to scaling 1->0 and 0->1 might not test this thoroughly.
 		It("grow and decrease when scaling different machineSets simultaneously", framework.LabelLEVEL0, func() {
 			By("Creating a second MachineSet") // Machineset 1 can start with 1 replica
+
 			machineSetParams := framework.BuildMachineSetParams(ctx, client, 0)
 			machineSet2, err := framework.CreateMachineSet(client, machineSetParams)
 			Expect(err).ToNot(HaveOccurred(), "Should be able to create MachineSet")
@@ -332,8 +337,8 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Managed cluster should", f
 				machineSetParams.Labels[k] = v
 			}
 
-			machines[0].Spec.ObjectMeta.Labels = machineSetParams.Labels
-			machines[1].Spec.ObjectMeta.Labels = machineSetParams.Labels
+			machines[0].Spec.Labels = machineSetParams.Labels
+			machines[1].Spec.Labels = machineSetParams.Labels
 
 			Expect(client.Update(context.TODO(), machines[0])).To(Succeed(), "Should be able to update Machine")
 
@@ -357,6 +362,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Managed cluster should", f
 			delObjects["rc"] = rc
 
 			By("Creating PDB for RC")
+
 			pdb := podDisruptionBudget(namespace)
 			Expect(client.Create(context.TODO(), pdb)).To(Succeed(), "Should be able to create PodDisruptionBudget")
 			delObjects["pdb"] = pdb
@@ -373,6 +379,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Managed cluster should", f
 
 			// We still should be able to list the machine as until rc.replicas-1 are running on the other node
 			By("Observing and verifying node draining")
+
 			drainedNodeName, err := framework.VerifyNodeDraining(ctx, client, machines[0], rc)
 			Expect(err).NotTo(HaveOccurred(), "Should verify Node was drained")
 
@@ -392,6 +399,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Managed cluster should", f
 		// Only run on platforms that have webhooks
 		clusterInfra, err := framework.GetInfrastructure(ctx, client)
 		Expect(err).NotTo(HaveOccurred(), "Should be able to get Infrastructure")
+
 		platform := clusterInfra.Status.PlatformStatus.Type
 		switch platform {
 		case configv1.AWSPlatformType, configv1.AzurePlatformType, configv1.GCPPlatformType, configv1.VSpherePlatformType, configv1.PowerVSPlatformType, configv1.NutanixPlatformType:
@@ -401,6 +409,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Managed cluster should", f
 		}
 
 		By("Creating invalid machineset")
+
 		invalidMachineSet := invalidMachinesetWithEmptyProviderConfig()
 		expectedAdmissionWebhookErr := "admission webhook \"default.machineset.machine.openshift.io\" denied the request: providerSpec.value: Required value: a value must be provided"
 

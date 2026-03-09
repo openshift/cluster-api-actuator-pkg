@@ -43,6 +43,7 @@ func CreateCoreCluster(ctx context.Context, cl client.Client, clusterName, infra
 
 	Eventually(func() (bool, error) {
 		patchedCluster := &clusterv1beta1.Cluster{}
+
 		err := cl.Get(ctx, client.ObjectKeyFromObject(cluster), patchedCluster)
 		if err != nil {
 			return false, err

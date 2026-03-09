@@ -24,16 +24,21 @@ const (
 )
 
 var _ = Describe("[sig-cluster-lifecycle] Machine API MetadataServiceOptions", framework.LabelDisruptive, framework.LabelMAPI, func() {
-	var client runtimeclient.Client
-	var clientset *kubernetes.Clientset
+	var (
+		client    runtimeclient.Client
+		clientset *kubernetes.Clientset
+	)
 
-	var gatherer *gatherer.StateGatherer
-	var ctx context.Context
+	var (
+		gatherer *gatherer.StateGatherer
+		ctx      context.Context
+	)
 
 	toDelete := make([]*machinev1.MachineSet, 0, 3)
 
 	BeforeEach(func() {
 		var err error
+
 		client, err = framework.LoadClient()
 		Expect(err).ToNot(HaveOccurred(), "Failed to load client")
 
@@ -47,6 +52,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API MetadataServiceOptions", f
 
 		platform, err := framework.GetPlatform(ctx, client)
 		Expect(err).ToNot(HaveOccurred(), "Failed to get platform")
+
 		if platform != configv1.AWSPlatformType {
 			Skip(fmt.Sprintf("skipping AWS specific tests on %s", platform))
 		}
@@ -71,6 +77,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API MetadataServiceOptions", f
 		var err error
 
 		By(fmt.Sprintf("Create machine with metadataServiceOptions.authentication %s", metadataAuth))
+
 		machineSetParams := framework.BuildMachineSetParams(ctx, client, 1)
 		spec := machinev1.AWSMachineProviderConfig{}
 		Expect(json.Unmarshal(machineSetParams.ProviderSpec.Value.Raw, &spec)).To(Succeed())
@@ -84,6 +91,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API MetadataServiceOptions", f
 		if err != nil {
 			return nil, err
 		}
+
 		toDelete = append(toDelete, mc)
 		framework.WaitForMachineSet(ctx, client, mc.GetName())
 
@@ -94,6 +102,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API MetadataServiceOptions", f
 		By("Get node from machineset and spin a curl pod", func() {
 			nodes, err := framework.GetNodesFromMachineSet(ctx, client, machineset)
 			Expect(err).ToNot(HaveOccurred(), "Failed to get nodes from MachineSet")
+
 			podSpec := corev1.PodSpec{
 				HostNetwork: true,
 				Containers: []corev1.Container{
@@ -107,6 +116,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API MetadataServiceOptions", f
 			}
 			pod, lastLog, cleanupPod, err := framework.RunPodOnNode(clientset, nodes[0], framework.MachineAPINamespace, podSpec)
 			Expect(err).ToNot(HaveOccurred(), "Failed to run pod on node")
+
 			defer func() {
 				Expect(cleanupPod()).To(Succeed())
 			}()
@@ -157,14 +167,17 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API MetadataServiceOptions", f
 })
 
 var _ = Describe("[sig-cluster-lifecycle] Machine API CapacityReservationID", framework.LabelDisruptive, framework.LabelMAPI, func() {
-	var client runtimeclient.Client
-	var gatherer *gatherer.StateGatherer
-	var ctx context.Context
+	var (
+		client   runtimeclient.Client
+		gatherer *gatherer.StateGatherer
+		ctx      context.Context
+	)
 
 	toDelete := make([]*machinev1.MachineSet, 0, 3)
 
 	BeforeEach(func() {
 		var err error
+
 		client, err = framework.LoadClient()
 		Expect(err).ToNot(HaveOccurred(), "Failed to load client")
 
@@ -175,6 +188,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API CapacityReservationID", fr
 
 		platform, err := framework.GetPlatform(ctx, client)
 		Expect(err).ToNot(HaveOccurred(), "Failed to get platform")
+
 		if platform != configv1.AWSPlatformType {
 			Skip(fmt.Sprintf("skipping AWS specific tests on %s", platform))
 		}
@@ -198,6 +212,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API CapacityReservationID", fr
 		var err error
 
 		By(fmt.Sprintf("Create machine with capacityReservationId %s", capacityReservationId))
+
 		machineSetParams := framework.BuildMachineSetParams(ctx, client, 1)
 		spec := machinev1.AWSMachineProviderConfig{}
 		Expect(json.Unmarshal(machineSetParams.ProviderSpec.Value.Raw, &spec)).To(Succeed())
@@ -211,6 +226,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API CapacityReservationID", fr
 		if err != nil {
 			return nil, err
 		}
+
 		toDelete = append(toDelete, mc)
 		framework.WaitForMachineSet(ctx, client, mc.GetName())
 
@@ -228,16 +244,23 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API CapacityReservationID", fr
 	// Machines required for test: 1
 	It("machine should get Running with active capacityReservationId", framework.LabelQEOnly, framework.LabelPeriodic, func() {
 		By("Get instanceType and availabilityZone from the first worker MachineSet")
+
 		workers, err := framework.GetWorkerMachineSets(ctx, client)
 		Expect(err).ToNot(HaveOccurred())
+
 		worker0 := workers[0]
+
 		var awsProviderConfig machinev1.AWSMachineProviderConfig
+
 		err = json.Unmarshal(worker0.Spec.Template.Spec.ProviderSpec.Value.Raw, &awsProviderConfig)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Access AWS to create CapacityReservation")
-		oc, _ := framework.NewCLI()
-		awsClient := framework.NewAwsClient(framework.GetCredentialsFromCluster(oc))
+
+		oc, err := framework.NewCLI()
+		Expect(err).ToNot(HaveOccurred(), "Failed to create CLI")
+
+		awsClient := framework.NewAwsClient(framework.GetCredentialsFromClusterCtx(ctx, oc))
 		capacityReservationID, err := awsClient.CreateCapacityReservation(awsProviderConfig.InstanceType, "Linux/UNIX", awsProviderConfig.Placement.AvailabilityZone, 1, "targeted")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(capacityReservationID).ToNot(Equal(""))
@@ -248,10 +271,12 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API CapacityReservationID", fr
 		}()
 
 		By("Create machineset with the capacityReservationID")
+
 		machineSet, err := createMachineSetWithCapacityReservationID(capacityReservationID)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Check the machine with the capacityReservationID")
+
 		machines, err := framework.GetMachinesFromMachineSet(ctx, client, machineSet)
 		Expect(err).ToNot(HaveOccurred())
 		//Assert the first machine contains the capacityReservationID because we only create one machine

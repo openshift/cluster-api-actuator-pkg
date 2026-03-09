@@ -21,32 +21,37 @@ import (
 )
 
 var _ = Describe("[sig-cluster-lifecycle] Cluster API MachineSet", framework.LabelCAPI, framework.LabelDisruptive, Ordered, func() {
-	var awsMachineTemplate *awsv1.AWSMachineTemplate
-	var azureMachineTemplate *azurev1.AzureMachineTemplate
-	var gcpMachineTemplate *gcpv1.GCPMachineTemplate
-	var awsMapiMachineSpec *mapiv1.AWSMachineProviderConfig
-	var azureMapiMachineSpec *mapiv1.AzureMachineProviderSpec
-	var gcpMapiMachineSpec *mapiv1.GCPMachineProviderSpec
-	var machineSet *clusterv1beta1.MachineSet
-	var client runtimeclient.Client
-	var ctx context.Context
-	var platform configv1.PlatformType
-	var clusterName string
-	var failureDomain string
-	var machineTemplateName string
-	var kind string
-	var machineSetParams framework.CAPIMachineSetParams
-	var err error
+	var (
+		awsMachineTemplate   *awsv1.AWSMachineTemplate
+		azureMachineTemplate *azurev1.AzureMachineTemplate
+		gcpMachineTemplate   *gcpv1.GCPMachineTemplate
+		awsMapiMachineSpec   *mapiv1.AWSMachineProviderConfig
+		azureMapiMachineSpec *mapiv1.AzureMachineProviderSpec
+		gcpMapiMachineSpec   *mapiv1.GCPMachineProviderSpec
+		machineSet           *clusterv1beta1.MachineSet
+		client               runtimeclient.Client
+		ctx                  context.Context
+		platform             configv1.PlatformType
+		clusterName          string
+		failureDomain        string
+		machineTemplateName  string
+		kind                 string
+		machineSetParams     framework.CAPIMachineSetParams
+		err                  error
+	)
 
 	BeforeAll(func() {
 		client, err = framework.LoadClient()
 		Expect(err).NotTo(HaveOccurred(), "Failed to create Kubernetes client for test")
 		komega.SetClient(client)
+
 		ctx = framework.GetContext()
 		platform, err = framework.GetPlatform(ctx, client)
 		Expect(err).ToNot(HaveOccurred(), "Failed to get platform")
-		oc, _ := framework.NewCLI()
-		framework.SkipIfNotTechPreviewNoUpgrade(oc, client)
+
+		oc, err := framework.NewCLI()
+		Expect(err).ToNot(HaveOccurred(), "Failed to create CLI")
+		framework.SkipIfNotTechPreviewNoUpgradeCtx(ctx, oc, client)
 
 		infra, err := framework.GetInfrastructure(ctx, client)
 		Expect(err).NotTo(HaveOccurred(), "Failed to get cluster infrastructure object")
@@ -69,7 +74,6 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API MachineSet", framework.Lab
 		default:
 			Skip(fmt.Sprintf("Platform %v does not support , skipping.", platform))
 		}
-
 	})
 
 	AfterEach(func() {
@@ -80,6 +84,7 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API MachineSet", framework.Lab
 
 		framework.DeleteCAPIMachineSets(ctx, client, machineSet)
 		framework.WaitForCAPIMachineSetsDeleted(ctx, client, machineSet)
+
 		switch platform {
 		case configv1.AWSPlatformType:
 			framework.DeleteObjects(ctx, client, awsMachineTemplate)
@@ -128,9 +133,9 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API MachineSet", framework.Lab
 
 		machineSetCopy := machineSet.DeepCopy()
 		machineSetCopy.Spec.Replicas = ptr.To(int32(1))
-		machineSetCopy.Spec.Template.ObjectMeta.Annotations = make(map[string]string)
-		machineSetCopy.Spec.Template.ObjectMeta.Annotations["anno1key"] = "anno1value"
-		machineSetCopy.Spec.Template.ObjectMeta.Labels["label1key"] = "label1value"
+		machineSetCopy.Spec.Template.Annotations = make(map[string]string)
+		machineSetCopy.Spec.Template.Annotations["anno1key"] = "anno1value"
+		machineSetCopy.Spec.Template.Labels["label1key"] = "label1value"
 
 		err = client.Patch(ctx, machineSetCopy, runtimeclient.MergeFrom(machineSet))
 		Expect(err).NotTo(HaveOccurred(), "Failed to patch "+machineSet.Name)

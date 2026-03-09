@@ -272,5 +272,4 @@ var _ = Describe("Cluster", func() {
 			Expect(cluster.Status.V1Beta2).To(Equal(v1Beta2Status))
 		})
 	})
-
 })

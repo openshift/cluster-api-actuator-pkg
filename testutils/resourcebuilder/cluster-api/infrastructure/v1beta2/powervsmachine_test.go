@@ -91,6 +91,7 @@ var _ = Describe("PowerVSMachine", func() {
 
 	Describe("WithImage", func() {
 		image := &capibmv1.IBMPowerVSResourceReference{Name: ptr.To("image")}
+
 		It("should return the custom value when specified", func() {
 			powerVSMachine := PowerVSMachine().WithImage(image).Build()
 			Expect(powerVSMachine.Spec.Image).To(Equal(image))
@@ -99,6 +100,7 @@ var _ = Describe("PowerVSMachine", func() {
 
 	Describe("WithImageRef", func() {
 		imageRef := &corev1.LocalObjectReference{Name: "image"}
+
 		It("should return the custom value when specified", func() {
 			powerVSMachine := PowerVSMachine().WithImageRef(imageRef).Build()
 			Expect(powerVSMachine.Spec.ImageRef).To(Equal(imageRef))
@@ -107,6 +109,7 @@ var _ = Describe("PowerVSMachine", func() {
 
 	Describe("WithMemoryGiB", func() {
 		var memory int32 = 3
+
 		It("should return the custom value when specified", func() {
 			powerVSMachine := PowerVSMachine().WithMemoryGiB(memory).Build()
 			Expect(powerVSMachine.Spec.MemoryGiB).To(Equal(memory))
@@ -115,6 +118,7 @@ var _ = Describe("PowerVSMachine", func() {
 
 	Describe("WithNetwork", func() {
 		network := capibmv1.IBMPowerVSResourceReference{Name: ptr.To("network-name")}
+
 		It("should return the custom value when specified", func() {
 			powerVSMachine := PowerVSMachine().WithNetwork(network).Build()
 			Expect(powerVSMachine.Spec.Network).To(Equal(network))
@@ -123,6 +127,7 @@ var _ = Describe("PowerVSMachine", func() {
 
 	Describe("WithProcessors", func() {
 		processors := intstr.FromString("2")
+
 		It("should return the custom value when specified", func() {
 			powerVSMachine := PowerVSMachine().WithProcessors(processors).Build()
 			Expect(powerVSMachine.Spec.Processors).To(Equal(processors))
@@ -131,6 +136,7 @@ var _ = Describe("PowerVSMachine", func() {
 
 	Describe("WithProcessorType", func() {
 		processorType := capibmv1.PowerVSProcessorTypeShared
+
 		It("should return the custom value when specified", func() {
 			powerVSMachine := PowerVSMachine().WithProcessorType(processorType).Build()
 			Expect(powerVSMachine.Spec.ProcessorType).To(Equal(processorType))
@@ -139,6 +145,7 @@ var _ = Describe("PowerVSMachine", func() {
 
 	Describe("WithProviderID", func() {
 		providerID := ptr.To("provider-id")
+
 		It("should return the custom value when specified", func() {
 			powerVSMachine := PowerVSMachine().WithProviderID(providerID).Build()
 			Expect(powerVSMachine.Spec.ProviderID).To(Equal(providerID))
@@ -147,6 +154,7 @@ var _ = Describe("PowerVSMachine", func() {
 
 	Describe("WithServiceInstance", func() {
 		serviceInstance := &capibmv1.IBMPowerVSResourceReference{Name: ptr.To("service-instance")}
+
 		It("should return the custom value when specified", func() {
 			powerVSMachine := PowerVSMachine().WithServiceInstance(serviceInstance).Build()
 			Expect(powerVSMachine.Spec.ServiceInstance).To(Equal(serviceInstance))
@@ -155,6 +163,7 @@ var _ = Describe("PowerVSMachine", func() {
 
 	Describe("WithSSHKey", func() {
 		sshKey := "ssh-key"
+
 		It("should return the custom value when specified", func() {
 			powerVSMachine := PowerVSMachine().WithSSHKey(sshKey).Build()
 			Expect(powerVSMachine.Spec.SSHKey).To(Equal(sshKey))
@@ -163,6 +172,7 @@ var _ = Describe("PowerVSMachine", func() {
 
 	Describe("WithSystemType", func() {
 		systemType := "systemType"
+
 		It("should return the custom value when specified", func() {
 			powerVSMachine := PowerVSMachine().WithSystemType(systemType).Build()
 			Expect(powerVSMachine.Spec.SystemType).To(Equal(systemType))
@@ -206,6 +216,7 @@ var _ = Describe("PowerVSMachine", func() {
 	})
 	Describe("WithInstanceID", func() {
 		instanceID := "instance-id"
+
 		It("should return the custom value when specified", func() {
 			powerVSMachine := PowerVSMachine().WithInstanceID(instanceID).Build()
 			Expect(powerVSMachine.Status.InstanceID).To(Equal(instanceID))
@@ -214,6 +225,7 @@ var _ = Describe("PowerVSMachine", func() {
 
 	Describe("WithInstanceState", func() {
 		instanceState := capibmv1.PowerVSInstanceStateACTIVE
+
 		It("should return the custom value when specified", func() {
 			powerVSMachine := PowerVSMachine().WithInstanceState(instanceState).Build()
 			Expect(powerVSMachine.Status.InstanceState).To(Equal(instanceState))

@@ -78,7 +78,7 @@ func NewWorkLoad(njobs int32, memoryRequest resource.Quantity, workloadJobName s
 	}
 
 	if podLabel != "" {
-		job.Spec.Template.ObjectMeta.Labels = map[string]string{
+		job.Spec.Template.Labels = map[string]string{
 			podLabel: "",
 		}
 	}
@@ -126,6 +126,7 @@ func WaitForWorkloadOverMachineSets(ctx context.Context, c runtimeclient.Client,
 
 		// build flattened list of machines from all machine sets
 		allMachines := []*machinev1.Machine{}
+
 		for _, machineSet := range machineSets {
 			machines, err := GetMachinesFromMachineSet(ctx, c, machineSet)
 			if err != nil {
@@ -136,21 +137,26 @@ func WaitForWorkloadOverMachineSets(ctx context.Context, c runtimeclient.Client,
 				if machine.Status.NodeRef == nil {
 					return fmt.Errorf("machine %q has no nodeRef yet, try again", machine.Name)
 				}
+
 				allMachines = append(allMachines, machine)
 			}
+
 			klog.Infof("MachineSet %q, Machines and Nodes: %s", machineSet.Name, getMachinesAndNodesAsString(machines))
 		}
 
 		var runningPods int32 = 0
+
 		for _, pod := range podList.Items {
 			// make sure expected number of pods are running
 			if pod.Status.Phase != corev1.PodRunning {
 				conditionsInfo := []string{}
+
 				for _, condition := range pod.Status.Conditions {
 					if condition.Status != corev1.ConditionTrue && condition.Reason != "" {
 						conditionsInfo = append(conditionsInfo, fmt.Sprintf("%s=%s (%s)", condition.Type, condition.Status, condition.Reason))
 					}
 				}
+
 				klog.Warningf("Pod %q not running. phase: [%s], conditions: [%s]", pod.Name, pod.Status.Phase, strings.Join(conditionsInfo, ", "))
 
 				continue
@@ -163,12 +169,14 @@ func WaitForWorkloadOverMachineSets(ctx context.Context, c runtimeclient.Client,
 			}
 
 			klog.Infof("Pod %q is running on Node %q, as expected", pod.Name, pod.Spec.NodeName)
+
 			runningPods++
 		}
 
 		if runningPods != expectedReplicas {
 			return fmt.Errorf("expected %d running job pods, got %d", expectedReplicas, runningPods)
 		}
+
 		klog.Infof("Got %d %q workload Pods, as expected", runningPods, corev1.PodRunning)
 
 		return nil
