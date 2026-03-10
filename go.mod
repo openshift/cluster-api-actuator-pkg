@@ -2,9 +2,12 @@ module github.com/openshift/cluster-api-actuator-pkg
 
 go 1.25.0
 
-replace sigs.k8s.io/cluster-api-provider-azure => github.com/damdo/cluster-api-provider-azure v0.0.0-20251202084521-c2e0e38d1e0e
+replace (
+    github.com/openshift/cluster-api-actuator-pkg/testutils => ./testutils
 
-replace github.com/openshift/cluster-api-actuator-pkg/testutils => ./testutils
+    // CAPA imports cluster-api/test, which has a placeholder for cluster-api
+    sigs.k8s.io/cluster-api => sigs.k8s.io/cluster-api v1.11.5
+)
 
 require (
 	github.com/aws/aws-sdk-go v1.55.7
@@ -23,10 +26,10 @@ require (
 	k8s.io/client-go v0.35.1
 	k8s.io/klog v1.0.0
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4
-	sigs.k8s.io/cluster-api v1.11.3
-	sigs.k8s.io/cluster-api-provider-aws/v2 v2.10.0
-	sigs.k8s.io/cluster-api-provider-azure v0.0.0-20251202084521-c2e0e38d1e0e
-	sigs.k8s.io/cluster-api-provider-gcp v1.11.0-beta.0
+	sigs.k8s.io/cluster-api v1.11.5
+	sigs.k8s.io/cluster-api-provider-aws/v2 v2.10.2
+	sigs.k8s.io/cluster-api-provider-azure v1.22.0
+	sigs.k8s.io/cluster-api-provider-gcp v1.11.0
 	sigs.k8s.io/controller-runtime v0.22.4
 	sigs.k8s.io/yaml v1.6.0
 )
