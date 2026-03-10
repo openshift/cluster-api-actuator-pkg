@@ -49,10 +49,7 @@ check: lint
 
 .PHONY: vendor
 vendor:
-	go mod tidy
-	go mod vendor
-	go mod verify
-	make -C testutils vendor
+	hack/vendor.sh
 
 .PHONY: lint-fix
 lint-fix: ## Go lint and fix your code
