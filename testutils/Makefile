@@ -15,12 +15,6 @@ GOLANGCI_LINT = go run ${PROJECT_DIR}/vendor/github.com/golangci/golangci-lint/v
 .PHONY: all
 all: lint unit
 
-.PHONY: vendor
-vendor: ## Update vendor directory
-	go mod tidy
-	go mod vendor
-	go mod verify
-
 .PHONY: lint-fix
 lint-fix: ## Go lint and fix your code
 	( GOLANGCI_LINT_CACHE=$(PROJECT_DIR)/.cache $(GOLANGCI_LINT) run --fix --config ../.golangci.yaml --timeout 10m )
