@@ -77,7 +77,6 @@ unit: ## Run unit tests
 build-e2e:
 	$(DOCKER_CMD) go test -c -o "$(BUILD_DEST)" github.com/openshift/cluster-api-actuator-pkg/pkg/
 
-
 .PHONY: test-e2e
 test-e2e: ## Run openshift specific e2e test
 	hack/ci-integration.sh $(GINKGO_ARGS) --label-filter='!periodic&&!qe-only&&!autoscaler' -p
@@ -85,6 +84,14 @@ test-e2e: ## Run openshift specific e2e test
 .PHONY: test-e2e-periodic
 test-e2e-periodic: ## Run openshift specific periodic e2e test
 	hack/ci-integration.sh $(GINKGO_ARGS) --label-filter='periodic&&!qe-only&&!autoscaler' -p
+
+.PHONY: test-e2e-autoscaler
+test-e2e-autoscaler: ## Run openshift specific e2e test including autoscaler
+	hack/ci-integration.sh $(GINKGO_ARGS) --label-filter='!periodic&&autoscaler' -p
+
+.PHONY: test-e2e-periodic-autoscaler
+test-e2e-periodic-autoscaler: ## Run openshift specific periodic e2e test including autoscaler
+	hack/ci-integration.sh $(GINKGO_ARGS) --label-filter='periodic&&autoscaler' -p
 
 .PHONY: help
 help:
