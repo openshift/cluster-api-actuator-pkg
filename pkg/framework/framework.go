@@ -17,6 +17,7 @@ import (
 	"github.com/tidwall/gjson"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	eventsv1 "k8s.io/api/events/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -201,18 +202,50 @@ func WaitForEvent(ctx context.Context, c runtimeclient.Client, kind, name, reaso
 			return false, nil
 		}
 
-		for _, event := range eventList.Items {
-			if event.Reason != reason ||
-				event.InvolvedObject.Kind != kind ||
-				event.InvolvedObject.Name != name {
-				continue
-			}
+		if hasCoreV1Event(eventList.Items, kind, name, reason) {
+			return true, nil
+		}
 
+		eventsV1List := eventsv1.EventList{}
+		if err := c.List(ctx, &eventsV1List); err != nil {
+			klog.Errorf("error querying api for events.k8s.io/v1 eventList object: %v, retrying...", err)
+			return false, nil
+		}
+
+		if hasEventsV1Event(eventsV1List.Items, kind, name, reason) {
 			return true, nil
 		}
 
 		return false, nil
 	})
+}
+
+func hasCoreV1Event(events []corev1.Event, kind, name, reason string) bool {
+	for _, event := range events {
+		if event.Reason != reason ||
+			event.InvolvedObject.Kind != kind ||
+			event.InvolvedObject.Name != name {
+			continue
+		}
+
+		return true
+	}
+
+	return false
+}
+
+func hasEventsV1Event(events []eventsv1.Event, kind, name, reason string) bool {
+	for _, event := range events {
+		if event.Reason != reason ||
+			event.Regarding.Kind != kind ||
+			event.Regarding.Name != name {
+			continue
+		}
+
+		return true
+	}
+
+	return false
 }
 
 // NewCLI initializes oc binary wrapper helper.
