@@ -295,6 +295,7 @@ var _ = Describe(
 			if isProxyJob {
 				By("cluster-wide proxy is already configured, leaving existing proxy unchanged")
 				framework.WaitForAllContainersProxyEnvVars(client, framework.MachineAPINamespace, maoManagedDeployment)
+
 				return
 			}
 
