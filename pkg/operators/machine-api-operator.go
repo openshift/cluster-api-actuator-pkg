@@ -272,9 +272,10 @@ var _ = Describe(
 	Serial,
 	func() {
 		var (
-			gatherer *gatherer.StateGatherer
-			client   runtimeclient.Client
-			ctx      context.Context
+			gatherer   *gatherer.StateGatherer
+			client     runtimeclient.Client
+			ctx        context.Context
+			isProxyJob bool
 		)
 
 		BeforeEach(func() {
@@ -288,11 +289,21 @@ var _ = Describe(
 			gatherer, err = framework.NewGatherer()
 			Expect(err).ToNot(HaveOccurred(), "Failed to load gatherer")
 
-			By("deploying an HTTP proxy")
-			framework.DeployProxy(client)
+			isProxyJob, err = framework.IsClusterProxyEnabled(ctx, client)
+			Expect(err).ToNot(HaveOccurred(), "Failed to check cluster proxy configuration")
 
-			By("configuring cluster-wide proxy")
-			framework.ConfigureClusterWideProxy(client)
+			if isProxyJob {
+				By("cluster-wide proxy is already configured on proxy cluster, skipping MITM proxy deployment")
+			} else {
+				By("deploying an HTTP proxy")
+				framework.DeployProxy(client)
+
+				By("configuring cluster-wide proxy")
+				framework.ConfigureClusterWideProxy(client)
+			}
+
+			By("waiting for machine-api-controllers to reflect proxy configuration")
+			framework.WaitForAllContainersProxyEnvVars(client, framework.MachineAPINamespace, maoManagedDeployment)
 		})
 
 		// Machines required for test: 1
@@ -312,13 +323,21 @@ var _ = Describe(
 		})
 
 		AfterEach(func() {
-			By("unconfiguring cluster-wide proxy")
-			framework.UnconfigureClusterWideProxy(client)
-
 			specReport := CurrentSpecReport()
 			if specReport.Failed() {
 				Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed(), "Failed to GatherAll")
 			}
+
+			if isProxyJob {
+				By("cluster-wide proxy was pre-existing, skipping MITM proxy cleanup")
+				return
+			}
+
+			By("unconfiguring cluster-wide proxy")
+			framework.UnconfigureClusterWideProxy(client)
+
+			By("waiting for machine-api-controllers to reflect proxy removal")
+			framework.WaitForAllContainersNoProxyEnvVars(client, framework.MachineAPINamespace, maoManagedDeployment)
 
 			By("waiting for MAO, KAPI and KCM cluster operators to become available")
 
