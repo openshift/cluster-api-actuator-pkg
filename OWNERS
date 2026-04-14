@@ -4,23 +4,19 @@
 approvers:
 - JoelSpeed
 - RadekManak
-- chrischdi
 - damdo
 - elmiko
-- huali9
+- miyadav
 - nrb
 - racheljpg
-- sunzhaohua2
 - theobarberbany
 reviewers:
 - RadekManak
-- chrischdi
 - damdo
-- huali9
 - mdbooth
+- miyadav
 - nrb
 - racheljpg
-- sunzhaohua2
 - theobarberbany
 component: Cloud Compute
 subcomponent: Unknown
