@@ -3,6 +3,7 @@ package infra
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -10,8 +11,10 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -28,6 +31,33 @@ import (
 var nodeDrainLabels = map[string]string{
 	framework.WorkerNodeRoleLabel: "",
 	"node-draining-test":          string(uuid.NewUUID()),
+}
+
+func findInvalidSelectorCondition(conditions []autoscalingv2.HorizontalPodAutoscalerCondition) *autoscalingv2.HorizontalPodAutoscalerCondition {
+	for i := range conditions {
+		condition := &conditions[i]
+		reason := strings.ToLower(condition.Reason)
+		message := strings.ToLower(condition.Message)
+
+		if reason == "invalidselector" ||
+			strings.Contains(message, "missing a selector") ||
+			strings.Contains(message, "selector is required") {
+			return condition
+		}
+	}
+
+	return nil
+}
+
+func findHPACondition(conditions []autoscalingv2.HorizontalPodAutoscalerCondition, conditionType autoscalingv2.HorizontalPodAutoscalerConditionType) *autoscalingv2.HorizontalPodAutoscalerCondition {
+	for i := range conditions {
+		condition := &conditions[i]
+		if condition.Type == conditionType {
+			return condition
+		}
+	}
+
+	return nil
 }
 
 func replicationControllerWorkload(namespace string) *corev1.ReplicationController {
@@ -190,24 +220,139 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Managed cluster should", f
 		}
 	})
 
-	When("machineset has one replica", framework.LabelDisruptive, func() {
-		BeforeEach(func() {
-			var err error
+	When("machineset has one replica", framework.LabelDisruptive, Ordered, func() {
+		var sharedMachineSet *machinev1.MachineSet
 
-			machineSetParams = framework.BuildMachineSetParams(ctx, client, 1)
+		BeforeAll(func() {
+			setupCtx := framework.GetContext()
+			setupClient, err := framework.LoadClient()
+			Expect(err).ToNot(HaveOccurred(), "Controller-runtime client should be able to be created for shared MachineSet setup")
 
-			By("Creating a new MachineSet")
+			params := framework.BuildMachineSetParams(setupCtx, setupClient, 1)
 
-			machineSet, err = framework.CreateMachineSet(client, machineSetParams)
+			By("Creating a shared 1-replica MachineSet")
+
+			sharedMachineSet, err = framework.CreateMachineSet(setupClient, params)
 			Expect(err).ToNot(HaveOccurred(), "MachineSet should be able to be created")
 
-			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
+			framework.WaitForMachineSet(setupCtx, setupClient, sharedMachineSet.GetName())
+		})
+
+		AfterAll(func() {
+			if sharedMachineSet == nil {
+				return
+			}
+
+			cleanupCtx := framework.GetContext()
+			cleanupClient, err := framework.LoadClient()
+			Expect(err).ToNot(HaveOccurred(), "Controller-runtime client should be able to be created for shared MachineSet cleanup")
+
+			By("Deleting the shared 1-replica MachineSet")
+			Expect(cleanupClient.Delete(cleanupCtx, sharedMachineSet)).To(Succeed(), "MachineSet should be able to be deleted")
+			framework.WaitForMachineSetsDeleted(cleanupCtx, cleanupClient, sharedMachineSet)
 		})
 
 		// Machines required for test: 1
-		// Reason: This test works on a single machine and its node.
+		// Reason: Uses the shared 1-replica MachineSet created in BeforeAll to verify that
+		// the scale subresource publishes a selector for HPA consumers.
+		It("publish selector in the scale subresource for HPA targets", func() {
+			expectedSelector := metav1.FormatLabelSelector(&sharedMachineSet.Spec.Selector)
+			cpuUtilizationTarget := int32(60)
+
+			minReplicas := int32(1)
+			if sharedMachineSet.Spec.Replicas != nil {
+				minReplicas = *sharedMachineSet.Spec.Replicas
+			}
+
+			maxReplicas := minReplicas + 1
+
+			By("Checking the MachineSet scale subresource selector")
+			Eventually(func() error {
+				scale, err := framework.GetMachineSetScale(sharedMachineSet.GetName())
+				if err != nil {
+					return err
+				}
+
+				if scale.Status.Selector == "" {
+					return fmt.Errorf("MachineSet scale status.selector is empty")
+				}
+
+				if scale.Status.Selector != expectedSelector {
+					return fmt.Errorf("expected scale status.selector %q, got %q", expectedSelector, scale.Status.Selector)
+				}
+
+				return nil
+			}, framework.WaitMedium, framework.RetryMedium).Should(Succeed(), "MachineSet scale selector should match the MachineSet selector")
+
+			hpa := &autoscalingv2.HorizontalPodAutoscaler{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "HorizontalPodAutoscaler",
+					APIVersion: "autoscaling/v2",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: fmt.Sprintf("%s-hpa-", sharedMachineSet.GetName()),
+					Namespace:    framework.MachineAPINamespace,
+				},
+				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+					ScaleTargetRef: autoscalingv2.CrossVersionObjectReference{
+						APIVersion: "machine.openshift.io/v1beta1",
+						Kind:       "MachineSet",
+						Name:       sharedMachineSet.GetName(),
+					},
+					MinReplicas: &minReplicas,
+					MaxReplicas: maxReplicas,
+					Metrics: []autoscalingv2.MetricSpec{
+						{
+							Type: autoscalingv2.ResourceMetricSourceType,
+							Resource: &autoscalingv2.ResourceMetricSource{
+								Name: corev1.ResourceCPU,
+								Target: autoscalingv2.MetricTarget{
+									Type:               autoscalingv2.UtilizationMetricType,
+									AverageUtilization: &cpuUtilizationTarget,
+								},
+							},
+						},
+					},
+				},
+			}
+
+			By("Creating an HPA targeting the MachineSet")
+			Expect(client.Create(ctx, hpa)).To(Succeed(), "Should be able to create an HPA targeting the MachineSet")
+			DeferCleanup(func() {
+				if err := client.Delete(ctx, hpa); err != nil && !apierrors.IsNotFound(err) {
+					Expect(err).ToNot(HaveOccurred(), "HPA should be able to be deleted")
+				}
+			})
+
+			By("Waiting for the HPA controller to reconcile the MachineSet target")
+			Eventually(func() error {
+				current := &autoscalingv2.HorizontalPodAutoscaler{}
+				if err := client.Get(ctx, runtimeclient.ObjectKeyFromObject(hpa), current); err != nil {
+					return err
+				}
+
+				if invalidSelector := findInvalidSelectorCondition(current.Status.Conditions); invalidSelector != nil {
+					return fmt.Errorf("HPA reported invalid selector: %s (%s)", invalidSelector.Reason, invalidSelector.Message)
+				}
+
+				ableToScale := findHPACondition(current.Status.Conditions, autoscalingv2.AbleToScale)
+				if ableToScale == nil {
+					return fmt.Errorf("HPA has not reported the %s condition yet", autoscalingv2.AbleToScale)
+				}
+
+				if ableToScale.Status != corev1.ConditionTrue {
+					return fmt.Errorf("expected %s condition to be True, got %s (%s: %s)", ableToScale.Type, ableToScale.Status, ableToScale.Reason, ableToScale.Message)
+				}
+
+				return nil
+			}, framework.WaitMedium, framework.RetryMedium).Should(Succeed(), "HPA should reconcile without invalid selector failures")
+		})
+
+		// Machines required for test: 1
+		// Reason: Uses the shared 1-replica MachineSet created in BeforeAll and works on a
+		// single machine and its node. This runs after the HPA-target test because it mutates the fixture.
 		It("have ability to additively reconcile taints from machine to nodes", framework.LabelPeriodic, func() {
-			selector := machineSet.Spec.Selector
+			selector := sharedMachineSet.Spec.Selector
 			machines, err := framework.GetMachines(ctx, client, &selector)
 			Expect(err).ToNot(HaveOccurred(), "Listing Machines should succeed")
 			Expect(machines).ToNot(BeEmpty(), "The list of Machines should not be empty")
