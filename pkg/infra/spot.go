@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/rand"
 	"os"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -32,9 +30,6 @@ import (
 )
 
 const (
-	// Spot machineSet replicas.
-	machinesCount = 1
-
 	// Maximum retries when provisioning a spot machineSet.
 	spotMachineSetMaxProvisioningRetryCount = 3
 )
@@ -42,16 +37,22 @@ const (
 var _ = Describe("Running on Spot", framework.LabelMAPI, framework.LabelDisruptive, func() {
 	var ctx = context.Background()
 
-	var client runtimeclient.Client
-	var machineSet *machinev1.MachineSet
-	var platform configv1.PlatformType
-	var arch string
-	var delObjects map[string]runtimeclient.Object
+	var (
+		client        runtimeclient.Client
+		machineSet    *machinev1.MachineSet
+		platform      configv1.PlatformType
+		arch          string
+		delObjects    map[string]runtimeclient.Object
+		machinesCount int
+	)
 
 	var gatherer *gatherer.StateGatherer
 
 	BeforeEach(func() {
 		delObjects = make(map[string]runtimeclient.Object)
+
+		// Spot machineSet replicas.
+		machinesCount = 1
 
 		// Make sure to clean up the resources we created
 		DeferCleanup(func() {
@@ -86,8 +87,12 @@ var _ = Describe("Running on Spot", framework.LabelMAPI, framework.LabelDisrupti
 		platform, err = framework.GetPlatform(ctx, client)
 		Expect(err).NotTo(HaveOccurred(), "Should be able to get Platform type")
 		switch platform {
-		case configv1.AWSPlatformType, configv1.AzurePlatformType:
+		case configv1.AWSPlatformType:
 			// Supported platforms, ok to continue.
+		case configv1.AzurePlatformType:
+			// Supported platforms, ok to continue.
+			// There are two different event types that trigger a machine deletion, so we need to create two machines.
+			machinesCount = 2
 		case configv1.GCPPlatformType:
 			// TODO: GCP relies on the metadata IP for DNS.
 			// This test prevents it from accessing the DNS, therefore
@@ -245,18 +250,7 @@ var _ = Describe("Running on Spot", framework.LabelMAPI, framework.LabelDisrupti
 				Expect(framework.IsDeploymentAvailable(ctx, client, deployment.Name, deployment.Namespace)).To(BeTrue(), "Should find an available the metadata Deployment")
 			})
 
-			var machine *machinev1.Machine
-			By("Choosing a Machine to terminate", func() {
-				machines, err := framework.GetMachinesFromMachineSet(ctx, client, machineSet)
-				Expect(err).ToNot(HaveOccurred(), "Should be able to get Machines from MachineSet")
-				Expect(len(machines)).To(BeNumerically(">", 0), "There should be at least one Machine")
-
-				customRand := rand.New(rand.NewSource(time.Now().Unix()))
-				machine = machines[customRand.Intn(len(machines))]
-				Expect(machine.Status.NodeRef).ToNot(BeNil(), "Machine should have a linked Node")
-			})
-
-			By("Deploying a job to reroute metadata traffic to the mock", func() {
+			By("Deploying a termination simulator job supporting resources", func() {
 				serviceAccount := getTerminationSimulatorServiceAccount()
 				Expect(client.Create(ctx, serviceAccount)).To(Succeed(), "Should be able to create termination simulator ServiceAccount")
 				delObjects[serviceAccount.Name] = serviceAccount
@@ -268,16 +262,24 @@ var _ = Describe("Running on Spot", framework.LabelMAPI, framework.LabelDisrupti
 				roleBinding := getTerminationSimulatorRoleBinding()
 				Expect(client.Create(ctx, roleBinding)).To(Succeed(), "Should be able to create termination simulator RoleBinding")
 				delObjects[roleBinding.Name] = roleBinding
-
-				job := getTerminationSimulatorJob(machine.Status.NodeRef.Name)
-				Expect(client.Create(ctx, job)).To(Succeed(), "Should be able to create termination simulator Job")
-				delObjects[job.Name] = job
 			})
 
-			// If the job deploys correctly, the Machine will go away
-			By(fmt.Sprintf("Waiting for machine %q to be deleted", machine.Name), func() {
-				framework.WaitForMachinesDeleted(client, machine)
-			})
+			machines, err := framework.GetMachinesFromMachineSet(ctx, client, machineSet)
+			Expect(err).ToNot(HaveOccurred(), "Should be able to get Machines from MachineSet")
+			Expect(len(machines)).To(BeNumerically(">", 0), "There should be at least one Machine")
+
+			for _, machine := range machines {
+				By("Deploying a job to reroute metadata traffic to the mock", func() {
+					job := getTerminationSimulatorJob(machine.Status.NodeRef.Name)
+					Expect(client.Create(ctx, job)).To(Succeed(), "Should be able to create termination simulator Job")
+					delObjects[job.Name] = job
+				})
+
+				// If the job deploys correctly, the Machine will go away
+				By(fmt.Sprintf("Waiting for machine %q to be deleted", machine.Name), func() {
+					framework.WaitForMachinesDeleted(client, machine)
+				})
+			}
 		})
 	})
 })
@@ -530,7 +532,7 @@ echo "Redirected metadata service to ${SERVICE_IP}:${MOCK_SERVICE_PORT}";`
 
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      terminationSimulatorName,
+			Name:      terminationSimulatorName + "-" + nodeName,
 			Namespace: framework.MachineAPINamespace,
 		},
 		Spec: batchv1.JobSpec{

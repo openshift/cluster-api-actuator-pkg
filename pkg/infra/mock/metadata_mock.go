@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync/atomic"
 )
 
 const (
@@ -13,7 +14,7 @@ const (
 	awsTokenPattern            = "/latest/api/token"
 	gcpTerminationPattern      = "/computeMetadata/v1/instance/preempted"
 	azureTerminationPattern    = "/metadata/scheduledevents"
-	azureTerminationAPIVersion = "2019-08-01"
+	azureTerminationAPIVersion = "2024-07-09"
 )
 
 func main() {
@@ -80,7 +81,7 @@ func awsMetadataMockHandler() http.Handler {
 // Azure instances expect an OK response with a Json body containing a schedule peremption event to
 // indicate that the instance has been scheduled for termination.
 // Requires the header "Metadata: true".
-// Requires a query with the api version: eg `?api-version=2019-08-01`.
+// Requires a query with the api version: eg `?api-version=2024-07-09`.
 func azureMetadataMockHandler() http.Handler {
 	mux := http.NewServeMux()
 
@@ -98,19 +99,36 @@ func azureMetadataMockHandler() http.Handler {
 
 		if req.URL.Query().Get("api-version") != azureTerminationAPIVersion {
 			// Require the "api-version" query string to be correct
-			rw.WriteHeader(http.StatusBadRequest)
+			rw.WriteHeader(http.StatusNotFound)
 
-			if _, err := rw.Write([]byte("400 Bad Request")); err != nil {
+			if _, err := rw.Write([]byte("404 Not Found")); err != nil {
 				log.Fatal(err)
 			}
 
 			return
 		}
 
+		// Alternate between responding with the two event types.
+		var currentEventType string
+
+		lastEventType, ok := lastAzureEventType.Load().(string)
+		if !ok {
+			log.Fatal("Failed to load last Azure event type")
+		}
+
+		switch lastEventType {
+		case azureSpotRebalanceRecommendation:
+			currentEventType = azurePreemptEventType
+			lastAzureEventType.Store(azurePreemptEventType)
+		case azurePreemptEventType:
+			currentEventType = azureSpotRebalanceRecommendation
+			lastAzureEventType.Store(azureSpotRebalanceRecommendation)
+		}
+
 		events := azureScheduledEvents{
 			Events: []azureEvent{
 				{
-					EventType: azurePreemptEventType,
+					EventType: currentEventType,
 				},
 			},
 		}
@@ -134,7 +152,18 @@ func azureMetadataMockHandler() http.Handler {
 	return mux
 }
 
-const azurePreemptEventType = "Preempt"
+const (
+	azurePreemptEventType            = "Preempt"
+	azureSpotRebalanceRecommendation = "SpotRebalanceRecommendation"
+)
+
+// The last event type that was returned by the Azure metadata mock handler.
+// The mock will alternate between the two event types.
+var lastAzureEventType atomic.Value
+
+func init() {
+	lastAzureEventType.Store(azureSpotRebalanceRecommendation)
+}
 
 // azureScheduledEvents represents metadata response, more detailed info can be found here:
 // https://docs.microsoft.com/en-us/azure/virtual-machines/linux/scheduled-events#use-the-api
