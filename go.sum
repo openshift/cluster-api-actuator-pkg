@@ -442,8 +442,8 @@ github.com/openshift/api v0.0.0-20260306002634-d3bbdada155c h1:YQYiDzOLJzwQunxCa
 github.com/openshift/api v0.0.0-20260306002634-d3bbdada155c/go.mod h1:pyVjK0nZ4sRs4fuQVQ4rubsJdahI1PB94LnQ8sGdvxo=
 github.com/openshift/client-go v0.0.0-20260306160707-3935d929fc7d h1:T+9HFgEEcnu1TDDfsO5JcJC6N0/Kzob5AtG9IpITHJ8=
 github.com/openshift/client-go v0.0.0-20260306160707-3935d929fc7d/go.mod h1:tIA3XSb/WsC/Fg0YNRfs/JrMrloBKPGF+NKVutd7nMI=
-github.com/openshift/cluster-autoscaler-operator v0.0.1-0.20250702183526-4eb64d553940 h1:NCCRJ7JfGLpRu4IQSV7Qw9VoAdIgF1BiwospisP06a8=
-github.com/openshift/cluster-autoscaler-operator v0.0.1-0.20250702183526-4eb64d553940/go.mod h1:zCklcJwbnaNx46KvR38Rh86uZdow5gvub4ATcNDopTM=
+github.com/openshift/cluster-autoscaler-operator v0.0.1-0.20250725144223-ce9388d9f8a6 h1:ELJbD8/CIFIlTuzWuHGQwvF1DHsCo/ZKhdtl88+BCTg=
+github.com/openshift/cluster-autoscaler-operator v0.0.1-0.20250725144223-ce9388d9f8a6/go.mod h1:zCklcJwbnaNx46KvR38Rh86uZdow5gvub4ATcNDopTM=
 github.com/openshift/cluster-control-plane-machine-set-operator v0.0.0-20251029084908-344babe6a957 h1:eVnkMTFnirnoUOlAUT3Hy8WriIi1JoSrilWym3Dl8Q4=
 github.com/openshift/cluster-control-plane-machine-set-operator v0.0.0-20251029084908-344babe6a957/go.mod h1:TBlORAAtNZ/Tl86pO7GjNXKsH/g0QAW5GnvYstdOhYI=
 github.com/openshift/library-go v0.0.0-20251112091634-ab97ebb73f0f h1:r1pLosA7z3+t+lzW29FU54sg4/pAWu+lsKD0L5Gx3wg=
