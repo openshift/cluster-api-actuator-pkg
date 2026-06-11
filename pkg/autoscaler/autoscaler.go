@@ -9,6 +9,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -1093,6 +1094,210 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 
 			By(fmt.Sprintf("Waiting for %d workload pods to be running", jobReplicas))
 			framework.WaitForWorkloadOverMachineSets(ctx, client, []*machinev1.MachineSet{transientMachineSets[0], transientMachineSets[1]}, jobReplicas, workload.GetName())
+		})
+	})
+
+	Context("use a ClusterAutoscaler with NewPodScaleUpDelay option", func() {
+		var clusterAutoscaler *caov1.ClusterAutoscaler
+
+		BeforeEach(func() {
+			By("Creating ClusterAutoscaler")
+
+			scaleUpDelay := "5m"
+
+			clusterAutoscaler = clusterAutoscalerResource(100)
+			clusterAutoscaler.Spec.ScaleUp = &caov1.ScaleUpConfig{
+				NewPodScaleUpDelay: &scaleUpDelay,
+			}
+			Expect(client.Create(ctx, clusterAutoscaler)).Should(Succeed(), "Failed to create ClusterAutoscaler")
+			cleanupObjects[clusterAutoscaler.GetName()] = clusterAutoscaler
+		})
+
+		AfterEach(func() {
+			specReport := CurrentSpecReport()
+			if specReport.Failed() {
+				Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed(), "Failed to gather spec report")
+			}
+
+			// explicitly delete the ClusterAutoscaler
+			// this is needed due to the autoscaler tests requiring singleton
+			// deployments of the ClusterAutoscaler.
+			By("Waiting for ClusterAutoscaler to delete.")
+
+			caName := clusterAutoscaler.GetName()
+			Expect(deleteObject(caName, cleanupObjects[caName])).Should(Succeed(), "Failed to delete ClusterAutoscaler")
+			delete(cleanupObjects, caName)
+			Eventually(func() (bool, error) {
+				_, err := framework.GetClusterAutoscaler(client, caName)
+				if apierrors.IsNotFound(err) {
+					return true, nil
+				}
+				// Return the error so that failures print additional errors
+				return false, err
+			}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "Failed to cleanup Cluster Autoscaler before timeout")
+		})
+
+		It("should not schedule pods in nodes", func() {
+			// Only run in platforms which support autoscaling from/to zero.
+			clusterInfra, err := framework.GetInfrastructure(ctx, client)
+			Expect(err).NotTo(HaveOccurred(), "Failed to get cluster infrastructure object")
+
+			platform := clusterInfra.Status.PlatformStatus.Type
+			switch platform {
+			case configv1.AWSPlatformType, configv1.GCPPlatformType, configv1.AzurePlatformType, configv1.OpenStackPlatformType, configv1.VSpherePlatformType, configv1.NutanixPlatformType:
+				klog.Infof("Platform is %v", platform)
+			default:
+				Skip(fmt.Sprintf("Platform %v does not support autoscaling from/to zero, skipping.", platform))
+			}
+
+			By("Creating a new MachineSet with 0 replicas")
+
+			machineSetParams := framework.BuildMachineSetParams(ctx, client, 0)
+			targetedNodeLabel := fmt.Sprintf("%v-pod-scale-up-delay", autoscalerWorkerNodeRoleLabel)
+			machineSetParams.Labels[targetedNodeLabel] = ""
+
+			machineSet, err := framework.CreateMachineSet(client, machineSetParams)
+			Expect(err).ToNot(HaveOccurred(), "Failed to create MachineSet with 1 replicas")
+
+			cleanupObjects[machineSet.GetName()] = machineSet
+
+			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
+
+			Eventually(func() (map[string]string, error) {
+				// Checking for the keys of the old ScaleFromZero annotations before creating a MachineAutoscaler.
+				// Only checking for the CPU and Mem annotations, as some platforms do not include the GPU annotations.
+				ms, err := framework.GetMachineSet(context.TODO(), client, machineSet.GetName())
+				if err != nil {
+					return nil, err
+				}
+
+				return ms.Annotations, nil
+			}, framework.WaitMedium, pollingInterval).Should(SatisfyAll(
+				HaveKey(annotationsutil.CpuKeyDeprecated),
+				HaveKey(annotationsutil.MemoryKeyDeprecated),
+			), "No scale from zero annotations found")
+
+			By(fmt.Sprintf("Creating a MachineAutoscaler backed by MachineSet %s/%s - min:%v, max:%v",
+				machineSet.GetNamespace(), machineSet.GetName(), 0, 2))
+
+			expectedReplicas := 2
+			asr := machineAutoscalerResource(machineSet, 0, int32(expectedReplicas))
+			Expect(client.Create(ctx, asr)).Should(Succeed(), "Failed to create MachineAutoscaler with min 0/max 2 replicas")
+			cleanupObjects[asr.GetName()] = asr
+
+			uniqueJobName := fmt.Sprintf("%s-pod-scale-up-delay", workloadJobName)
+
+			By(fmt.Sprintf("Creating scale-out workload %s: jobs: %v, memory: %s", uniqueJobName, expectedReplicas, workloadMemRequest.String()))
+			workload := framework.NewWorkLoad(int32(expectedReplicas), workloadMemRequest, uniqueJobName, autoscalingTestLabel, "", corev1.NodeSelectorRequirement{
+				Key:      targetedNodeLabel,
+				Operator: corev1.NodeSelectorOpExists,
+			})
+			cleanupObjects[workload.GetName()] = workload
+
+			Expect(client.Create(ctx, workload)).Should(Succeed(), "Failed to create scale-out workload %s", workloadJobName)
+
+			Eventually(func() (map[string]string, error) {
+				// Checking for the keys of the newly added upstream annotations from the CAO.
+				// Only checking for the CPU and Mem annotations, as some platforms do not include the GPU annotations.
+				ms, err := framework.GetMachineSet(context.TODO(), client, machineSet.GetName())
+				if err != nil {
+					return nil, err
+				}
+
+				return ms.Annotations, nil
+			}, framework.WaitMedium, pollingInterval).Should(SatisfyAll(
+				HaveKey(annotationsutil.CpuKey),
+				HaveKey(annotationsutil.MemoryKey),
+			), "New scale from zero annotations not found")
+
+			job := &batchv1.Job{}
+			key := runtimeclient.ObjectKey{Namespace: framework.MachineAPINamespace, Name: workload.GetName()}
+			err = client.Get(ctx, key, job)
+			Expect(err).ToNot(HaveOccurred(), "getting workload job should not error")
+
+			By("Pods are in peding state, respecting scaleUpDelay")
+			Consistently(func() error {
+				if err := client.Get(ctx, key, job); err != nil {
+					return err
+				}
+
+				podList := &corev1.PodList{}
+				listOpts := []runtimeclient.ListOption{
+					runtimeclient.InNamespace(job.Namespace),
+					runtimeclient.MatchingLabels(job.Spec.Template.ObjectMeta.Labels),
+				}
+
+				if err := client.List(ctx, podList, listOpts...); err != nil {
+					return err
+				}
+
+				// check if there are the correct number of pods
+				if len(podList.Items) != int(*job.Spec.Completions) {
+					// there's a chance that some job pods may have completed, but realistically this should not happen
+					// if so, just fail the test
+					if job.Status.Succeeded > 0 || job.Status.Failed > 0 {
+						return StopTrying(fmt.Sprintf("job %q with %d succeeded and %d failed pods", workload.GetName(), job.Status.Succeeded, job.Status.Failed))
+					}
+
+					return fmt.Errorf("expected %d job pods, got %d", *job.Spec.Completions, len(podList.Items))
+				}
+
+				machines, err := framework.GetMachinesFromMachineSet(ctx, client, machineSet)
+				if err != nil {
+					return err
+				}
+
+				if len(machines) != 0 {
+					return fmt.Errorf("expected 0 machine, got %d", len(machines))
+				}
+
+				var pendingPods int32
+
+				for _, pod := range podList.Items {
+					if pod.Status.Phase == corev1.PodPending {
+						pendingPods++
+					}
+				}
+
+				if pendingPods != int32(expectedReplicas) {
+					return fmt.Errorf("expected %d pending pods, got %d", expectedReplicas, pendingPods)
+				}
+
+				return nil
+			}, framework.WaitOverMedium, framework.RetryShort).Should(Succeed())
+
+			By("After the scaleUpDelay, machineset should be scaled up")
+
+			Eventually(func() bool {
+				ms, err := framework.GetMachineSet(ctx, client, machineSet.GetName())
+				Expect(err).ToNot(HaveOccurred(), "Failed to get MachineSet %s", machineSet.GetName())
+
+				By(fmt.Sprintf("Waiting for machineSet replicas to scale out. Current replicas are %v, expected %v.",
+					*ms.Spec.Replicas, expectedReplicas))
+
+				return *ms.Spec.Replicas == int32(expectedReplicas)
+			}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "MachineSet %s failed to scale out to %d replicas", machineSet.GetName(), expectedReplicas)
+
+			By("Waiting for the machineSet replicas to become nodes")
+			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
+
+			By(fmt.Sprintf("Waiting for %d workload pods to be running", expectedReplicas))
+			framework.WaitForWorkload(ctx, client, machineSet, int32(expectedReplicas), workload.GetName())
+
+			expectedReplicas = 0
+
+			By("Deleting the workload")
+			Expect(deleteObject(workload.Name, cleanupObjects[workload.Name])).Should(Succeed(), "Failed to delete scale-out workload %s", workload.Name)
+			delete(cleanupObjects, workload.Name)
+			Eventually(func() bool {
+				ms, err := framework.GetMachineSet(ctx, client, machineSet.GetName())
+				Expect(err).ToNot(HaveOccurred(), "Failed to get MachineSet %s", machineSet.GetName())
+
+				By(fmt.Sprintf("Waiting for machineSet replicas to scale in. Current replicas are %v, expected %v.",
+					*ms.Spec.Replicas, expectedReplicas))
+
+				return *ms.Spec.Replicas == int32(expectedReplicas)
+			}, framework.WaitLong, pollingInterval).Should(BeTrue(), "MachineSet %s failed to scale in to 0 replicas", machineSet.GetName())
 		})
 	})
 })
