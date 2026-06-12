@@ -1099,11 +1099,16 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 
 	Context("use a ClusterAutoscaler with NewPodScaleUpDelay option", func() {
 		var clusterAutoscaler *caov1.ClusterAutoscaler
+		var delay time.Duration
 
 		BeforeEach(func() {
 			By("Creating ClusterAutoscaler")
 
 			scaleUpDelay := "5m"
+
+			delay, err = time.ParseDuration(scaleUpDelay)
+
+			Expect(err).ToNot(HaveOccurred(), "invalid NewPodScaleUpDelay")
 
 			clusterAutoscaler = clusterAutoscalerResource(100)
 			clusterAutoscaler.Spec.ScaleUp = &caov1.ScaleUpConfig{
@@ -1264,7 +1269,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 				}
 
 				return nil
-			}, framework.WaitOverMedium, framework.RetryShort).Should(Succeed())
+			}, delay, framework.RetryShort).Should(Succeed())
 
 			By("After the scaleUpDelay, machineset should be scaled up")
 
