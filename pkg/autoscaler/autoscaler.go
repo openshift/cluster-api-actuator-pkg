@@ -1164,7 +1164,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 			machineSetParams.Labels[targetedNodeLabel] = ""
 
 			machineSet, err := framework.CreateMachineSet(client, machineSetParams)
-			Expect(err).ToNot(HaveOccurred(), "Failed to create MachineSet with 1 replicas")
+			Expect(err).ToNot(HaveOccurred(), "Failed to create MachineSet with 0 replicas")
 
 			cleanupObjects[machineSet.GetName()] = machineSet
 
@@ -1222,7 +1222,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 			err = client.Get(ctx, key, job)
 			Expect(err).ToNot(HaveOccurred(), "getting workload job should not error")
 
-			By("Pods are in peding state, respecting scaleUpDelay")
+			By("Pods are in pending state, respecting scaleUpDelay")
 			Consistently(func() error {
 				if err := client.Get(ctx, key, job); err != nil {
 					return err
