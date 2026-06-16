@@ -268,7 +268,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Managed cluster should", f
 
 			By("Checking the MachineSet scale subresource selector")
 			Eventually(func() error {
-				scale, err := framework.GetMachineSetScale(sharedMachineSet.GetName())
+				scale, err := framework.GetMachineSetScaleWithContext(ctx, sharedMachineSet.GetName())
 				if err != nil {
 					return err
 				}
@@ -460,8 +460,8 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Managed cluster should", f
 
 			framework.WaitForMachineSet(ctx, client, machineSet2.GetName())
 
-			Expect(framework.ScaleMachineSet(machineSet.GetName(), 0)).To(Succeed(), "Should be able to scale down MachineSet")
-			Expect(framework.ScaleMachineSet(machineSet2.GetName(), 1)).To(Succeed(), "Should be able to scale MachineSet")
+			Expect(framework.ScaleMachineSetWithContext(ctx, machineSet.GetName(), 0)).To(Succeed(), "Should be able to scale down MachineSet")
+			Expect(framework.ScaleMachineSetWithContext(ctx, machineSet2.GetName(), 1)).To(Succeed(), "Should be able to scale MachineSet")
 
 			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
 			framework.WaitForMachineSet(ctx, client, machineSet2.GetName())

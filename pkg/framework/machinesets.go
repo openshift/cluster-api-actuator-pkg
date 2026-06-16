@@ -26,6 +26,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/scale"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/klog"
 	"k8s.io/utils/ptr"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -484,13 +485,20 @@ func NewMachineSet(
 }
 
 // GetMachineSetScale returns the Scale subresource for the named MachineSet.
+//
+// Deprecated: use GetMachineSetScaleWithContext instead.
 func GetMachineSetScale(name string) (*autoscalingv1.Scale, error) {
+	return GetMachineSetScaleWithContext(context.Background(), name)
+}
+
+// GetMachineSetScaleWithContext returns the Scale subresource for the named MachineSet.
+func GetMachineSetScaleWithContext(ctx context.Context, name string) (*autoscalingv1.Scale, error) {
 	scaleClient, err := getScaleClient()
 	if err != nil {
 		return nil, fmt.Errorf("getting scale client: %w", err)
 	}
 
-	scaleObj, err := getMachineSetScale(scaleClient, name)
+	scaleObj, err := getMachineSetScale(ctx, scaleClient, name)
 	if err != nil {
 		return nil, err
 	}
@@ -498,8 +506,8 @@ func GetMachineSetScale(name string) (*autoscalingv1.Scale, error) {
 	return scaleObj, nil
 }
 
-func getMachineSetScale(scaleClient scale.ScalesGetter, name string) (*autoscalingv1.Scale, error) {
-	scaleObj, err := scaleClient.Scales(MachineAPINamespace).Get(context.Background(), machineSetScaleResource, name, metav1.GetOptions{})
+func getMachineSetScale(ctx context.Context, scaleClient scale.ScalesGetter, name string) (*autoscalingv1.Scale, error) {
+	scaleObj, err := scaleClient.Scales(MachineAPINamespace).Get(ctx, machineSetScaleResource, name, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("getting MachineSet scale: %w", err)
 	}
@@ -508,21 +516,38 @@ func getMachineSetScale(scaleClient scale.ScalesGetter, name string) (*autoscali
 }
 
 // ScaleMachineSet scales a machineSet with a given name to the given number of replicas.
+//
+// Deprecated: use ScaleMachineSetWithContext instead.
 func ScaleMachineSet(name string, replicas int) error {
+	return ScaleMachineSetWithContext(context.Background(), name, replicas)
+}
+
+// ScaleMachineSetWithContext scales a machineSet with a given name to the given number of replicas.
+func ScaleMachineSetWithContext(ctx context.Context, name string, replicas int) error {
 	scaleClient, err := getScaleClient()
 	if err != nil {
 		return fmt.Errorf("getting scale client: %w", err)
 	}
 
-	scaleObj, err := getMachineSetScale(scaleClient, name)
-	if err != nil {
-		return err
-	}
+	err = wait.ExponentialBackoffWithContext(ctx, retry.DefaultBackoff, func(ctx context.Context) (bool, error) {
+		scaleObj, err := getMachineSetScale(ctx, scaleClient, name)
+		if err != nil {
+			return false, err
+		}
 
-	scaleUpdate := scaleObj.DeepCopy()
-	scaleUpdate.Spec.Replicas = int32(replicas)
+		scaleUpdate := scaleObj.DeepCopy()
+		scaleUpdate.Spec.Replicas = int32(replicas)
 
-	_, err = scaleClient.Scales(MachineAPINamespace).Update(context.Background(), machineSetScaleResource, scaleUpdate, metav1.UpdateOptions{})
+		_, err = scaleClient.Scales(MachineAPINamespace).Update(ctx, machineSetScaleResource, scaleUpdate, metav1.UpdateOptions{})
+		switch {
+		case err == nil:
+			return true, nil
+		case apierrors.IsConflict(err):
+			return false, nil
+		}
+
+		return false, err
+	})
 	if err != nil {
 		return fmt.Errorf("updating MachineSet scale: %w", err)
 	}

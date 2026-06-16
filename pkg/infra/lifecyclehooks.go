@@ -160,7 +160,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Lifecycle Hooks should", f
 
 		By("Deleting the machine")
 		// Delete the machine by scaling down the machineset to zero
-		Expect(framework.ScaleMachineSet(machineSet.Name, 0)).To(Succeed(), "Should be able to scale down MachineSet")
+		Expect(framework.ScaleMachineSetWithContext(ctx, machineSet.Name, 0)).To(Succeed(), "Should be able to scale down MachineSet")
 
 		By("Checking that workload pod is running on machine")
 		// pre-drain hook should prevent pod from being evicted
