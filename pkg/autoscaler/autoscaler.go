@@ -1097,7 +1097,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 		})
 	})
 
-	Context("use a ClusterAutoscaler with NewPodScaleUpDelay option", func() {
+	Context("use a ClusterAutoscaler with NewPodScaleUpDelay option", framework.LabelPeriodic, func() {
 		var (
 			clusterAutoscaler *caov1.ClusterAutoscaler
 			delay             time.Duration
