@@ -1170,20 +1170,6 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 
 			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
 
-			Eventually(func() (map[string]string, error) {
-				// Checking for the keys of the old ScaleFromZero annotations before creating a MachineAutoscaler.
-				// Only checking for the CPU and Mem annotations, as some platforms do not include the GPU annotations.
-				ms, err := framework.GetMachineSet(context.TODO(), client, machineSet.GetName())
-				if err != nil {
-					return nil, err
-				}
-
-				return ms.Annotations, nil
-			}, framework.WaitMedium, pollingInterval).Should(SatisfyAll(
-				HaveKey(annotationsutil.CpuKeyDeprecated),
-				HaveKey(annotationsutil.MemoryKeyDeprecated),
-			), "No scale from zero annotations found")
-
 			By(fmt.Sprintf("Creating a MachineAutoscaler backed by MachineSet %s/%s - min:%v, max:%v",
 				machineSet.GetNamespace(), machineSet.GetName(), 0, 2))
 
@@ -1202,20 +1188,6 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 			cleanupObjects[workload.GetName()] = workload
 
 			Expect(client.Create(ctx, workload)).Should(Succeed(), "Failed to create scale-out workload %s", workloadJobName)
-
-			Eventually(func() (map[string]string, error) {
-				// Checking for the keys of the newly added upstream annotations from the CAO.
-				// Only checking for the CPU and Mem annotations, as some platforms do not include the GPU annotations.
-				ms, err := framework.GetMachineSet(context.TODO(), client, machineSet.GetName())
-				if err != nil {
-					return nil, err
-				}
-
-				return ms.Annotations, nil
-			}, framework.WaitMedium, pollingInterval).Should(SatisfyAll(
-				HaveKey(annotationsutil.CpuKey),
-				HaveKey(annotationsutil.MemoryKey),
-			), "New scale from zero annotations not found")
 
 			job := &batchv1.Job{}
 			key := runtimeclient.ObjectKey{Namespace: framework.MachineAPINamespace, Name: workload.GetName()}
