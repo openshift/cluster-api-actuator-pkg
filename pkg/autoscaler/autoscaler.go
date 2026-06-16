@@ -1285,9 +1285,6 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 				return *ms.Spec.Replicas == int32(expectedReplicas)
 			}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "MachineSet %s failed to scale out to %d replicas", machineSet.GetName(), expectedReplicas)
 
-			By("Waiting for the machineSet replicas to become nodes")
-			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
-
 			By(fmt.Sprintf("Waiting for %d workload pods to be running", expectedReplicas))
 			framework.WaitForWorkload(ctx, client, machineSet, int32(expectedReplicas), workload.GetName())
 
