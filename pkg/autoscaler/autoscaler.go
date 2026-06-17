@@ -1104,6 +1104,9 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 		)
 
 		BeforeEach(func() {
+			gatherer, err = framework.NewGatherer()
+			Expect(err).ToNot(HaveOccurred(), "Failed to create gatherer")
+
 			By("Creating ClusterAutoscaler")
 
 			scaleUpDelay := "5m"
