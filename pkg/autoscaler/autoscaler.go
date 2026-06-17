@@ -1194,6 +1194,8 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 			err = client.Get(ctx, key, job)
 			Expect(err).ToNot(HaveOccurred(), "getting workload job should not error")
 
+			decreasedDelay := delay - 30*time.Second
+
 			By("Only one pod and machine should be up, respecting NewPodScaleUpDelay field")
 			Consistently(func() error {
 				if err := client.Get(ctx, key, job); err != nil {
@@ -1244,7 +1246,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 				}
 
 				return nil
-			}, delay, framework.RetryShort).Should(Succeed())
+			}, decreasedDelay, framework.RetryShort).Should(Succeed())
 
 			By("After the scaleUpDelay, machineset should be scaled up")
 
