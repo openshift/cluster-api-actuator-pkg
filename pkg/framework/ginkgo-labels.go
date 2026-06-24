@@ -38,4 +38,7 @@ var (
 
 	// LabelConnectedOnly indicates that the test can run in a connection cluster only.
 	LabelConnectedOnly = ginkgo.Label("connected-only")
+
+	// LabelUnified applies to tests using the unified MAPI/CAPI testing framework.
+	LabelUnified = ginkgo.Label("unified")
 )
