@@ -1307,6 +1307,10 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 				Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed(), "Failed to gather spec report")
 			}
 
+			if clusterAutoscaler == nil {
+				return
+			}
+
 			By("Waiting for ClusterAutoscaler to delete.")
 			caName := clusterAutoscaler.GetName()
 			Expect(deleteObject(caName, cleanupObjects[caName])).Should(Succeed(), "Failed to delete ClusterAutoscaler")
@@ -1324,7 +1328,19 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 		// Reason: This test verifies that when a MachineSet starts at 0 replicas and a MachineAutoscaler
 		// is created with minReplicas=1, the ClusterAutoscaler with EnforceNodeGroupMinSize enabled
 		// will automatically enforce the minimum and scale up to 1.
-		It("should enforce minimum size and scale up from 0 to 1 replica when enabled [Slow]", func() {
+		It("should enforce minimum size and scale up from 0 to 1 replica when enabled [Slow][Skipped:SingleReplicaTopology][apigroup:machine.openshift.io]", func() {
+			// Only run in platforms which support autoscaling from/to zero.
+			clusterInfra, err := framework.GetInfrastructure(ctx, client)
+			Expect(err).NotTo(HaveOccurred(), "Failed to get cluster infrastructure object")
+
+			platform := clusterInfra.Status.PlatformStatus.Type
+			switch platform {
+			case configv1.AWSPlatformType, configv1.GCPPlatformType, configv1.AzurePlatformType, configv1.OpenStackPlatformType, configv1.VSpherePlatformType, configv1.NutanixPlatformType:
+				klog.Infof("Platform is %v", platform)
+			default:
+				Skip(fmt.Sprintf("Platform %v does not support autoscaling from/to zero, skipping.", platform))
+			}
+
 			minReplicas := int32(1)
 			maxReplicas := int32(3)
 
@@ -1382,7 +1398,19 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 		// Machines required for test: 0
 		// Reason: This test verifies that when EnforceNodeGroupMinSize is disabled,
 		// the ClusterAutoscaler does NOT scale up a MachineSet from 0 unless there is workload demand.
-		It("should not enforce minimum size when disabled [Slow]", func() {
+		It("should not enforce minimum size when disabled [Slow][Skipped:SingleReplicaTopology][apigroup:machine.openshift.io]", func() {
+			// Only run in platforms which support autoscaling from/to zero.
+			clusterInfra, err := framework.GetInfrastructure(ctx, client)
+			Expect(err).NotTo(HaveOccurred(), "Failed to get cluster infrastructure object")
+
+			platform := clusterInfra.Status.PlatformStatus.Type
+			switch platform {
+			case configv1.AWSPlatformType, configv1.GCPPlatformType, configv1.AzurePlatformType, configv1.OpenStackPlatformType, configv1.VSpherePlatformType, configv1.NutanixPlatformType:
+				klog.Infof("Platform is %v", platform)
+			default:
+				Skip(fmt.Sprintf("Platform %v does not support autoscaling from/to zero, skipping.", platform))
+			}
+
 			minReplicas := int32(1)
 			maxReplicas := int32(3)
 
