@@ -1330,7 +1330,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 		// Reason: This test verifies that when a MachineSet starts at 0 replicas and a MachineAutoscaler
 		// is created with minReplicas=1, the ClusterAutoscaler with EnforceNodeGroupMinSize enabled
 		// will automatically enforce the minimum and scale up to 1.
-		It("should enforce minimum size and scale up from 0 to 1 replica when enabled [Slow][Skipped:SingleReplicaTopology][apigroup:machine.openshift.io]", func() {
+		It("should enforce minimum size and scale up from 0 to 1 replica when enabled [autoscaler, disruptive, Serial, periodic][Slow][Skipped:SingleReplicaTopology][apigroup:machine.openshift.io]", func() {
 			// Only run in platforms which support autoscaling from/to zero.
 			clusterInfra, err := framework.GetInfrastructure(ctx, client)
 			Expect(err).NotTo(HaveOccurred(), "Failed to get cluster infrastructure object")
@@ -1405,7 +1405,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 		// Machines required for test: 0
 		// Reason: This test verifies that when EnforceNodeGroupMinSize is disabled,
 		// the ClusterAutoscaler does NOT scale up a MachineSet from 0 unless there is workload demand.
-		It("should not enforce minimum size when disabled [Slow][Skipped:SingleReplicaTopology][apigroup:machine.openshift.io]", func() {
+		It("should not enforce minimum size when disabled [autoscaler, disruptive, Serial, periodic][Slow][Skipped:SingleReplicaTopology][apigroup:machine.openshift.io]", func() {
 			// Only run in platforms which support autoscaling from/to zero.
 			clusterInfra, err := framework.GetInfrastructure(ctx, client)
 			Expect(err).NotTo(HaveOccurred(), "Failed to get cluster infrastructure object")
