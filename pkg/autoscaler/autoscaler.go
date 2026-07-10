@@ -1312,6 +1312,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 			}
 
 			By("Waiting for ClusterAutoscaler to delete.")
+
 			caName := clusterAutoscaler.GetName()
 			Expect(deleteObject(caName, cleanupObjects[caName])).Should(Succeed(), "Failed to delete ClusterAutoscaler")
 			delete(cleanupObjects, caName)
@@ -1320,6 +1321,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 				if apierrors.IsNotFound(err) {
 					return true, nil
 				}
+
 				return false, err
 			}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "Failed to cleanup Cluster Autoscaler before timeout")
 		})
@@ -1345,6 +1347,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 			maxReplicas := int32(3)
 
 			By("Creating ClusterAutoscaler with EnforceNodeGroupMinSize enabled")
+
 			clusterAutoscaler = clusterAutoscalerResource(100)
 			enforceMode := caov1.EnforceNodeGroupMinSizeModeEnabled
 			clusterAutoscaler.Spec.EnforceNodeGroupMinSize = &enforceMode
@@ -1353,11 +1356,13 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 
 			// 1. START WITH MACHINESET AT 0 REPLICAS
 			By("Creating MachineSet with 0 replicas")
+
 			targetedNodeLabel := fmt.Sprintf("%v-enforce-min-size", autoscalerWorkerNodeRoleLabel)
 			machineSetParams := framework.BuildMachineSetParams(ctx, client, 0)
 			machineSetParams.Labels[targetedNodeLabel] = ""
 			machineSet, err := framework.CreateMachineSet(client, machineSetParams)
 			Expect(err).ToNot(HaveOccurred(), "Failed to create MachineSet with 0 replicas")
+
 			cleanupObjects[machineSet.GetName()] = machineSet
 
 			By("Waiting for the MachineSet to be created")
@@ -1369,6 +1374,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 				if err != nil {
 					return -1, err
 				}
+
 				return *ms.Spec.Replicas, nil
 			}, framework.WaitShort, pollingInterval).Should(BeEquivalentTo(int32(0)),
 				"MachineSet should start at 0 replicas")
@@ -1387,6 +1393,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 				if err != nil {
 					return 0, err
 				}
+
 				return *current.Spec.Replicas, nil
 			}, framework.WaitLong, pollingInterval).Should(BeEquivalentTo(minReplicas),
 				"ClusterAutoscaler failed to enforce min size and scale up to %d", minReplicas)
@@ -1415,6 +1422,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 			maxReplicas := int32(3)
 
 			By("Creating ClusterAutoscaler with EnforceNodeGroupMinSize disabled")
+
 			clusterAutoscaler = clusterAutoscalerResource(100)
 			enforceMode := caov1.EnforceNodeGroupMinSizeModeDisabled
 			clusterAutoscaler.Spec.EnforceNodeGroupMinSize = &enforceMode
@@ -1422,11 +1430,13 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 			cleanupObjects[clusterAutoscaler.GetName()] = clusterAutoscaler
 
 			By("Creating MachineSet with 0 replicas")
+
 			targetedNodeLabel := fmt.Sprintf("%v-no-enforce-min-size", autoscalerWorkerNodeRoleLabel)
 			machineSetParams := framework.BuildMachineSetParams(ctx, client, 0)
 			machineSetParams.Labels[targetedNodeLabel] = ""
 			machineSet, err := framework.CreateMachineSet(client, machineSetParams)
 			Expect(err).ToNot(HaveOccurred(), "Failed to create MachineSet with 0 replicas")
+
 			cleanupObjects[machineSet.GetName()] = machineSet
 
 			By("Waiting for the MachineSet to be created")
@@ -1444,6 +1454,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 				if err != nil {
 					return -1, err
 				}
+
 				return *current.Spec.Replicas, nil
 			}, framework.WaitShort, pollingInterval).Should(BeEquivalentTo(int32(0)),
 				"ClusterAutoscaler should not enforce min size when disabled - MachineSet should stay at 0")
