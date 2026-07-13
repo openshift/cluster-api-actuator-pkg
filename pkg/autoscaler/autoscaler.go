@@ -1291,7 +1291,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 		})
 	})
 
-	Context("use a ClusterAutoscaler with EnforceNodeGroupMinSize", framework.LabelAutoscaler, func() {
+	Context("use a ClusterAutoscaler with EnforceNodeGroupMinSize", framework.LabelAutoscaler, framework.LabelPeriodic, func() {
 		var (
 			clusterAutoscaler *caov1.ClusterAutoscaler
 		)
