@@ -1199,6 +1199,21 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 
 			decreasedDelay := delay - 30*time.Second
 
+			By("Ensuring the correct number of job pods")
+			Eventually(func() (int, error) {
+				podList := &corev1.PodList{}
+				listOpts := []runtimeclient.ListOption{
+					runtimeclient.InNamespace(job.Namespace),
+					runtimeclient.MatchingLabels(job.Spec.Template.ObjectMeta.Labels),
+				}
+
+				if err := client.List(ctx, podList, listOpts...); err != nil {
+					return 0, err
+				}
+
+				return len(podList.Items), nil
+			}, framework.WaitShort, pollingInterval).Should(BeEquivalentTo(int(*job.Spec.Completions)), "workload job did not reach %d pods", *job.Spec.Completions)
+
 			By("Only one pod and machine should be up, respecting NewPodScaleUpDelay field")
 			Consistently(func() error {
 				if err := client.Get(ctx, key, job); err != nil {
@@ -1215,15 +1230,10 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 					return err
 				}
 
-				// check if there are the correct number of pods
-				if len(podList.Items) != int(*job.Spec.Completions) {
-					// there's a chance that some job pods may have completed, but realistically this should not happen
-					// if so, just fail the test
-					if job.Status.Succeeded > 0 || job.Status.Failed > 0 {
-						return StopTrying(fmt.Sprintf("job %q with %d succeeded and %d failed pods", workload.GetName(), job.Status.Succeeded, job.Status.Failed))
-					}
-
-					return fmt.Errorf("expected %d job pods, got %d", *job.Spec.Completions, len(podList.Items))
+				// there's a chance that some job pods may have completed, but realistically this should not happen
+				// if so, just fail the test
+				if job.Status.Succeeded > 0 || job.Status.Failed > 0 {
+					return StopTrying(fmt.Sprintf("job %q with %d succeeded and %d failed pods", workload.GetName(), job.Status.Succeeded, job.Status.Failed))
 				}
 
 				machines, err := framework.GetMachinesFromMachineSet(ctx, client, machineSet)
