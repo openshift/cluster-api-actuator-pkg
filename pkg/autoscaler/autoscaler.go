@@ -584,6 +584,56 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 				}, framework.WaitMedium, pollingInterval).Should(BeTrue(), "Node %s has a deletion taint and it should not", machine.Status.NodeRef.Name)
 			}
 		})
+
+		// Machines required for test: 0
+		// Reason: This test verifies that when EnforceNodeGroupMinSize is disabled,
+		// the ClusterAutoscaler does NOT scale up a MachineSet from 0 unless there is workload demand.
+		It("should not enforce minimum size when disabled", func() {
+			// Only run in platforms which support autoscaling from/to zero.
+			clusterInfra, err := framework.GetInfrastructure(ctx, client)
+			Expect(err).NotTo(HaveOccurred(), "Failed to get cluster infrastructure object")
+
+			platform := clusterInfra.Status.PlatformStatus.Type
+			switch platform {
+			case configv1.AWSPlatformType, configv1.GCPPlatformType, configv1.AzurePlatformType, configv1.OpenStackPlatformType, configv1.VSpherePlatformType, configv1.NutanixPlatformType:
+				klog.Infof("Platform is %v", platform)
+			default:
+				Skip(fmt.Sprintf("Platform %v does not support autoscaling from/to zero, skipping.", platform))
+			}
+
+			minReplicas := int32(1)
+			maxReplicas := int32(3)
+
+			By("Creating MachineSet with 0 replicas")
+
+			targetedNodeLabel := fmt.Sprintf("%v-no-enforce-min-size", autoscalerWorkerNodeRoleLabel)
+			machineSetParams := framework.BuildMachineSetParams(ctx, client, 0)
+			machineSetParams.Labels[targetedNodeLabel] = ""
+			machineSet, err := framework.CreateMachineSet(client, machineSetParams)
+			Expect(err).ToNot(HaveOccurred(), "Failed to create MachineSet with 0 replicas")
+
+			cleanupObjects[machineSet.GetName()] = machineSet
+
+			By("Waiting for the MachineSet to be created")
+			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
+
+			By(fmt.Sprintf("Creating a MachineAutoscaler backed by MachineSet %s - min: %d, max: %d",
+				machineSet.GetName(), minReplicas, maxReplicas))
+			asr := machineAutoscalerResource(machineSet, minReplicas, maxReplicas)
+			Expect(client.Create(ctx, asr)).Should(Succeed(), "Failed to create MachineAutoscaler")
+			cleanupObjects[asr.GetName()] = asr
+
+			By("Verifying ClusterAutoscaler does NOT scale up without workload demand")
+			Consistently(func() (int32, error) {
+				current, err := framework.GetMachineSet(ctx, client, machineSet.GetName())
+				if err != nil {
+					return -1, err
+				}
+
+				return *current.Spec.Replicas, nil
+			}, framework.WaitShort, pollingInterval).Should(BeEquivalentTo(int32(0)),
+				"ClusterAutoscaler should not enforce min size when disabled - MachineSet should stay at 0")
+		})
 	})
 
 	Context("use a ClusterAutoscaler that has balance similar nodes enabled and 100 maximum total nodes", func() {
@@ -1053,9 +1103,9 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 
 			priorities := fmt.Sprintf(`
 10:
-  - .*%s.*
+ - .*%s.*
 20:
-  - .*%s.*
+ - .*%s.*
 `, transientMachineSets[0].GetName(), transientMachineSets[1].GetName())
 			priorityConfigMap := corev1resourcebuilder.ConfigMap().WithName("cluster-autoscaler-priority-expander").WithNamespace(framework.MachineAPINamespace).WithData(map[string]string{"priorities": priorities}).Build()
 			Eventually(client.Create(ctx, priorityConfigMap)).Should(Succeed(), "Failed to create ConfigMap with priorities %s", priorities)
@@ -1299,6 +1349,13 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 		BeforeEach(func() {
 			gatherer, err = framework.NewGatherer()
 			Expect(err).ToNot(HaveOccurred(), "Failed to create gatherer")
+
+			By("Creating ClusterAutoscaler with EnforceNodeGroupMinSize enabled")
+			clusterAutoscaler = clusterAutoscalerResource(100)
+			enforceMode := caov1.EnforceNodeGroupMinSizeModeEnabled
+			clusterAutoscaler.Spec.EnforceNodeGroupMinSize = &enforceMode
+			Expect(client.Create(ctx, clusterAutoscaler)).Should(Succeed(), "Failed to create ClusterAutoscaler")
+			cleanupObjects[clusterAutoscaler.GetName()] = clusterAutoscaler
 		})
 
 		AfterEach(func() {
@@ -1346,14 +1403,6 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 			minReplicas := int32(1)
 			maxReplicas := int32(3)
 
-			By("Creating ClusterAutoscaler with EnforceNodeGroupMinSize enabled")
-
-			clusterAutoscaler = clusterAutoscalerResource(100)
-			enforceMode := caov1.EnforceNodeGroupMinSizeModeEnabled
-			clusterAutoscaler.Spec.EnforceNodeGroupMinSize = &enforceMode
-			Expect(client.Create(ctx, clusterAutoscaler)).Should(Succeed(), "Failed to create ClusterAutoscaler")
-			cleanupObjects[clusterAutoscaler.GetName()] = clusterAutoscaler
-
 			// 1. START WITH MACHINESET AT 0 REPLICAS
 			By("Creating MachineSet with 0 replicas")
 
@@ -1400,64 +1449,6 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 
 			By("Verifying the machine reaches Running phase")
 			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
-		})
-
-		// Machines required for test: 0
-		// Reason: This test verifies that when EnforceNodeGroupMinSize is disabled,
-		// the ClusterAutoscaler does NOT scale up a MachineSet from 0 unless there is workload demand.
-		It("should not enforce minimum size when disabled ", func() {
-			// Only run in platforms which support autoscaling from/to zero.
-			clusterInfra, err := framework.GetInfrastructure(ctx, client)
-			Expect(err).NotTo(HaveOccurred(), "Failed to get cluster infrastructure object")
-
-			platform := clusterInfra.Status.PlatformStatus.Type
-			switch platform {
-			case configv1.AWSPlatformType, configv1.GCPPlatformType, configv1.AzurePlatformType, configv1.OpenStackPlatformType, configv1.VSpherePlatformType, configv1.NutanixPlatformType:
-				klog.Infof("Platform is %v", platform)
-			default:
-				Skip(fmt.Sprintf("Platform %v does not support autoscaling from/to zero, skipping.", platform))
-			}
-
-			minReplicas := int32(1)
-			maxReplicas := int32(3)
-
-			By("Creating ClusterAutoscaler with EnforceNodeGroupMinSize disabled")
-
-			clusterAutoscaler = clusterAutoscalerResource(100)
-			enforceMode := caov1.EnforceNodeGroupMinSizeModeDisabled
-			clusterAutoscaler.Spec.EnforceNodeGroupMinSize = &enforceMode
-			Expect(client.Create(ctx, clusterAutoscaler)).Should(Succeed(), "Failed to create ClusterAutoscaler")
-			cleanupObjects[clusterAutoscaler.GetName()] = clusterAutoscaler
-
-			By("Creating MachineSet with 0 replicas")
-
-			targetedNodeLabel := fmt.Sprintf("%v-no-enforce-min-size", autoscalerWorkerNodeRoleLabel)
-			machineSetParams := framework.BuildMachineSetParams(ctx, client, 0)
-			machineSetParams.Labels[targetedNodeLabel] = ""
-			machineSet, err := framework.CreateMachineSet(client, machineSetParams)
-			Expect(err).ToNot(HaveOccurred(), "Failed to create MachineSet with 0 replicas")
-
-			cleanupObjects[machineSet.GetName()] = machineSet
-
-			By("Waiting for the MachineSet to be created")
-			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
-
-			By(fmt.Sprintf("Creating a MachineAutoscaler backed by MachineSet %s - min: %d, max: %d",
-				machineSet.GetName(), minReplicas, maxReplicas))
-			asr := machineAutoscalerResource(machineSet, minReplicas, maxReplicas)
-			Expect(client.Create(ctx, asr)).Should(Succeed(), "Failed to create MachineAutoscaler")
-			cleanupObjects[asr.GetName()] = asr
-
-			By("Verifying ClusterAutoscaler does NOT scale up without workload demand")
-			Consistently(func() (int32, error) {
-				current, err := framework.GetMachineSet(ctx, client, machineSet.GetName())
-				if err != nil {
-					return -1, err
-				}
-
-				return *current.Spec.Replicas, nil
-			}, framework.WaitShort, pollingInterval).Should(BeEquivalentTo(int32(0)),
-				"ClusterAutoscaler should not enforce min size when disabled - MachineSet should stay at 0")
 		})
 	})
 })
