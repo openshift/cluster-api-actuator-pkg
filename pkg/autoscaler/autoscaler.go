@@ -1351,6 +1351,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 			Expect(err).ToNot(HaveOccurred(), "Failed to create gatherer")
 
 			By("Creating ClusterAutoscaler with EnforceNodeGroupMinSize enabled")
+
 			clusterAutoscaler = clusterAutoscalerResource(100)
 			enforceMode := caov1.EnforceNodeGroupMinSizeModeEnabled
 			clusterAutoscaler.Spec.EnforceNodeGroupMinSize = &enforceMode
