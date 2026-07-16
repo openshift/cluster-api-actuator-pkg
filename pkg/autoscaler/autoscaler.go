@@ -588,7 +588,7 @@ var _ = Describe("Autoscaler should", framework.LabelAutoscaler, framework.Label
 		// Machines required for test: 0
 		// Reason: This test verifies that when EnforceNodeGroupMinSize is disabled,
 		// the ClusterAutoscaler does NOT scale up a MachineSet from 0 unless there is workload demand.
-		It("should not enforce minimum size when disabled", func() {
+		It("should not enforce minimum size", func() {
 			// Only run in platforms which support autoscaling from/to zero.
 			clusterInfra, err := framework.GetInfrastructure(ctx, client)
 			Expect(err).NotTo(HaveOccurred(), "Failed to get cluster infrastructure object")
