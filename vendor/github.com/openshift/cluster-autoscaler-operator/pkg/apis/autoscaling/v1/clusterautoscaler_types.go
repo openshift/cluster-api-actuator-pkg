@@ -19,6 +19,26 @@ const (
 	RandomExpander     ExpanderString = "Random"
 )
 
+// CordonNodeBeforeTerminatingMode represents the mode for cordoning nodes before terminating.
+// +kubebuilder:validation:Enum=Enabled;Disabled
+type CordonNodeBeforeTerminatingMode string
+
+// These constants define the valid values for CordonNodeBeforeTerminatingMode
+const (
+	CordonNodeBeforeTerminatingModeEnabled  CordonNodeBeforeTerminatingMode = "Enabled"
+	CordonNodeBeforeTerminatingModeDisabled CordonNodeBeforeTerminatingMode = "Disabled"
+)
+
+// EnforceNodeGroupMinSizeMode represents the mode for enforcing node group minimum size.
+// +kubebuilder:validation:Enum=Enabled;Disabled
+type EnforceNodeGroupMinSizeMode string
+
+// These constants define the valid values for EnforceNodeGroupMinSizeMode
+const (
+	EnforceNodeGroupMinSizeModeEnabled  EnforceNodeGroupMinSizeMode = "Enabled"
+	EnforceNodeGroupMinSizeModeDisabled EnforceNodeGroupMinSizeMode = "Disabled"
+)
+
 // ClusterAutoscalerSpec defines the desired state of ClusterAutoscaler
 type ClusterAutoscalerSpec struct {
 	// Constraints of autoscaling resources
@@ -88,6 +108,14 @@ type ClusterAutoscalerSpec struct {
 	// +kubebuilder:validation:MaxItems=3
 	// +optional
 	Expanders []ExpanderString `json:"expanders"`
+	// EnforceNodeGroupMinSize enables/disables the `--enforce-node-group-min-size` cluster-autoscaler feature flag.
+	// When enabled, the cluster autoscaler will enforce the minimum size of a node group,
+	// ensuring that the node group never scales below the configured minimum size even if
+	// nodes are deemed unneeded. This is useful for maintaining a baseline capacity in node groups.
+	// Defaults to Disabled.
+	// +optional
+	// +kubebuilder:default=Disabled
+	EnforceNodeGroupMinSize *EnforceNodeGroupMinSizeMode `json:"enforceNodeGroupMinSize,omitempty"`
 }
 
 // ClusterAutoscalerStatus defines the observed state of ClusterAutoscaler
@@ -185,6 +213,9 @@ type ScaleDownConfig struct {
 	// Node utilization level, defined as sum of requested resources divided by capacity, below which a node can be considered for scale down
 	// +kubebuilder:validation:Pattern=(0.[0-9]+)
 	UtilizationThreshold *string `json:"utilizationThreshold,omitempty"`
+
+	// CordonNodeBeforeTerminating enables/disables cordoning nodes before terminating during scale down.
+	CordonNodeBeforeTerminating *CordonNodeBeforeTerminatingMode `json:"cordonNodeBeforeTerminating,omitempty"`
 }
 
 type ScaleUpConfig struct {
