@@ -13,6 +13,8 @@ import (
 
 	"k8s.io/component-base/featuregate"
 
+	"slices"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -24,7 +26,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/strings/slices"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -65,11 +66,22 @@ var (
 	defaultAzureNetworkResourceGroup = func(clusterID string) string {
 		return fmt.Sprintf("%s-rg", clusterID)
 	}
-	defaultAzureImage = func() machinev1beta1.Image {
-		if arch == ARM64 {
+	defaultAzureGalleryImage = func(clusterID string) machinev1beta1.Image {
+		// image gallery names cannot have dashes
+		galleryName := strings.Replace(clusterID, "-", "_", -1)
+		imageName := fmt.Sprintf("%s-gen2", clusterID) // Confidential VMs are gen2 only
+		imgID := fmt.Sprintf("/resourceGroups/%s/providers/Microsoft.Compute/galleries/gallery_%s/images/%s/versions/%s", clusterID+"-rg", galleryName, imageName, azureRHCOSVersion)
+		return machinev1beta1.Image{ResourceID: imgID}
+	}
+	defaultAzureImage = func(securityProfile *machinev1beta1.SecurityProfile, clusterID string) machinev1beta1.Image {
+		switch {
+		case securityProfile != nil: // Confidential VMs are x86-only
+			return defaultAzureGalleryImage(clusterID)
+		case arch == ARM64:
 			return urnToImage(defaultAzureARMImageURN)
+		default:
+			return urnToImage(defaultAzureX86ImageURN)
 		}
-		return urnToImage(defaultAzureX86ImageURN)
 	}
 	defaultAzureManagedIdentiy = func(clusterID string) string {
 		return fmt.Sprintf("%s-identity", clusterID)
@@ -398,7 +410,7 @@ func NewMachineValidator(client client.Client, featureGate featuregate.MutableFe
 		return nil, err
 	}
 
-	return admission.WithCustomValidator(scheme.Scheme, &machinev1beta1.Machine{}, createMachineValidator(infra, client, dns, featureGate)), nil
+	return admission.WithValidator[*machinev1beta1.Machine](scheme.Scheme, createMachineValidator(infra, client, dns, featureGate)), nil
 }
 
 func createMachineValidator(infra *osconfigv1.Infrastructure, client client.Client, dns *osconfigv1.DNS, featureGate featuregate.MutableFeatureGate) *machineValidatorHandler {
@@ -511,12 +523,7 @@ func (h *machineValidatorHandler) validateMachine(m, oldM *machinev1beta1.Machin
 }
 
 // Handle handles HTTP requests for admission webhook servers.
-func (h *machineValidatorHandler) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	m, ok := obj.(*machinev1beta1.Machine)
-	if !ok {
-		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected a Machine but got a %T", obj))
-	}
-
+func (h *machineValidatorHandler) ValidateCreate(ctx context.Context, m *machinev1beta1.Machine) (admission.Warnings, error) {
 	klog.V(3).Infof("Validate webhook called for Machine: %s", m.GetName())
 
 	ok, warnings, errs := h.validateMachine(m, nil)
@@ -528,17 +535,7 @@ func (h *machineValidatorHandler) ValidateCreate(ctx context.Context, obj runtim
 }
 
 // Handle handles HTTP requests for admission webhook servers.
-func (h *machineValidatorHandler) ValidateUpdate(ctx context.Context, oldObj, obj runtime.Object) (admission.Warnings, error) {
-	m, ok := obj.(*machinev1beta1.Machine)
-	if !ok {
-		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected a Machine but got a %T", obj))
-	}
-
-	mOld, ok := oldObj.(*machinev1beta1.Machine)
-	if !ok {
-		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected a Machine but got a %T", oldObj))
-	}
-
+func (h *machineValidatorHandler) ValidateUpdate(ctx context.Context, mOld, m *machinev1beta1.Machine) (admission.Warnings, error) {
 	klog.V(3).Infof("Validate webhook called for Machine: %s", m.GetName())
 
 	ok, warnings, errs := h.validateMachine(m, mOld)
@@ -550,12 +547,7 @@ func (h *machineValidatorHandler) ValidateUpdate(ctx context.Context, oldObj, ob
 }
 
 // Handle handles HTTP requests for admission webhook servers.
-func (h *machineValidatorHandler) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	m, ok := obj.(*machinev1beta1.Machine)
-	if !ok {
-		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected a Machine but got a %T", obj))
-	}
-
+func (h *machineValidatorHandler) ValidateDelete(ctx context.Context, m *machinev1beta1.Machine) (admission.Warnings, error) {
 	klog.V(3).Infof("Validate webhook called for Machine: %s", m.GetName())
 
 	ok, warnings, errs := h.validateMachine(m, nil)
@@ -831,7 +823,7 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 		}
 	}
 
-	errs = append(errs, processAWSPlacementTenancy(providerSpec.Placement)...)
+	errs = append(errs, processAWSPlacementTenancy(m, providerSpec.Placement)...)
 
 	if providerSpec.PlacementGroupPartition != nil {
 		partition := *providerSpec.PlacementGroupPartition
@@ -928,9 +920,26 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 	return true, warnings, nil
 }
 
+const (
+	machineRoleLabel  = "machine.openshift.io/cluster-api-machine-role"
+	machineTypeLabel  = "machine.openshift.io/cluster-api-machine-type"
+	machineMasterRole = "master"
+)
+
+// isControlPlaneMachine checks if a machine is a control plane/master machine by examining its labels.
+func isControlPlaneMachine(m *machinev1beta1.Machine) bool {
+	if m.Labels == nil {
+		return false
+	}
+	role, hasRole := m.Labels[machineRoleLabel]
+	machineType, hasType := m.Labels[machineTypeLabel]
+
+	return (hasRole && role == machineMasterRole) || (hasType && machineType == machineMasterRole)
+}
+
 // processAWSPlacement analyzes the Placement field in relation to Tenancy and host placement.  These are analyzed
 // together based based on their relations to one another.
-func processAWSPlacementTenancy(placement machinev1beta1.Placement) field.ErrorList {
+func processAWSPlacementTenancy(m *machinev1beta1.Machine, placement machinev1beta1.Placement) field.ErrorList {
 	var errs field.ErrorList
 
 	switch placement.Tenancy {
@@ -940,6 +949,12 @@ func processAWSPlacementTenancy(placement machinev1beta1.Placement) field.ErrorL
 			errs = append(errs, field.Forbidden(field.NewPath("spec.placement.host"), "host may only be specified when tenancy is 'host'"))
 		}
 	case machinev1beta1.HostTenancy:
+		// Dedicated hosts are not supported for control plane machines
+		if isControlPlaneMachine(m) {
+			errs = append(errs, field.Forbidden(field.NewPath("spec.placement.tenancy"), "dedicated host tenancy is not supported for control plane machines"))
+			return errs
+		}
+
 		if placement.Host != nil {
 			klog.V(4).Infof("Validating AWS Host Placement")
 
@@ -950,6 +965,14 @@ func processAWSPlacementTenancy(placement machinev1beta1.Placement) field.ErrorL
 				case machinev1beta1.HostAffinityAnyAvailable:
 					// DedicatedHost is optional.  If it is set, make sure it follows conventions
 					if placement.Host.DedicatedHost != nil {
+						// Dynamic Host Allocation (DHA) requires DedicatedHost affinity
+						strategy := machinev1beta1.AllocationStrategyUserProvided
+						if placement.Host.DedicatedHost.AllocationStrategy != nil {
+							strategy = *placement.Host.DedicatedHost.AllocationStrategy
+						}
+						if strategy == machinev1beta1.AllocationStrategyDynamic {
+							errs = append(errs, field.Forbidden(field.NewPath("spec.placement.host.affinity"), "hostAffinity must be DedicatedHost when using dynamic host allocation"))
+						}
 						errs = append(errs, validateDedicatedHost(placement.Host.DedicatedHost)...)
 					}
 				case machinev1beta1.HostAffinityDedicatedHost:
@@ -1092,7 +1115,7 @@ func defaultAzure(m *machinev1beta1.Machine, config *admissionConfig) (bool, []s
 	}
 
 	if providerSpec.Image == (machinev1beta1.Image{}) {
-		providerSpec.Image = defaultAzureImage()
+		providerSpec.Image = defaultAzureImage(providerSpec.SecurityProfile, config.clusterID)
 	}
 
 	if providerSpec.UserDataSecret == nil {
@@ -1372,7 +1395,7 @@ func defaultGCPDisks(disks []*machinev1beta1.GCPDisk, clusterID string) []*machi
 			disk.Type = defaultGCPDiskType
 		}
 
-		if disk.Image == "" {
+		if disk.Boot && disk.Image == "" {
 			disk.Image = defaultGCPDiskImage()
 		}
 	}
