@@ -9,6 +9,7 @@ import (
 
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/klog"
+	"sigs.k8s.io/controller-runtime/pkg/envtest/komega"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
@@ -27,6 +28,7 @@ import (
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/mapi"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/operators"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/providers"
+	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/unified/e2e"
 )
 
 func init() {
@@ -74,6 +76,9 @@ func TestE2E(t *testing.T) {
 var _ = BeforeSuite(func() {
 	client, err := framework.LoadClient()
 	Expect(err).ToNot(HaveOccurred())
+
+	// Set komega client for all tests
+	komega.SetClient(client)
 
 	ctx := framework.GetContext()
 
