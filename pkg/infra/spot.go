@@ -117,10 +117,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API Running on Spot", framewor
 			machineSetReady := false
 			machineSetParams := framework.BuildMachineSetParams(ctx, client, machinesCount)
 
-			workers, err := framework.GetWorkerMachineSets(ctx, client)
-			Expect(err).ToNot(HaveOccurred(), "listing Worker MachineSets should not error.")
-
-			arch, err = framework.GetArchitectureFromMachineSetNodes(ctx, client, workers[0])
+			arch, err = framework.GetWorkerMachineSetArchitecture(ctx, client)
 			Expect(err).NotTo(HaveOccurred(), "unable to get the architecture for the machine set")
 			machineSetParamsList, err := framework.BuildAlternativeMachineSetParams(machineSetParams, platform, arch)
 			Expect(err).ToNot(HaveOccurred(), "Should be able to build list of MachineSet parameters")

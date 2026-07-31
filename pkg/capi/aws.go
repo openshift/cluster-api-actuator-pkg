@@ -15,7 +15,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/klog"
 	"k8s.io/utils/ptr"
 	awsv1 "sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2"
 	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
@@ -69,7 +68,15 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 		oc, err = framework.NewCLI()
 		Expect(err).ToNot(HaveOccurred(), "Failed to new CLI")
 		framework.SkipIfNotTechPreviewNoUpgradeCtx(ctx, oc, cl)
-		mapiDefaultProviderSpec = getDefaultAWSMAPIProviderSpec(cl)
+
+		workerMachineSet, err := framework.GetSampleMAPIWorkerMachineSet(ctx, cl)
+		Expect(err).ToNot(HaveOccurred(), "getting a sample worker MachineSet should not error")
+		Expect(workerMachineSet).ToNot(BeNil(), "expected to find a MAPI or CAPI worker MachineSet")
+		Expect(workerMachineSet.Spec.Template.Spec.ProviderSpec.Value).ToNot(BeNil(), "expected the worker MachineSet's ProviderSpec value to not be nil")
+
+		mapiDefaultProviderSpec = &mapiv1.AWSMachineProviderConfig{}
+		Expect(yaml.Unmarshal(workerMachineSet.Spec.Template.Spec.ProviderSpec.Value.Raw, mapiDefaultProviderSpec)).To(Succeed(), "it should be able to unmarshal the raw yaml into providerSpec")
+
 		machineSetParams = framework.NewCAPIMachineSetParams(
 			"aws-machineset",
 			clusterName,
@@ -376,25 +383,6 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 	})
 })
 
-func getDefaultAWSMAPIProviderSpec(cl client.Client) *mapiv1.AWSMachineProviderConfig {
-	machineSetList := &mapiv1.MachineSetList{}
-
-	Eventually(func() error {
-		return cl.List(framework.GetContext(), machineSetList, client.InNamespace(framework.MachineAPINamespace))
-	}, framework.WaitShort, framework.RetryShort).Should(Succeed(), "it should be able to list the MAPI machinesets")
-	Expect(machineSetList.Items).ToNot(HaveLen(0), "expected the MAPI machinesets to be present")
-
-	machineSet := &machineSetList.Items[0]
-	Expect(machineSet.Spec.Template.Spec.ProviderSpec.Value).ToNot(BeNil(), "expected the MAPI machinesets ProviderSpec value to not be nil")
-
-	providerSpec := &mapiv1.AWSMachineProviderConfig{}
-	Expect(yaml.Unmarshal(machineSet.Spec.Template.Spec.ProviderSpec.Value.Raw, providerSpec)).To(Succeed(), "it should be able to unmarshal the raw yaml into providerSpec")
-
-	klog.Infof("Getting from machineset %v", machineSet.Name)
-
-	return providerSpec
-}
-
 func newAWSMachineTemplate(name string, mapiProviderSpec *mapiv1.AWSMachineProviderConfig) *awsv1.AWSMachineTemplate {
 	By("Creating AWS machine template")
 
@@ -481,11 +469,7 @@ func createAWSCAPIMachineSetWithRetry(ctx context.Context, cl client.Client, mac
 	machineSetReady := false
 
 	// Get the current cluster architecture
-	workers, err := framework.GetWorkerMachineSets(ctx, cl)
-	Expect(err).ToNot(HaveOccurred(), "listing Worker MachineSets should not error.")
-	Expect(len(workers)).To(BeNumerically(">=", 1), "expected at least one worker MachineSet to exist")
-
-	arch, err := framework.GetArchitectureFromMachineSetNodes(ctx, cl, workers[0])
+	arch, err := framework.GetWorkerMachineSetArchitecture(ctx, cl)
 	Expect(err).NotTo(HaveOccurred(), "unable to get the architecture for the machine set")
 
 	// Select alternative instance types based on architecture
