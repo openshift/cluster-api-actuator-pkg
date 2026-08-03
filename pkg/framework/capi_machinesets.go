@@ -2,6 +2,7 @@ package framework
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -173,6 +174,104 @@ func WaitForCAPIMachinesRunning(ctx context.Context, cl client.Client, name stri
 
 		return nil
 	}, WaitOverLong, RetryMedium).Should(Succeed(), "all machines belonging to the MachineSet should be in Running phase")
+}
+
+// GetCAPIWorkerMachineSets returns the CAPI MachineSets in the ClusterAPINamespace that label
+// their Machine template with the "worker" node role.
+//
+// A nil, nil return means the list succeeded but no CAPI worker MachineSets were found: this is
+// deliberately not treated as an error, so that callers can distinguish "no CAPI worker
+// MachineSets exist" from "listing CAPI MachineSets failed" and fall through accordingly.
+func GetCAPIWorkerMachineSets(ctx context.Context, cl client.Client) ([]*clusterv1beta1.MachineSet, error) {
+	machineSetList := &clusterv1beta1.MachineSetList{}
+
+	if err := cl.List(ctx, machineSetList, client.InNamespace(ClusterAPINamespace)); err != nil {
+		return nil, fmt.Errorf("error listing CAPI MachineSets: %w", err)
+	}
+
+	var result []*clusterv1beta1.MachineSet
+
+	// CAPI does not label MachineSets with a role, but the installer labels the Machine
+	// template with the node-role.kubernetes.io/worker label, so we check there instead.
+	for i, ms := range machineSetList.Items {
+		labels := ms.Spec.Template.Labels
+
+		if labels == nil {
+			continue
+		}
+
+		if _, ok := labels[clusterv1beta1.NodeRoleLabelPrefix+"/worker"]; ok {
+			result = append(result, &machineSetList.Items[i])
+		}
+	}
+
+	return result, nil
+}
+
+// GetArchitectureFromCAPIMachineSetNodes returns the architecture of the nodes controlled by
+// the given CAPI machineSet's machines. It mirrors GetArchitectureFromMachineSetNodes, but
+// operates on CAPI types.
+func GetArchitectureFromCAPIMachineSetNodes(ctx context.Context, cl client.Client, machineSet *clusterv1beta1.MachineSet) (string, error) {
+	machines, err := GetCAPIMachinesFromMachineSet(ctx, cl, machineSet)
+	if err != nil {
+		klog.Warningf("error getting machines for CAPI machineSet %s: %v", machineSet.Name, err)
+	}
+
+	for _, m := range machines {
+		node, nodeErr := GetCAPINodeForMachine(ctx, cl, m)
+		if nodeErr != nil || node == nil {
+			continue
+		}
+
+		return node.Status.NodeInfo.Architecture, nil
+	}
+
+	klog.Warningf("error getting the CAPI machineSet's nodes or no nodes associated with %s. Falling back to the infrastructure MachineTemplate's NodeInfo status", machineSet.Name)
+
+	arch, err := architectureFromInfraMachineTemplate(ctx, cl, machineSet)
+	if err != nil {
+		return "", fmt.Errorf("error getting the CAPI machineSet's nodes and unable to infer the architecture from its infrastructure MachineTemplate: %w", err)
+	}
+
+	return arch, nil
+}
+
+// GetWorkerMachineSetArchitecture returns the architecture of one of the cluster's worker
+// MachineSets, either MAPI or CAPI.
+func GetWorkerMachineSetArchitecture(ctx context.Context, cl client.Client) (string, error) {
+	var errs []error
+
+	if workers, err := GetWorkerMachineSets(ctx, cl); err != nil {
+		return "", fmt.Errorf("error listing MAPI worker MachineSets: %w", err)
+	} else {
+		for _, ms := range workers {
+			arch, archErr := GetArchitectureFromMachineSetNodes(ctx, cl, ms)
+			if archErr == nil {
+				return arch, nil
+			}
+
+			errs = append(errs, fmt.Errorf("error getting the architecture from MAPI worker MachineSet %s: %w", ms.Name, archErr))
+		}
+	}
+
+	if workers, err := GetCAPIWorkerMachineSets(ctx, cl); err != nil {
+		return "", fmt.Errorf("error listing CAPI worker MachineSets: %w", err)
+	} else {
+		for _, ms := range workers {
+			arch, archErr := GetArchitectureFromCAPIMachineSetNodes(ctx, cl, ms)
+			if archErr == nil {
+				return arch, nil
+			}
+
+			errs = append(errs, fmt.Errorf("error getting the architecture from CAPI worker MachineSet %s: %w", ms.Name, archErr))
+		}
+	}
+
+	if len(errs) > 0 {
+		return "", fmt.Errorf("error getting the architecture from any worker MachineSet: %w", errors.Join(errs...))
+	}
+
+	return "", errNoWorkerMachineSetsFound
 }
 
 // GetCAPIMachineSet gets a machineset by its name from the default machine API namespace.

@@ -68,6 +68,9 @@ var (
 
 	// errMachineInMachineSetFailed is used when one of the machines in the machine set is in a failed state.
 	errMachineInMachineSetFailed = errors.New("machine in the machineset is in a failed phase")
+
+	// errNoWorkerMachineSetsFound is used when neither a MAPI nor a CAPI worker MachineSet could be found.
+	errNoWorkerMachineSetsFound = errors.New("no MAPI or CAPI worker MachineSets found")
 )
 
 // BuildPerArchMachineSetParamsList builds a list of MachineSetParams for each architecture in the cluster.
@@ -141,12 +144,92 @@ func buildMachineSetParamsFromMachineSet(ctx context.Context, client runtimeclie
 
 // BuildMachineSetParams builds a MachineSetParams object from the first worker MachineSet retrieved from the cluster.
 func BuildMachineSetParams(ctx context.Context, client runtimeclient.Client, replicas int) MachineSetParams {
-	// Get the current workers MachineSets so we can copy a ProviderSpec
-	// from one to use with our new dedicated MachineSet.
-	workers, err := GetWorkerMachineSets(ctx, client)
-	Expect(err).ToNot(HaveOccurred(), "listing Worker MachineSets should not error.")
+	// Get a sample worker MachineSet so we can copy a ProviderSpec from it to use with our
+	// new dedicated MachineSet. This falls back to synthesizing a MAPI MachineSet from a CAPI
+	// worker MachineSet when no real MAPI worker MachineSet exists.
+	worker, err := GetSampleMAPIWorkerMachineSet(ctx, client)
+	Expect(err).ToNot(HaveOccurred(), "getting a sample worker MachineSet should not error.")
+	Expect(worker).ToNot(BeNil(), "expected to find a MAPI or CAPI worker MachineSet.")
 
-	return buildMachineSetParamsFromMachineSet(ctx, client, replicas, workers[0])
+	return buildMachineSetParamsFromMachineSet(ctx, client, replicas, worker)
+}
+
+// GetSampleMAPIWorkerMachineSet returns a MAPI worker MachineSet suitable for
+// use as a read-only template, e.g. to copy a ProviderSpec from. The returned
+// MachineSet is not guaranteed to exist.
+//
+// It first tries to find a real MAPI worker MachineSet. If none exists (e.g. on
+// a CAPI-default cluster), it falls back to synthesizing one in-memory from a
+// real CAPI worker MachineSet.
+//
+// The synthesized MachineSet is never created against the API server, has no UID, and must
+// only be used as a template: it must not be treated as a live object with real status or
+// owned Machines.
+//
+// Returns errNoWorkerMachineSetsFound when neither a MAPI nor a CAPI worker MachineSet could
+// be found.
+func GetSampleMAPIWorkerMachineSet(ctx context.Context, client runtimeclient.Client) (*machinev1.MachineSet, error) {
+	workers, err := GetWorkerMachineSets(ctx, client)
+	if err != nil {
+		return nil, fmt.Errorf("error listing worker MachineSets: %w", err)
+	}
+
+	if len(workers) > 0 {
+		return workers[0], nil
+	}
+
+	capiWorkers, err := GetCAPIWorkerMachineSets(ctx, client)
+	if err != nil {
+		return nil, fmt.Errorf("error listing CAPI worker MachineSets: %w", err)
+	}
+
+	if len(capiWorkers) == 0 {
+		return nil, errNoWorkerMachineSetsFound
+	}
+
+	mapiMachineSet, err := convertCAPIWorkerMachineSetToMAPI(ctx, client, capiWorkers[0])
+	if err != nil {
+		return nil, fmt.Errorf("error converting CAPI worker MachineSet %q to a MAPI MachineSet: %w", capiWorkers[0].Name, err)
+	}
+
+	// The capi2mapi conversion sets the synthesized MachineSet's Namespace to the source CAPI
+	// MachineSet's namespace (openshift-cluster-api), not the MAPI namespace. Correct it here so
+	// callers can trust the returned object's Namespace regardless of which path produced it.
+	mapiMachineSet.Namespace = MachineAPINamespace
+
+	// The capi2mapi conversion drops all "cluster.x-k8s.io/" labels, including the CAPI
+	// cluster-name label, and never reconstructs the MAPI equivalent. Without this, the
+	// synthesized MachineSet's ClusterKey label (and everything callers copy it into) would
+	// silently be empty, which fails MAPI machine/machineset validation. Set it explicitly
+	// here from the Infrastructure object, mirroring what a real MAPI worker MachineSet has.
+	clusterInfra, err := GetInfrastructure(ctx, client)
+	if err != nil {
+		return nil, fmt.Errorf("error getting infrastructure object: %w", err)
+	}
+
+	if clusterInfra.Status.InfrastructureName == "" {
+		return nil, errors.New("infrastructure name was empty on Infrastructure.Status")
+	}
+
+	if mapiMachineSet.Labels == nil {
+		mapiMachineSet.Labels = map[string]string{}
+	}
+
+	mapiMachineSet.Labels[ClusterKey] = clusterInfra.Status.InfrastructureName
+
+	if mapiMachineSet.Spec.Template.Labels == nil {
+		mapiMachineSet.Spec.Template.Labels = map[string]string{}
+	}
+
+	mapiMachineSet.Spec.Template.Labels[ClusterKey] = clusterInfra.Status.InfrastructureName
+
+	if mapiMachineSet.Spec.Template.Spec.Labels == nil {
+		mapiMachineSet.Spec.Template.Spec.Labels = map[string]string{}
+	}
+
+	mapiMachineSet.Spec.Template.Spec.Labels[ClusterKey] = clusterInfra.Status.InfrastructureName
+
+	return mapiMachineSet, nil
 }
 
 // CreateMachineSet creates a new MachineSet resource.
@@ -358,10 +441,6 @@ func GetWorkerMachineSets(ctx context.Context, client runtimeclient.Client) ([]*
 		if labels[MachineRoleLabel] == "worker" {
 			result = append(result, &machineSets.Items[i])
 		}
-	}
-
-	if len(result) < 1 {
-		return nil, fmt.Errorf("no worker MachineSets found")
 	}
 
 	return result, nil

@@ -245,10 +245,9 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API CapacityReservationID", fr
 	It("machine should get Running with active capacityReservationId", framework.LabelQEOnly, framework.LabelPeriodic, func() {
 		By("Get instanceType and availabilityZone from the first worker MachineSet")
 
-		workers, err := framework.GetWorkerMachineSets(ctx, client)
+		worker0, err := framework.GetSampleMAPIWorkerMachineSet(ctx, client)
 		Expect(err).ToNot(HaveOccurred())
-
-		worker0 := workers[0]
+		Expect(worker0).ToNot(BeNil(), "expected to find a MAPI or CAPI worker MachineSet")
 
 		var awsProviderConfig machinev1.AWSMachineProviderConfig
 

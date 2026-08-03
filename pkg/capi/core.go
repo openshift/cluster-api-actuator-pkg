@@ -18,6 +18,7 @@ import (
 	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/komega"
+	yaml "sigs.k8s.io/yaml"
 )
 
 var _ = Describe("[sig-cluster-lifecycle] Cluster API MachineSet", framework.LabelCAPI, framework.LabelDisruptive, Ordered, func() {
@@ -60,7 +61,13 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API MachineSet", framework.Lab
 
 		switch platform {
 		case configv1.AWSPlatformType:
-			awsMapiMachineSpec = getDefaultAWSMAPIProviderSpec(client)
+			workerMachineSet, err := framework.GetSampleMAPIWorkerMachineSet(ctx, client)
+			Expect(err).ToNot(HaveOccurred(), "getting a sample worker MachineSet should not error")
+			Expect(workerMachineSet).ToNot(BeNil(), "expected to find a MAPI or CAPI worker MachineSet")
+			Expect(workerMachineSet.Spec.Template.Spec.ProviderSpec.Value).ToNot(BeNil(), "expected the worker MachineSet's ProviderSpec value to not be nil")
+
+			awsMapiMachineSpec = &mapiv1.AWSMachineProviderConfig{}
+			Expect(yaml.Unmarshal(workerMachineSet.Spec.Template.Spec.ProviderSpec.Value.Raw, awsMapiMachineSpec)).To(Succeed(), "it should be able to unmarshal the raw yaml into providerSpec")
 			failureDomain = awsMapiMachineSpec.Placement.AvailabilityZone
 			kind = "AWSMachineTemplate"
 		case configv1.AzurePlatformType:
