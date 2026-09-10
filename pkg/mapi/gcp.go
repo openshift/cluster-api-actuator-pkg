@@ -13,6 +13,7 @@ import (
 	mapiv1 "github.com/openshift/api/machine/v1beta1"
 	framework "github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog"
 	"k8s.io/utils/ptr"
@@ -23,6 +24,64 @@ import (
 var (
 	cl client.Client
 )
+
+const (
+	coreOSBootImagesNamespace = "openshift-machine-config-operator"
+	coreOSBootImagesName      = "coreos-bootimages"
+)
+
+// coreOSBootImageStream is a minimal view of the CoreOS stream metadata, holding
+// only the GCP image fields this suite needs.
+type coreOSBootImageStream struct {
+	Architectures map[string]struct {
+		Images struct {
+			GCP *struct {
+				Project string `json:"project"`
+				Name    string `json:"name"`
+			} `json:"gcp"`
+		} `json:"images"`
+	} `json:"architectures"`
+}
+
+// gcpImagesFromCoreOSBootImages returns every GCP image reference published in the
+// coreos-bootimages ConfigMap, across all streams and architectures. A boot image
+// resolved by the GCP actuator must be one of these.
+func gcpImagesFromCoreOSBootImages(ctx context.Context, cl client.Client) []string {
+	cm := &corev1.ConfigMap{}
+	Expect(cl.Get(ctx, client.ObjectKey{
+		Namespace: coreOSBootImagesNamespace,
+		Name:      coreOSBootImagesName,
+	}, cm)).To(Succeed(), "Should be able to get the coreos-bootimages ConfigMap")
+
+	rawStreams := map[string]json.RawMessage{}
+
+	if streams, ok := cm.Data["streams"]; ok {
+		Expect(json.Unmarshal([]byte(streams), &rawStreams)).To(Succeed(), "Should be able to parse the streams key of the coreos-bootimages ConfigMap")
+	} else {
+		// Older clusters publish a single stream under the deprecated "stream" key.
+		stream, ok := cm.Data["stream"]
+		Expect(ok).To(BeTrue(), "coreos-bootimages ConfigMap should have either a streams or a stream key")
+
+		rawStreams["stream"] = json.RawMessage(stream)
+	}
+
+	images := []string{}
+
+	for name, raw := range rawStreams {
+		stream := &coreOSBootImageStream{}
+		Expect(json.Unmarshal(raw, stream)).To(Succeed(), fmt.Sprintf("Should be able to parse stream %q from the coreos-bootimages ConfigMap", name))
+
+		for _, arch := range stream.Architectures {
+			if arch.Images.GCP == nil {
+				continue
+			}
+
+			images = append(images, fmt.Sprintf("projects/%s/global/images/%s", arch.Images.GCP.Project, arch.Images.GCP.Name))
+		}
+	}
+
+	return images
+}
 
 var _ = Describe("[sig-cluster-lifecycle] Machine API GCP MachineSet", framework.LabelMAPI, framework.LabelDisruptive, Ordered, func() {
 	var (
@@ -280,5 +339,66 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API GCP MachineSet", framework
 		Expect(verifyProviderSpec.ProvisioningModel).To(BeNil(), "MachineSet template should have provisioningModel not set to Spot (nil/omitted)")
 
 		klog.Infof("Successfully verified that MachineSet %q template was updated with preemptible: true and provisioningModel is not set to Spot", mapiMachineSet.Name)
+	})
+
+	// Machines whose provider spec omits the boot disk image have it resolved by
+	// the GCP actuator at reconcile time, from the coreos-bootimages ConfigMap.
+	// Installer-created MachineSets always carry an explicit image, so this is the
+	// only test that exercises that path.
+	//
+	// This requires the MAPI admission webhook to have stopped defaulting the boot
+	// disk image; until then the webhook refills the field with its own constant
+	// and this test fails.
+	It("should resolve the boot disk image when the provider spec omits it", func() {
+		By("Building MachineSet parameters from existing cluster")
+
+		machineSetParams := framework.BuildMachineSetParams(ctx, cl, 1)
+
+		infra, err := framework.GetInfrastructure(ctx, cl)
+		Expect(err).NotTo(HaveOccurred(), "Failed to get cluster infrastructure object")
+		Expect(infra.Status.InfrastructureName).ShouldNot(BeEmpty(), "infrastructure name was empty on Infrastructure.Status.")
+		machineSetParams.Name = infra.Status.InfrastructureName + "-bootimage-" + uuid.New().String()[0:5]
+
+		By("Clearing the boot disk image from the provider spec")
+
+		providerSpec := &mapiv1.GCPMachineProviderSpec{}
+		Expect(json.Unmarshal(machineSetParams.ProviderSpec.Value.Raw, providerSpec)).To(Succeed(), "Should be able to unmarshal provider spec")
+		Expect(providerSpec.Disks).ToNot(BeEmpty(), "Worker provider spec should define at least one disk")
+
+		providerSpec.Disks[0].Image = ""
+
+		rawProviderSpec, err := json.Marshal(providerSpec)
+		Expect(err).ToNot(HaveOccurred(), "Should be able to marshal provider spec")
+
+		machineSetParams.ProviderSpec.Value = &runtime.RawExtension{
+			Raw: rawProviderSpec,
+		}
+
+		By("Creating a MachineSet with no boot disk image")
+
+		mapiMachineSet, err = framework.CreateMachineSet(cl, machineSetParams)
+		Expect(err).ToNot(HaveOccurred(), "MachineSet should be able to be created")
+
+		By("Waiting for the MachineSet to have running machines")
+		framework.WaitForMachineSet(ctx, cl, mapiMachineSet.GetName())
+
+		By("Verifying the actuator resolved a boot disk image onto the machine")
+
+		machines, err := framework.GetMachinesFromMachineSet(ctx, cl, mapiMachineSet)
+		Expect(err).ToNot(HaveOccurred(), "Getting machines from MachineSet should succeed")
+		Expect(machines).To(HaveLen(1), "MachineSet should have exactly 1 machine")
+
+		machine := machines[0]
+		machineProviderSpec := &mapiv1.GCPMachineProviderSpec{}
+		Expect(json.Unmarshal(machine.Spec.ProviderSpec.Value.Raw, machineProviderSpec)).To(Succeed(), "Should be able to unmarshal machine provider spec")
+		Expect(machineProviderSpec.Disks).ToNot(BeEmpty(), "Machine provider spec should define at least one disk")
+
+		expectedImages := gcpImagesFromCoreOSBootImages(ctx, cl)
+		Expect(expectedImages).ToNot(BeEmpty(), "coreos-bootimages ConfigMap should publish at least one GCP image")
+
+		Expect(machineProviderSpec.Disks[0].Image).To(BeElementOf(expectedImages),
+			"boot disk image should have been resolved from the coreos-bootimages ConfigMap")
+
+		klog.Infof("Successfully verified that machine %q resolved boot disk image %q", machine.Name, machineProviderSpec.Disks[0].Image)
 	})
 })
