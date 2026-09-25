@@ -29,7 +29,7 @@ var _ = Describe("OpenStackMachineTemplateBuilder", func() {
 		It("should return a default OpenStackMachineTemplate when no options are specified", func() {
 			openstackMachineTemplate := OpenStackMachineTemplate().Build()
 			Expect(openstackMachineTemplate).ToNot(BeNil())
-			Expect(openstackMachineTemplate.TypeMeta.APIVersion).To(Equal("infrastructure.cluster.x-k8s.io/v1beta2"))
+			Expect(openstackMachineTemplate.TypeMeta.APIVersion).To(Equal("infrastructure.cluster.x-k8s.io/v1beta1"))
 			Expect(openstackMachineTemplate.TypeMeta.Kind).To(Equal("OpenStackMachineTemplate"))
 		})
 	})

@@ -29,7 +29,7 @@ var _ = Describe("OpenStackCluster", func() {
 		It("should return a default OpenStackCluster when no options are specified", func() {
 			openstackCluster := OpenStackCluster().Build()
 			Expect(openstackCluster).ToNot(BeNil())
-			Expect(openstackCluster.TypeMeta.APIVersion).To(Equal("infrastructure.cluster.x-k8s.io/v1beta2"))
+			Expect(openstackCluster.TypeMeta.APIVersion).To(Equal("infrastructure.cluster.x-k8s.io/v1beta1"))
 			Expect(openstackCluster.TypeMeta.Kind).To(Equal("OpenStackCluster"))
 		})
 	})
