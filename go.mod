@@ -3,6 +3,8 @@ module github.com/openshift/cluster-api-actuator-pkg
 go 1.26.0
 
 replace (
+	// OCPSTRAT-3624: Use fork with Licenses field added to GCPDisk
+	github.com/openshift/api => github.com/redhat-chai-bot/api v0.0.0-20260813080306-5e4780e5baca
 	github.com/openshift/cluster-api-actuator-pkg/testutils => ./testutils
 
 	// CAPA imports cluster-api/test, which has a placeholder for cluster-api
