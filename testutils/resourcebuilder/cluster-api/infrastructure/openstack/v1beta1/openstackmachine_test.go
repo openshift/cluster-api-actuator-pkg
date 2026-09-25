@@ -30,7 +30,7 @@ var _ = Describe("OpenStackMachineBuilder", func() {
 		It("should return a default OpenStackMachine when no options are specified", func() {
 			openstackMachine := OpenStackMachine().Build()
 			Expect(openstackMachine).ToNot(BeNil())
-			Expect(openstackMachine.TypeMeta.APIVersion).To(Equal("infrastructure.cluster.x-k8s.io/v1beta2"))
+			Expect(openstackMachine.TypeMeta.APIVersion).To(Equal("infrastructure.cluster.x-k8s.io/v1beta1"))
 			Expect(openstackMachine.TypeMeta.Kind).To(Equal("OpenStackMachine"))
 		})
 	})

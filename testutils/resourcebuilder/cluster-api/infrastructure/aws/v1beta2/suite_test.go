@@ -24,7 +24,7 @@ import (
 
 const testPrefix = "test-"
 
-func TestV1Beta1(t *testing.T) {
+func TestAWSV1Beta2(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "cluster-api infrastructure v1beta2 Suite")
+	RunSpecs(t, "cluster-api infrastructure aws v1beta2 Suite")
 }
