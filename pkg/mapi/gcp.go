@@ -3,7 +3,6 @@ package mapi
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
@@ -13,6 +12,7 @@ import (
 	mapiv1 "github.com/openshift/api/machine/v1beta1"
 	framework "github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog"
 	"k8s.io/utils/ptr"
@@ -51,6 +51,10 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API GCP MachineSet", framework
 		if CurrentSpecReport().State == gotypes.SpecStateSkipped {
 			return
 		}
+
+		if CurrentSpecReport().Failed() && mapiMachineSet != nil {
+			logMachineSetFailureDiagnostics(ctx, cl, mapiMachineSet)
+		}
 		// Clean up MAPI MachineSets
 		if mapiMachineSet != nil {
 			err := framework.DeleteMachineSets(cl, mapiMachineSet)
@@ -61,7 +65,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API GCP MachineSet", framework
 
 	It("should have all Shielded VM options disabled when using nonUefi image", framework.LabelPeriodic, func() {
 		// Get MAPI machineset parameters
-		machineSetParams := framework.BuildMachineSetParams(ctx, cl, 1)
+		machineSetParams := framework.BuildMachineSetParams(ctx, cl, 0)
 
 		// Override the name to include testcaseid 83064
 		infra, err := framework.GetInfrastructure(ctx, cl)
@@ -69,7 +73,7 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API GCP MachineSet", framework
 		Expect(infra.Status.InfrastructureName).ShouldNot(BeEmpty(), "infrastructure name was empty on Infrastructure.Status.")
 		machineSetParams.Name = infra.Status.InfrastructureName + "-83064-" + uuid.New().String()[0:5]
 
-		// Modify the provider spec to use the nonUefi image
+		// The Marketplace RHCOS 4.8 image is intentionally non-UEFI.
 		nonUefiImage := "projects/redhat-marketplace-public/global/images/redhat-coreos-ocp-48-x86-64-202210040145"
 
 		// Unmarshal the provider spec to modify it
@@ -78,6 +82,9 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API GCP MachineSet", framework
 
 		// Set the specific image
 		providerSpec.Disks[0].Image = nonUefiImage
+		// Ensure the MachineSet controller, rather than inherited configuration or
+		// admission defaulting, is responsible for setting the disabled policies.
+		providerSpec.ShieldedInstanceConfig = mapiv1.GCPShieldedInstanceConfig{}
 
 		// Marshal back to raw bytes using JSON
 		rawProviderSpec, err := json.Marshal(providerSpec)
@@ -92,27 +99,21 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API GCP MachineSet", framework
 		mapiMachineSet, err = framework.CreateMachineSet(cl, machineSetParams)
 		Expect(err).ToNot(HaveOccurred(), "MachineSet should be able to be created")
 
-		framework.WaitForMachineSet(ctx, cl, mapiMachineSet.GetName())
+		By("Waiting for the MachineSet controller to disable all Shielded VM options")
+		Eventually(func(g Gomega) {
+			current := &mapiv1.MachineSet{}
+			g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(mapiMachineSet), current)).To(Succeed())
 
-		By("Verifying that all Shielded VM options are disabled")
-		// Get the machines created by this MachineSet
-		machines, err := framework.GetMachinesFromMachineSet(ctx, cl, mapiMachineSet)
-		Expect(err).ToNot(HaveOccurred(), "Getting machine from MachineSet should succeed")
+			actual := &mapiv1.GCPMachineProviderSpec{}
+			g.Expect(json.Unmarshal(current.Spec.Template.Spec.ProviderSpec.Value.Raw, actual)).To(Succeed())
+			g.Expect(actual.ShieldedInstanceConfig).To(Equal(mapiv1.GCPShieldedInstanceConfig{
+				SecureBoot:                       mapiv1.SecureBootPolicyDisabled,
+				VirtualizedTrustedPlatformModule: mapiv1.VirtualizedTrustedPlatformModulePolicyDisabled,
+				IntegrityMonitoring:              mapiv1.IntegrityMonitoringPolicyDisabled,
+			}))
+		}, framework.WaitMedium, framework.RetryMedium).Should(Succeed(), "MachineSet template should have all Shielded VM options disabled")
 
-		// Get the first machine created by this MachineSet and verify its provider spec
-		machine := machines[0]
-		machineProviderSpec := &mapiv1.GCPMachineProviderSpec{}
-
-		By(fmt.Sprintf("Getting machine %q created by MachineSet %q", machine.Name, mapiMachineSet.Name))
-		Expect(json.Unmarshal(machine.Spec.ProviderSpec.Value.Raw, machineProviderSpec)).To(Succeed(), "Should be able to unmarshal machine provider spec")
-
-		Expect(machineProviderSpec).To(HaveField("ShieldedInstanceConfig", Equal(mapiv1.GCPShieldedInstanceConfig{
-			SecureBoot:                       mapiv1.SecureBootPolicyDisabled,
-			VirtualizedTrustedPlatformModule: mapiv1.VirtualizedTrustedPlatformModulePolicyDisabled,
-			IntegrityMonitoring:              mapiv1.IntegrityMonitoringPolicyDisabled,
-		})), "provider spec should have shielded-instance defaults disabled")
-
-		klog.Infof("Successfully verified that machine %q has all Shielded VM options disabled", machine.Name)
+		klog.Infof("Successfully verified that MachineSet %q has all Shielded VM options disabled", mapiMachineSet.Name)
 	})
 
 	// Test for provisioningModel: Spot
@@ -282,3 +283,55 @@ var _ = Describe("[sig-cluster-lifecycle] Machine API GCP MachineSet", framework
 		klog.Infof("Successfully verified that MachineSet %q template was updated with preemptible: true and provisioningModel is not set to Spot", mapiMachineSet.Name)
 	})
 })
+
+// logMachineSetFailureDiagnostics emits the resources that explain a failed GCP
+// MachineSet reconciliation before AfterEach deletes them. ReconcileError events
+// and GCP provider status conditions contain controller and Compute API errors that
+// would otherwise be lost during cleanup.
+func logMachineSetFailureDiagnostics(ctx context.Context, c client.Client, machineSet *mapiv1.MachineSet) {
+	currentMachineSet := &mapiv1.MachineSet{}
+	if err := c.Get(ctx, client.ObjectKeyFromObject(machineSet), currentMachineSet); err != nil {
+		klog.Errorf("failure diagnostics: get MachineSet %s/%s: %v", machineSet.Namespace, machineSet.Name, err)
+		return
+	}
+
+	klog.Errorf("failure diagnostics: MachineSet %s/%s status: %+v", currentMachineSet.Namespace, currentMachineSet.Name, currentMachineSet.Status)
+
+	machines, err := framework.GetMachinesFromMachineSet(ctx, c, currentMachineSet)
+	if err != nil {
+		klog.Errorf("failure diagnostics: list Machines for MachineSet %s/%s: %v", currentMachineSet.Namespace, currentMachineSet.Name, err)
+		return
+	}
+
+	involvedObjects := map[string]struct{}{currentMachineSet.Name: {}}
+	for _, machine := range machines {
+		involvedObjects[machine.Name] = struct{}{}
+		klog.Errorf("failure diagnostics: Machine %s/%s status: %+v", machine.Namespace, machine.Name, machine.Status)
+
+		if machine.Status.ProviderStatus == nil {
+			continue
+		}
+
+		providerStatus := &mapiv1.GCPMachineProviderStatus{}
+		if err := json.Unmarshal(machine.Status.ProviderStatus.Raw, providerStatus); err != nil {
+			klog.Errorf("failure diagnostics: decode GCP provider status for Machine %s/%s: %v; raw status: %s", machine.Namespace, machine.Name, err, machine.Status.ProviderStatus.Raw)
+			continue
+		}
+
+		klog.Errorf("failure diagnostics: Machine %s/%s GCP provider status: %+v", machine.Namespace, machine.Name, *providerStatus)
+	}
+
+	events := &corev1.EventList{}
+	if err := c.List(ctx, events, client.InNamespace(currentMachineSet.Namespace)); err != nil {
+		klog.Errorf("failure diagnostics: list events in namespace %s: %v", currentMachineSet.Namespace, err)
+		return
+	}
+
+	for _, event := range events.Items {
+		if _, ok := involvedObjects[event.InvolvedObject.Name]; !ok {
+			continue
+		}
+
+		klog.Errorf("failure diagnostics: event for %s %s/%s: type=%s reason=%s message=%s", event.InvolvedObject.Kind, event.Namespace, event.InvolvedObject.Name, event.Type, event.Reason, event.Message)
+	}
+}
