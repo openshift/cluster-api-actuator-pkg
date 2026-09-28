@@ -17,6 +17,7 @@ import (
 	"k8s.io/utils/ptr"
 	awsv1 "sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2"
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
+	"sigs.k8s.io/cluster-api/controllers/external"
 
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
@@ -552,7 +553,7 @@ func getAWSInstanceConfig(ctx context.Context, cl client.Client, oc *gatherer.CL
 	Expect(machines).To(HaveLen(1), "Expected exactly one machine")
 
 	machine := machines[0]
-	infraMachine, err := framework.GetCAPIInfraMachine(ctx, cl, machine)
+	infraMachine, err := external.GetObjectFromContractVersionedRef(ctx, cl, machine.Spec.InfrastructureRef, machine.Namespace)
 	Expect(err).ToNot(HaveOccurred(), "Failed to get InfraMachine")
 
 	instanceID, found, err := unstructured.NestedString(infraMachine.Object, "spec", "instanceID")

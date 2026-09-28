@@ -49,6 +49,7 @@ func init() {
 	if err := clusterv1.AddToScheme(scheme.Scheme); err != nil {
 		klog.Fatal(err)
 	}
+
 	if err := apiextensionsv1.AddToScheme(scheme.Scheme); err != nil {
 		klog.Fatal(err)
 	}

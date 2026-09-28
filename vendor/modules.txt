@@ -2014,6 +2014,7 @@ k8s.io/apimachinery/third_party/forked/golang/reflect
 # k8s.io/apiserver v0.36.2
 ## explicit; go 1.26.0
 k8s.io/apiserver/pkg/authentication/user
+k8s.io/apiserver/pkg/storage/names
 # k8s.io/cli-runtime v0.36.2
 ## explicit; go 1.26.0
 k8s.io/cli-runtime/pkg/genericclioptions
@@ -2394,16 +2395,22 @@ mvdan.cc/unparam/check
 sigs.k8s.io/cluster-api/api/core/v1beta1
 sigs.k8s.io/cluster-api/api/core/v1beta2
 sigs.k8s.io/cluster-api/cmd/clusterctl/api/v1alpha3
+sigs.k8s.io/cluster-api/controllers/external
 sigs.k8s.io/cluster-api/errors
 sigs.k8s.io/cluster-api/feature
+sigs.k8s.io/cluster-api/internal/contract
 sigs.k8s.io/cluster-api/util
 sigs.k8s.io/cluster-api/util/annotations
 sigs.k8s.io/cluster-api/util/conditions
 sigs.k8s.io/cluster-api/util/conditions/deprecated/v1beta1
+sigs.k8s.io/cluster-api/util/contract
 sigs.k8s.io/cluster-api/util/conversion
 sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions
 sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions/v1beta2
+sigs.k8s.io/cluster-api/util/labels
 sigs.k8s.io/cluster-api/util/labels/format
+sigs.k8s.io/cluster-api/util/predicates
+sigs.k8s.io/cluster-api/util/version
 # sigs.k8s.io/cluster-api-provider-aws/v2 v2.12.1
 ## explicit; go 1.24.0
 sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2
