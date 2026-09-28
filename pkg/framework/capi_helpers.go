@@ -12,7 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog"
 	awsv1 "sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -46,7 +45,7 @@ type ptrToClientObject[T any] interface {
 func getInfraMachineTemplateAndCluster[
 	T, C any,
 	PT ptrToClientObject[T], PC ptrToClientObject[C],
-](ctx context.Context, cl client.Client, ms *clusterv1beta1.MachineSet) (PT, PC, error) {
+](ctx context.Context, cl client.Client, ms *clusterv1.MachineSet) (PT, PC, error) {
 	template := PT(new(T))
 	templateKey := client.ObjectKey{
 		Namespace: ms.Namespace,
@@ -74,7 +73,7 @@ func getInfraMachineTemplateAndCluster[
 // platform-specific infrastructure MachineTemplate referenced by the given CAPI
 // MachineSet, via the upstream "autoscaling from zero" NodeInfo status convention (see
 // https://github.com/kubernetes-sigs/cluster-api/blob/main/docs/proposals/20210310-opt-in-autoscaling-from-zero.md).
-func architectureFromInfraMachineTemplate(ctx context.Context, cl client.Client, ms *clusterv1beta1.MachineSet) (string, error) {
+func architectureFromInfraMachineTemplate(ctx context.Context, cl client.Client, ms *clusterv1.MachineSet) (string, error) {
 	platform, err := GetPlatform(ctx, cl)
 	if err != nil {
 		return "", fmt.Errorf("failed to get platform: %w", err)
@@ -90,7 +89,7 @@ func architectureFromInfraMachineTemplate(ctx context.Context, cl client.Client,
 
 // architectureFromAWSMachineTemplate fetches the AWSMachineTemplate referenced by the given
 // CAPI MachineSet's InfrastructureRef, and returns its Status.NodeInfo.Architecture.
-func architectureFromAWSMachineTemplate(ctx context.Context, cl client.Client, ms *clusterv1beta1.MachineSet) (string, error) {
+func architectureFromAWSMachineTemplate(ctx context.Context, cl client.Client, ms *clusterv1.MachineSet) (string, error) {
 	template := &awsv1.AWSMachineTemplate{}
 	key := client.ObjectKey{
 		Namespace: ClusterAPINamespace,
@@ -115,7 +114,7 @@ func architectureFromAWSMachineTemplate(ctx context.Context, cl client.Client, m
 // only as a read-only template (e.g. to copy a ProviderSpec) by callers that need a MAPI
 // MachineSet to exist, on clusters where CAPI provisions workers and no real MAPI MachineSet
 // exists.
-func convertCAPIWorkerMachineSetToMAPI(ctx context.Context, cl client.Client, ms *clusterv1beta1.MachineSet) (*machinev1.MachineSet, error) {
+func convertCAPIWorkerMachineSetToMAPI(ctx context.Context, cl client.Client, ms *clusterv1.MachineSet) (*machinev1.MachineSet, error) {
 	platform, err := GetPlatform(ctx, cl)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get platform: %w", err)
@@ -131,22 +130,13 @@ func convertCAPIWorkerMachineSetToMAPI(ctx context.Context, cl client.Client, ms
 
 // convertCAPIWorkerMachineSetToMAPIAWS converts an AWS CAPI worker MachineSet to a MAPI
 // MachineSet, via cluster-capi-operator's capi2mapi.FromMachineSetAndAWSMachineTemplateAndAWSCluster.
-func convertCAPIWorkerMachineSetToMAPIAWS(ctx context.Context, cl client.Client, ms *clusterv1beta1.MachineSet) (*machinev1.MachineSet, error) {
+func convertCAPIWorkerMachineSetToMAPIAWS(ctx context.Context, cl client.Client, ms *clusterv1.MachineSet) (*machinev1.MachineSet, error) {
 	awsMachineTemplate, awsCluster, err := getInfraMachineTemplateAndCluster[awsv1.AWSMachineTemplate, awsv1.AWSCluster](ctx, cl, ms)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get AWS infrastructure objects for CAPI MachineSet %q: %w", ms.Name, err)
 	}
 
-	// This is ugly. We do it because all other users of core CAPI types in
-	// cluster-api-actuator-pkg still use v1beta1, but the capi-operator
-	// conversion framework uses v1beta2. We will no longer require this when we
-	// update cluster-api-actuator-pkg to use v1beta2.
-	v1beta2MachineSet := &clusterv1.MachineSet{}
-	if err := ms.ConvertTo(v1beta2MachineSet); err != nil {
-		return nil, fmt.Errorf("failed to convert CAPI MachineSet %q to v1beta2: %w", ms.Name, err)
-	}
-
-	mapiMachineSet, warnings, err := capi2mapi.FromMachineSetAndAWSMachineTemplateAndAWSCluster(v1beta2MachineSet, awsMachineTemplate, awsCluster).ToMachineSet()
+	mapiMachineSet, warnings, err := capi2mapi.FromMachineSetAndAWSMachineTemplateAndAWSCluster(ms, awsMachineTemplate, awsCluster).ToMachineSet()
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert CAPI MachineSet %q to a MAPI MachineSet: %w", ms.Name, err)
 	}

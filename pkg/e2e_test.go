@@ -14,10 +14,11 @@ import (
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	caov1alpha1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	awsv1 "sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2"
 	azurev1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	gcpv1 "sigs.k8s.io/cluster-api-provider-gcp/api/v1beta1"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/annotations"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/autoscaler"
@@ -45,7 +46,10 @@ func init() {
 		klog.Fatal(err)
 	}
 
-	if err := clusterv1beta1.AddToScheme(scheme.Scheme); err != nil {
+	if err := clusterv1.AddToScheme(scheme.Scheme); err != nil {
+		klog.Fatal(err)
+	}
+	if err := apiextensionsv1.AddToScheme(scheme.Scheme); err != nil {
 		klog.Fatal(err)
 	}
 

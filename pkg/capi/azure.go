@@ -16,7 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ptr "k8s.io/utils/ptr"
 	azurev1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/komega"
 	yaml "sigs.k8s.io/yaml"
@@ -29,7 +29,7 @@ const (
 var _ = Describe("[sig-cluster-lifecycle] Cluster API Azure MachineSet", framework.LabelCAPI, framework.LabelDisruptive, Ordered, func() {
 	var (
 		azureMachineTemplate *azurev1.AzureMachineTemplate
-		machineSet           *clusterv1beta1.MachineSet
+		machineSet           *clusterv1.MachineSet
 		mapiMachineSpec      *mapiv1.AzureMachineProviderSpec
 		client               runtimeclient.Client
 		ctx                  context.Context
@@ -84,10 +84,10 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API Azure MachineSet", framewo
 			clusterName,
 			mapiMachineSpec.Zone,
 			1,
-			corev1.ObjectReference{
-				Kind:       "AzureMachineTemplate",
-				APIVersion: "infrastructure.cluster.x-k8s.io/v1beta1",
-				Name:       azureMachineTemplateName,
+			clusterv1.ContractVersionedObjectReference{
+				Kind:     "AzureMachineTemplate",
+				APIGroup: infraAPIGroup,
+				Name:     azureMachineTemplateName,
 			},
 		))
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset")
@@ -108,10 +108,10 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API Azure MachineSet", framewo
 			clusterName,
 			mapiMachineSpec.Zone,
 			1,
-			corev1.ObjectReference{
-				Kind:       "AzureMachineTemplate",
-				APIVersion: "infrastructure.cluster.x-k8s.io/v1beta1",
-				Name:       azureMachineTemplateName,
+			clusterv1.ContractVersionedObjectReference{
+				Kind:     "AzureMachineTemplate",
+				APIGroup: infraAPIGroup,
+				Name:     azureMachineTemplateName,
 			},
 		))
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI host-based disk encryption machineset")
@@ -137,10 +137,10 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API Azure MachineSet", framewo
 			clusterName,
 			mapiMachineSpec.Zone,
 			1,
-			corev1.ObjectReference{
-				Kind:       "AzureMachineTemplate",
-				APIVersion: "infrastructure.cluster.x-k8s.io/v1beta1",
-				Name:       azureMachineTemplateName,
+			clusterv1.ContractVersionedObjectReference{
+				Kind:     "AzureMachineTemplate",
+				APIGroup: infraAPIGroup,
+				Name:     azureMachineTemplateName,
 			},
 		))
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI accelerated network machineset")
@@ -166,10 +166,10 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API Azure MachineSet", framewo
 			clusterName,
 			mapiMachineSpec.Zone,
 			1,
-			corev1.ObjectReference{
-				Kind:       "AzureMachineTemplate",
-				APIVersion: "infrastructure.cluster.x-k8s.io/v1beta1",
-				Name:       azureMachineTemplateName,
+			clusterv1.ContractVersionedObjectReference{
+				Kind:     "AzureMachineTemplate",
+				APIGroup: infraAPIGroup,
+				Name:     azureMachineTemplateName,
 			},
 		))
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI spot machineset")
