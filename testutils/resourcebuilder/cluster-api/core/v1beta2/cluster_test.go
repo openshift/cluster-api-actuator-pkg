@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1beta1
+package v1beta2
 
 import (
 	. "github.com/onsi/ginkgo/v2"
@@ -97,7 +97,7 @@ var _ = Describe("Cluster", func() {
 		It("should return the custom value when specified", func() {
 			ownerRefs := []metav1.OwnerReference{
 				{
-					APIVersion: "cluster.x-k8s.io/v1beta1",
+					APIVersion: "cluster.x-k8s.io/v1beta2",
 					Kind:       "Cluster",
 					Name:       "parent-cluster",
 					UID:        "12345",

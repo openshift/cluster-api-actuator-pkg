@@ -6,18 +6,29 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gobuffalo/flect"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	capiv1resourcebuilder "github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/cluster-api/core/v1beta1"
-	corev1 "k8s.io/api/core/v1"
+	capiv1resourcebuilder "github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/cluster-api/core/v1beta2"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
 	"k8s.io/utils/ptr"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+var errCAPIInfraMachineCRDNotFound = errors.New("infrastructure machine CRD not found")
+
+// These v1beta2 condition reasons identify non-transient provisioning failures.
+const (
+	invalidConfigurationReason = "InvalidConfiguration"
+	unsupportedChangeReason    = "UnsupportedChange"
+	joinClusterTimeoutReason   = "JoinClusterTimeoutError"
 )
 
 type CAPIMachineSetParams struct {
@@ -25,14 +36,14 @@ type CAPIMachineSetParams struct {
 	clusterName       string
 	failureDomain     string
 	replicas          int32
-	infrastructureRef corev1.ObjectReference
+	infrastructureRef clusterv1.ContractVersionedObjectReference
 }
 
 // NewCAPIMachineSetParams returns a new CAPIMachineSetParams object.
-func NewCAPIMachineSetParams(msName, clusterName, failureDomain string, replicas int32, infrastructureRef corev1.ObjectReference) CAPIMachineSetParams {
+func NewCAPIMachineSetParams(msName, clusterName, failureDomain string, replicas int32, infrastructureRef clusterv1.ContractVersionedObjectReference) CAPIMachineSetParams {
 	Expect(msName).ToNot(BeEmpty(), "expected the capi msName to not be empty")
 	Expect(clusterName).ToNot(BeEmpty(), "expected the capi clusterName to not be empty")
-	Expect(infrastructureRef.APIVersion).ToNot(BeEmpty(), "expected the infrastructureRef APIVersion to not be empty")
+	Expect(infrastructureRef.APIGroup).ToNot(BeEmpty(), "expected the infrastructureRef APIGroup to not be empty")
 	Expect(infrastructureRef.Kind).ToNot(BeEmpty(), "expected the infrastructureRef Kind to not be empty")
 	Expect(infrastructureRef.Name).ToNot(BeEmpty(), "expected the infrastructureRef Name to not be empty")
 
@@ -59,22 +70,22 @@ func UpdateCAPIMachineSetName(msName string, params CAPIMachineSetParams) CAPIMa
 }
 
 // CreateCAPIMachineSet creates a new MachineSet resource.
-func CreateCAPIMachineSet(ctx context.Context, cl client.Client, params CAPIMachineSetParams) (*clusterv1beta1.MachineSet, error) {
+func CreateCAPIMachineSet(ctx context.Context, cl client.Client, params CAPIMachineSetParams) (*clusterv1.MachineSet, error) {
 	By(fmt.Sprintf("Creating MachineSet %q", params.msName))
 	selector := metav1.LabelSelector{
 		MatchLabels: map[string]string{"cluster.x-k8s.io/cluster-name": params.clusterName, "cluster.x-k8s.io/set-name": params.msName},
 	}
 	userDataSecret := "worker-user-data"
-	template := clusterv1beta1.MachineTemplateSpec{
-		ObjectMeta: clusterv1beta1.ObjectMeta{
+	template := clusterv1.MachineTemplateSpec{
+		ObjectMeta: clusterv1.ObjectMeta{
 			Labels: map[string]string{
 				"cluster.x-k8s.io/cluster-name":  params.clusterName,
 				"cluster.x-k8s.io/set-name":      params.msName,
 				"node-role.kubernetes.io/worker": "",
 			},
 		},
-		Spec: clusterv1beta1.MachineSpec{
-			Bootstrap: clusterv1beta1.Bootstrap{
+		Spec: clusterv1.MachineSpec{
+			Bootstrap: clusterv1.Bootstrap{
 				DataSecretName: &userDataSecret,
 			},
 			ClusterName:       params.clusterName,
@@ -84,7 +95,7 @@ func CreateCAPIMachineSet(ctx context.Context, cl client.Client, params CAPIMach
 	ms := capiv1resourcebuilder.MachineSet().WithName(params.msName).WithNamespace(ClusterAPINamespace).WithReplicas(params.replicas).WithClusterName(params.clusterName).WithSelector(selector).WithTemplate(template).WithLabels(map[string]string{"cluster.x-k8s.io/cluster-name": params.clusterName}).Build()
 
 	if params.failureDomain != "" {
-		ms.Spec.Template.Spec.FailureDomain = &params.failureDomain
+		ms.Spec.Template.Spec.FailureDomain = params.failureDomain
 	}
 
 	Eventually(func() error {
@@ -96,7 +107,7 @@ func CreateCAPIMachineSet(ctx context.Context, cl client.Client, params CAPIMach
 
 // WaitForCAPIMachineSetsDeleted polls until the given MachineSets are not found, and
 // there are zero Machines found matching the MachineSet's label selector.
-func WaitForCAPIMachineSetsDeleted(ctx context.Context, cl client.Client, machineSets ...*clusterv1beta1.MachineSet) {
+func WaitForCAPIMachineSetsDeleted(ctx context.Context, cl client.Client, machineSets ...*clusterv1.MachineSet) {
 	for _, ms := range machineSets {
 		By(fmt.Sprintf("Waiting for MachineSet %q to be deleted", ms.GetName()))
 		Eventually(func() bool {
@@ -110,7 +121,7 @@ func WaitForCAPIMachineSetsDeleted(ctx context.Context, cl client.Client, machin
 			err = cl.Get(ctx, client.ObjectKey{
 				Name:      ms.GetName(),
 				Namespace: ms.GetNamespace(),
-			}, &clusterv1beta1.MachineSet{})
+			}, &clusterv1.MachineSet{})
 
 			return apierrors.IsNotFound(err) // MachineSet and Machines were deleted.
 		}, WaitLong, RetryMedium).Should(BeTrue(), "it should have been able to delete all the CAPI MachineSets")
@@ -118,7 +129,7 @@ func WaitForCAPIMachineSetsDeleted(ctx context.Context, cl client.Client, machin
 }
 
 // DeleteCAPIMachineSets deletes the specified machinesets and returns an error on failure.
-func DeleteCAPIMachineSets(ctx context.Context, cl client.Client, machineSets ...*clusterv1beta1.MachineSet) {
+func DeleteCAPIMachineSets(ctx context.Context, cl client.Client, machineSets ...*clusterv1.MachineSet) {
 	for _, ms := range machineSets {
 		By(fmt.Sprintf("Deleting MachineSet %q", ms.GetName()))
 		Eventually(func() error {
@@ -182,14 +193,14 @@ func WaitForCAPIMachinesRunning(ctx context.Context, cl client.Client, name stri
 // A nil, nil return means the list succeeded but no CAPI worker MachineSets were found: this is
 // deliberately not treated as an error, so that callers can distinguish "no CAPI worker
 // MachineSets exist" from "listing CAPI MachineSets failed" and fall through accordingly.
-func GetCAPIWorkerMachineSets(ctx context.Context, cl client.Client) ([]*clusterv1beta1.MachineSet, error) {
-	machineSetList := &clusterv1beta1.MachineSetList{}
+func GetCAPIWorkerMachineSets(ctx context.Context, cl client.Client) ([]*clusterv1.MachineSet, error) {
+	machineSetList := &clusterv1.MachineSetList{}
 
 	if err := cl.List(ctx, machineSetList, client.InNamespace(ClusterAPINamespace)); err != nil {
 		return nil, fmt.Errorf("error listing CAPI MachineSets: %w", err)
 	}
 
-	var result []*clusterv1beta1.MachineSet
+	var result []*clusterv1.MachineSet
 
 	// CAPI does not label MachineSets with a role, but the installer labels the Machine
 	// template with the node-role.kubernetes.io/worker label, so we check there instead.
@@ -200,7 +211,7 @@ func GetCAPIWorkerMachineSets(ctx context.Context, cl client.Client) ([]*cluster
 			continue
 		}
 
-		if _, ok := labels[clusterv1beta1.NodeRoleLabelPrefix+"/worker"]; ok {
+		if _, ok := labels[clusterv1.NodeRoleLabelPrefix+"/worker"]; ok {
 			result = append(result, &machineSetList.Items[i])
 		}
 	}
@@ -211,7 +222,7 @@ func GetCAPIWorkerMachineSets(ctx context.Context, cl client.Client) ([]*cluster
 // GetArchitectureFromCAPIMachineSetNodes returns the architecture of the nodes controlled by
 // the given CAPI machineSet's machines. It mirrors GetArchitectureFromMachineSetNodes, but
 // operates on CAPI types.
-func GetArchitectureFromCAPIMachineSetNodes(ctx context.Context, cl client.Client, machineSet *clusterv1beta1.MachineSet) (string, error) {
+func GetArchitectureFromCAPIMachineSetNodes(ctx context.Context, cl client.Client, machineSet *clusterv1.MachineSet) (string, error) {
 	machines, err := GetCAPIMachinesFromMachineSet(ctx, cl, machineSet)
 	if err != nil {
 		klog.Warningf("error getting machines for CAPI machineSet %s: %v", machineSet.Name, err)
@@ -275,8 +286,8 @@ func GetWorkerMachineSetArchitecture(ctx context.Context, cl client.Client) (str
 }
 
 // GetCAPIMachineSet gets a machineset by its name from the default machine API namespace.
-func GetCAPIMachineSet(ctx context.Context, cl client.Client, name string) (*clusterv1beta1.MachineSet, error) {
-	machineSet := &clusterv1beta1.MachineSet{}
+func GetCAPIMachineSet(ctx context.Context, cl client.Client, name string) (*clusterv1.MachineSet, error) {
+	machineSet := &clusterv1.MachineSet{}
 	key := client.ObjectKey{Namespace: ClusterAPINamespace, Name: name}
 
 	Eventually(func() error {
@@ -287,13 +298,13 @@ func GetCAPIMachineSet(ctx context.Context, cl client.Client, name string) (*clu
 }
 
 // GetCAPIMachinesFromMachineSet returns an array of machines owned by a given machineSet.
-func GetCAPIMachinesFromMachineSet(ctx context.Context, cl client.Client, machineSet *clusterv1beta1.MachineSet) ([]*clusterv1beta1.Machine, error) {
+func GetCAPIMachinesFromMachineSet(ctx context.Context, cl client.Client, machineSet *clusterv1.MachineSet) ([]*clusterv1.Machine, error) {
 	machines, err := GetCAPIMachines(ctx, cl)
 	if err != nil {
 		return nil, fmt.Errorf("error getting machines: %w", err)
 	}
 
-	var machinesForSet []*clusterv1beta1.Machine
+	var machinesForSet []*clusterv1.Machine
 
 	for key := range machines {
 		if metav1.IsControlledBy(machines[key], machineSet) {
@@ -318,16 +329,17 @@ func WaitForCAPIMachinesRunningWithRetry(ctx context.Context, cl client.Client, 
 			return false, fmt.Errorf("error getting machines from CAPI machineSet %s: %w", machineSet.Name, err)
 		}
 
+		for _, machine := range machines {
+			if condition := terminalProvisioningCondition(machine); condition != nil {
+				return false, fmt.Errorf("CAPI Machine %s has terminal provisioning condition %s (%s): %s",
+					machine.Name, condition.Type, condition.Reason, condition.Message)
+			}
+		}
+
 		replicas := ptr.Deref(machineSet.Spec.Replicas, 0)
 		if len(machines) != int(replicas) {
 			klog.Infof("%q: found %d Machines, but MachineSet has %d replicas", name, len(machines), int(replicas))
 			return false, nil
-		}
-
-		// Check for machines with actual failed state (not capacity issues)
-		failed := FilterCAPIMachinesInPhase(machines, string(clusterv1beta1.MachinePhaseFailed))
-		if len(failed) > 0 {
-			return false, handleFailedCAPIMachines(failed)
 		}
 
 		// Check if any machine did not get provisioned because of insufficient capacity.
@@ -343,7 +355,7 @@ func WaitForCAPIMachinesRunningWithRetry(ctx context.Context, cl client.Client, 
 			}
 		}
 
-		running := FilterCAPIMachinesInPhase(machines, string(clusterv1beta1.MachinePhaseRunning))
+		running := FilterCAPIMachinesInPhase(machines, string(clusterv1.MachinePhaseRunning))
 		// This could probably be smarter, but seems fine for now.
 		if len(running) != len(machines) {
 			klog.Infof("%q: not all CAPI Machines are running: %d of %d", name, len(running), len(machines))
@@ -367,6 +379,24 @@ func WaitForCAPIMachinesRunningWithRetry(ctx context.Context, cl client.Client, 
 	})
 }
 
+// terminalProvisioningCondition returns conditions that represent known terminal errors.
+// Generic NotReady and potentially transient error reasons must continue through the retry path.
+func terminalProvisioningCondition(machine *clusterv1.Machine) *metav1.Condition {
+	for i := range machine.Status.Conditions {
+		condition := &machine.Status.Conditions[i]
+		if condition.Status != metav1.ConditionFalse {
+			continue
+		}
+
+		switch condition.Reason {
+		case invalidConfigurationReason, unsupportedChangeReason, joinClusterTimeoutReason:
+			return condition
+		}
+	}
+
+	return nil
+}
+
 // GetCAPIInfraMachine retrieves the InfraMachine object for the given CAPI machine.
 //
 // Returns *unstructured.Unstructured because InfraMachine types are platform-specific
@@ -380,40 +410,71 @@ func WaitForCAPIMachinesRunningWithRetry(ctx context.Context, cl client.Client, 
 //
 // The returned object contains the full InfraMachine specification and status,
 // which can be accessed using the unstructured helper functions.
-func GetCAPIInfraMachine(ctx context.Context, cl client.Client, m *clusterv1beta1.Machine) (*unstructured.Unstructured, error) {
-	// Get the InfraMachine reference
-	if m.Spec.InfrastructureRef.Name == "" {
+func GetCAPIInfraMachine(ctx context.Context, cl client.Client, m *clusterv1.Machine) (*unstructured.Unstructured, error) {
+	ref := m.Spec.InfrastructureRef
+	if !ref.IsDefined() {
 		return nil, fmt.Errorf("machine %s has no infrastructure reference", m.Name)
 	}
 
-	// Create unstructured object to get the InfraMachine
+	crdName := flect.Pluralize(strings.ToLower(ref.Kind)) + "." + ref.APIGroup
+
+	crd := &apiextensionsv1.CustomResourceDefinition{}
+	if err := cl.Get(ctx, client.ObjectKey{Name: crdName}, crd); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, fmt.Errorf("%w: failed to get CRD %q for infrastructure reference %s.%s: %w",
+				errCAPIInfraMachineCRDNotFound, crdName, ref.Kind, ref.APIGroup, err)
+		}
+
+		return nil, fmt.Errorf("failed to get CRD %q for infrastructure reference %s.%s: %w", crdName, ref.Kind, ref.APIGroup, err)
+	}
+
+	apiVersion, err := apiVersionForCAPIContract(crd)
+	if err != nil {
+		return nil, err
+	}
+
 	infraMachine := &unstructured.Unstructured{}
-	infraMachine.SetAPIVersion(m.Spec.InfrastructureRef.APIVersion)
-	infraMachine.SetKind(m.Spec.InfrastructureRef.Kind)
+	infraMachine.SetAPIVersion(apiVersion)
+	infraMachine.SetKind(ref.Kind)
+	infraMachine.SetName(ref.Name)
+	infraMachine.SetNamespace(m.Namespace)
 
-	// Get the InfraMachine object
-	infraMachineKey := client.ObjectKey{
-		Namespace: m.Spec.InfrastructureRef.Namespace,
-		Name:      m.Spec.InfrastructureRef.Name,
-	}
-	if infraMachineKey.Namespace == "" {
-		infraMachineKey.Namespace = m.Namespace
-	}
-
-	if err := cl.Get(ctx, infraMachineKey, infraMachine); err != nil {
-		return nil, fmt.Errorf("failed to get InfraMachine %s: %w", infraMachineKey.Name, err)
+	if err := cl.Get(ctx, client.ObjectKeyFromObject(infraMachine), infraMachine); err != nil {
+		return nil, fmt.Errorf("failed to get InfraMachine %s: %w", client.ObjectKeyFromObject(infraMachine), err)
 	}
 
 	return infraMachine, nil
 }
 
+// apiVersionForCAPIContract returns the last provider API version advertised by the CRD
+// for the current CAPI contract, preferring v1beta2 and falling back to v1beta1.
+func apiVersionForCAPIContract(crd *apiextensionsv1.CustomResourceDefinition) (string, error) {
+	for _, contractVersion := range []string{clusterv1.GroupVersion.Version, "v1beta1"} {
+		apiVersions := crd.Labels[clusterv1.GroupVersion.Group+"/"+contractVersion]
+
+		var apiVersion string
+
+		for _, version := range strings.Split(apiVersions, "_") {
+			if version != "" {
+				apiVersion = version
+			}
+		}
+
+		if apiVersion != "" {
+			return schema.GroupVersion{Group: crd.Spec.Group, Version: apiVersion}.String(), nil
+		}
+	}
+
+	return "", fmt.Errorf("CRD %q does not advertise a version compatible with the CAPI %s contract", crd.Name, clusterv1.GroupVersion.Version)
+}
+
 // HasCAPIInsufficientCapacity returns true if the CAPI machine cannot be provisioned due to insufficient capacity.
 // It checks the InfraMachine object status for capacity error messages.
 // Returns: (hasInsufficientCapacity bool, capacityErrorDetails string, err error).
-func HasCAPIInsufficientCapacity(ctx context.Context, cl client.Client, m *clusterv1beta1.Machine, capacityErrorKeys []string) (bool, string, error) {
+func HasCAPIInsufficientCapacity(ctx context.Context, cl client.Client, m *clusterv1.Machine, capacityErrorKeys []string) (bool, string, error) {
 	infraMachine, err := GetCAPIInfraMachine(ctx, cl, m)
 	if err != nil {
-		if apierrors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) && !errors.Is(err, errCAPIInfraMachineCRDNotFound) {
 			return false, "", nil // InfraMachine not found, not a capacity issue
 		}
 
@@ -458,36 +519,4 @@ func HasCAPIInsufficientCapacity(ctx context.Context, cl client.Client, m *clust
 	}
 
 	return false, "", nil
-}
-
-// handleFailedCAPIMachines handles the logging and error reporting for failed CAPI machines.
-func handleFailedCAPIMachines(failed []*clusterv1beta1.Machine) error {
-	// if there are failed machines, print them out before we exit
-	klog.Errorf("found %d CAPI Machines in failed phase: ", len(failed))
-
-	for _, m := range failed {
-		reason := "reason not present in Ready condition"
-		message := "message not present in Ready condition"
-
-		// Check Ready condition for reason and message
-		for _, condition := range m.Status.Conditions {
-			if condition.Type != clusterv1beta1.ReadyCondition {
-				continue
-			}
-
-			if condition.Reason != "" {
-				reason = condition.Reason
-			}
-
-			if condition.Message != "" {
-				message = condition.Message
-			}
-
-			break
-		}
-
-		klog.Errorf("Failed CAPI machine: %s, Reason: %s, Message: %s", m.Name, reason, message)
-	}
-
-	return fmt.Errorf("CAPI machine in the machineset is in a failed phase")
 }

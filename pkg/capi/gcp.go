@@ -10,11 +10,10 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	mapiv1 "github.com/openshift/api/machine/v1beta1"
 	framework "github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	gcpv1 "sigs.k8s.io/cluster-api-provider-gcp/api/v1beta1"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/komega"
 	yaml "sigs.k8s.io/yaml"
@@ -33,7 +32,7 @@ var (
 var _ = Describe("[sig-cluster-lifecycle] Cluster API GCP MachineSet", framework.LabelCAPI, framework.LabelDisruptive, Ordered, func() {
 	var (
 		gcpMachineTemplate *gcpv1.GCPMachineTemplate
-		machineSet         *clusterv1beta1.MachineSet
+		machineSet         *clusterv1.MachineSet
 		mapiMachineSpec    *mapiv1.GCPMachineProviderSpec
 		ctx                context.Context
 		platform           configv1.PlatformType
@@ -89,10 +88,10 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API GCP MachineSet", framework
 				clusterName,
 				mapiMachineSpec.Zone,
 				1,
-				corev1.ObjectReference{
-					Kind:       "GCPMachineTemplate",
-					APIVersion: infraAPIVersion,
-					Name:       gcpMachineTemplate.Name,
+				clusterv1.ContractVersionedObjectReference{
+					Kind:     "GCPMachineTemplate",
+					APIGroup: infraAPIGroup,
+					Name:     gcpMachineTemplate.Name,
 				},
 			))
 
@@ -125,10 +124,10 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API GCP MachineSet", framework
 				clusterName,
 				mapiMachineSpec.Zone,
 				1,
-				corev1.ObjectReference{
-					Kind:       "GCPMachineTemplate",
-					APIVersion: infraAPIVersion,
-					Name:       gcpMachineTemplate.Name,
+				clusterv1.ContractVersionedObjectReference{
+					Kind:     "GCPMachineTemplate",
+					APIGroup: infraAPIGroup,
+					Name:     gcpMachineTemplate.Name,
 				},
 			))
 			Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI machineset with Shielded VM config")
@@ -196,10 +195,10 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API GCP MachineSet", framework
 				clusterName,
 				mapiProviderSpec.Zone,
 				1,
-				corev1.ObjectReference{
-					Kind:       "GCPMachineTemplate",
-					APIVersion: infraAPIVersion,
-					Name:       gcpMachineTemplate.Name,
+				clusterv1.ContractVersionedObjectReference{
+					Kind:     "GCPMachineTemplate",
+					APIGroup: infraAPIGroup,
+					Name:     gcpMachineTemplate.Name,
 				},
 			))
 			Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI MachineSet with Confidential VM configuration")
@@ -237,10 +236,10 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API GCP MachineSet", framework
 			clusterName,
 			mapiProviderSpec.Zone,
 			1,
-			corev1.ObjectReference{
-				Kind:       "GCPMachineTemplate",
-				APIVersion: infraAPIVersion,
-				Name:       gcpMachineTemplate.Name,
+			clusterv1.ContractVersionedObjectReference{
+				Kind:     "GCPMachineTemplate",
+				APIGroup: infraAPIGroup,
+				Name:     gcpMachineTemplate.Name,
 			},
 		))
 		Expect(err).ToNot(HaveOccurred(), "Failed to create CAPI MachineSet with preemptible instanceType")

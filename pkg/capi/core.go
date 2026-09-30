@@ -10,12 +10,11 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	mapiv1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/ptr"
 	awsv1 "sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2"
 	azurev1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	gcpv1 "sigs.k8s.io/cluster-api-provider-gcp/api/v1beta1"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/komega"
 	yaml "sigs.k8s.io/yaml"
@@ -29,7 +28,7 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API MachineSet", framework.Lab
 		awsMapiMachineSpec   *mapiv1.AWSMachineProviderConfig
 		azureMapiMachineSpec *mapiv1.AzureMachineProviderSpec
 		gcpMapiMachineSpec   *mapiv1.GCPMachineProviderSpec
-		machineSet           *clusterv1beta1.MachineSet
+		machineSet           *clusterv1.MachineSet
 		client               runtimeclient.Client
 		ctx                  context.Context
 		platform             configv1.PlatformType
@@ -129,10 +128,10 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API MachineSet", framework.Lab
 			clusterName,
 			failureDomain,
 			0,
-			corev1.ObjectReference{
-				Kind:       kind,
-				APIVersion: infraAPIVersion,
-				Name:       machineTemplateName,
+			clusterv1.ContractVersionedObjectReference{
+				Kind:     kind,
+				APIGroup: infraAPIGroup,
+				Name:     machineTemplateName,
 			},
 		)
 		machineSet, err = framework.CreateCAPIMachineSet(ctx, client, machineSetParams)

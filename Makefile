@@ -71,6 +71,7 @@ goimports: ## Go fmt your code
 
 .PHONY: unit
 unit: ## Run unit tests
+	go test ./pkg/framework
 	make -C testutils unit
 
 .PHONY: build-e2e

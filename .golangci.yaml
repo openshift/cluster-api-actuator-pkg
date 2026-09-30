@@ -72,12 +72,11 @@ linters:
       - legacy
       - std-error-handling
     rules:
+      # Current infrastructure provider APIs still embed core v1beta1 field types.
       - linters:
           - staticcheck
+        path: testutils/resourcebuilder/cluster-api/infrastructure/
         text: 'SA1019: "sigs.k8s.io/cluster-api/api/core/v1beta1" is deprecated:'
-      - linters:
-          - staticcheck
-        text: 'SA1019: "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions" is deprecated:'
     paths:
       - third_party$
       - builtin$
