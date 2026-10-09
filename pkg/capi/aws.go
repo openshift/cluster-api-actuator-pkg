@@ -12,12 +12,12 @@ import (
 	mapiv1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/utils/ptr"
 	awsv1 "sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
+	"sigs.k8s.io/cluster-api/controllers/external"
 
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
@@ -28,7 +28,7 @@ import (
 const (
 	awsMachineTemplateName = "aws-machine-template"
 	infrastructureName     = "cluster"
-	infraAPIVersion        = "infrastructure.cluster.x-k8s.io/v1beta1"
+	infraAPIGroup          = "infrastructure.cluster.x-k8s.io"
 )
 
 var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cluster API AWS MachineSet", framework.LabelCAPI, framework.LabelDisruptive, Ordered, func() {
@@ -40,7 +40,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 		oc                      *gatherer.CLI
 		awsMachineTemplate      *awsv1.AWSMachineTemplate
 		machineSetParams        framework.CAPIMachineSetParams
-		machineSet              *clusterv1beta1.MachineSet
+		machineSet              *clusterv1.MachineSet
 		mapiDefaultProviderSpec *mapiv1.AWSMachineProviderConfig
 		err                     error
 	)
@@ -82,10 +82,10 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 			clusterName,
 			mapiDefaultProviderSpec.Placement.AvailabilityZone,
 			1,
-			corev1.ObjectReference{
-				Kind:       "AWSMachineTemplate",
-				APIVersion: infraAPIVersion,
-				Name:       awsMachineTemplateName,
+			clusterv1.ContractVersionedObjectReference{
+				Kind:     "AWSMachineTemplate",
+				APIGroup: infraAPIGroup,
+				Name:     awsMachineTemplateName,
 			},
 		)
 		framework.CreateCoreCluster(ctx, cl, clusterName, "AWSCluster")
@@ -465,7 +465,7 @@ func newAWSMachineTemplate(name string, mapiProviderSpec *mapiv1.AWSMachineProvi
 
 // createAWSCAPIMachineSetWithRetry creates a CAPI MachineSet with retry logic for capacity constraints.
 // It tries different instance types when encountering insufficient capacity errors.
-func createAWSCAPIMachineSetWithRetry(ctx context.Context, cl client.Client, machineSetName string, clusterName string, mapiDefaultProviderSpec *mapiv1.AWSMachineProviderConfig, maxRetries int, templateConfigurator func(*awsv1.AWSMachineTemplate, string)) (*clusterv1beta1.MachineSet, *awsv1.AWSMachineTemplate, bool) {
+func createAWSCAPIMachineSetWithRetry(ctx context.Context, cl client.Client, machineSetName string, clusterName string, mapiDefaultProviderSpec *mapiv1.AWSMachineProviderConfig, maxRetries int, templateConfigurator func(*awsv1.AWSMachineTemplate, string)) (*clusterv1.MachineSet, *awsv1.AWSMachineTemplate, bool) {
 	machineSetReady := false
 
 	// Get the current cluster architecture
@@ -482,7 +482,7 @@ func createAWSCAPIMachineSetWithRetry(ctx context.Context, cl client.Client, mac
 		alternativeInstanceTypes = []string{"m6i.large", "m5.large", "m6i.xlarge", "m5.xlarge"}
 	}
 
-	var machineSet *clusterv1beta1.MachineSet
+	var machineSet *clusterv1.MachineSet
 
 	var awsMachineTemplate *awsv1.AWSMachineTemplate
 
@@ -510,10 +510,10 @@ func createAWSCAPIMachineSetWithRetry(ctx context.Context, cl client.Client, mac
 			clusterName,
 			mapiDefaultProviderSpec.Placement.AvailabilityZone,
 			1,
-			corev1.ObjectReference{
-				Kind:       "AWSMachineTemplate",
-				APIVersion: infraAPIVersion,
-				Name:       awsMachineTemplateName,
+			clusterv1.ContractVersionedObjectReference{
+				Kind:     "AWSMachineTemplate",
+				APIGroup: infraAPIGroup,
+				Name:     awsMachineTemplateName,
 			},
 		)
 
@@ -545,7 +545,7 @@ func createAWSCAPIMachineSetWithRetry(ctx context.Context, cl client.Client, mac
 }
 
 // getAWSInstanceConfig gets AWS instance configuration.
-func getAWSInstanceConfig(ctx context.Context, cl client.Client, oc *gatherer.CLI, machineSet *clusterv1beta1.MachineSet) *ec2.Instance {
+func getAWSInstanceConfig(ctx context.Context, cl client.Client, oc *gatherer.CLI, machineSet *clusterv1.MachineSet) *ec2.Instance {
 	By("Get AWS instance configuration")
 
 	machines, err := framework.GetCAPIMachinesFromMachineSet(ctx, cl, machineSet)
@@ -553,7 +553,7 @@ func getAWSInstanceConfig(ctx context.Context, cl client.Client, oc *gatherer.CL
 	Expect(machines).To(HaveLen(1), "Expected exactly one machine")
 
 	machine := machines[0]
-	infraMachine, err := framework.GetCAPIInfraMachine(ctx, cl, machine)
+	infraMachine, err := external.GetObjectFromContractVersionedRef(ctx, cl, machine.Spec.InfrastructureRef, machine.Namespace)
 	Expect(err).ToNot(HaveOccurred(), "Failed to get InfraMachine")
 
 	instanceID, found, err := unstructured.NestedString(infraMachine.Object, "spec", "instanceID")
