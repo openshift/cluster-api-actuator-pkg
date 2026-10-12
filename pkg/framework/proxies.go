@@ -45,16 +45,14 @@ import (
 )
 
 const (
-	mapiControllersDeploymentName         = "machine-api-controllers"
-	machineControllerContainerName string = "machine-controller"
-	proxyNamespace                        = MachineAPINamespace
-	proxyName                             = "mitm-proxy"
-	mitmSignerName                        = "mitm-signer"
-	mitmBootstrapName                     = "mitm-bootstrap"
-	mitmCustomPKIName                     = "mitm-custom-pki"
-	mitmCustomPKINamespace                = "openshift-config"
-	mitmDaemonsetName                     = proxyName
-	mitmServiceName                       = proxyName
+	proxyNamespace         = MachineAPINamespace
+	proxyName              = "mitm-proxy"
+	mitmSignerName         = "mitm-signer"
+	mitmBootstrapName      = "mitm-bootstrap"
+	mitmCustomPKIName      = "mitm-custom-pki"
+	mitmCustomPKINamespace = "openshift-config"
+	mitmDaemonsetName      = proxyName
+	mitmServiceName        = proxyName
 )
 
 const proxySetup = `
@@ -64,6 +62,16 @@ curl -O https://snapshots.mitmproxy.org/5.3.0/mitmproxy-5.3.0-linux.tar.gz
 tar xvf mitmproxy-5.3.0-linux.tar.gz
 HOME=/.mitmproxy ./mitmdump --ssl-insecure
 `
+
+// IsClusterProxyEnabled returns true if the cluster has a global proxy enabled.
+func IsClusterProxyEnabled(ctx context.Context, c client.Client) (bool, error) {
+	proxy := &configv1.Proxy{}
+	if err := c.Get(ctx, client.ObjectKey{Name: "cluster"}, proxy); err != nil {
+		return false, fmt.Errorf("failed to get cluster proxy: %w", err)
+	}
+
+	return len(proxy.Status.HTTPProxy) > 0 || len(proxy.Status.HTTPSProxy) > 0, nil
+}
 
 // DeployProxy deploys a MITM Proxy to the cluster.
 func DeployProxy(c client.Client, gomegaArgs ...interface{}) {
@@ -142,42 +150,11 @@ func ConfigureClusterWideProxy(c client.Client, gomegaArgs ...interface{}) {
 			Name: mitmCustomPKIName,
 		}
 	}), gomegaArgs...).Should(Succeed(), "cluster wide proxy set be able to be updated")
-
-	deploy := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      mapiControllersDeploymentName,
-			Namespace: proxyNamespace,
-		},
-	}
-
-	By("Waiting for machine-api-controller deployment to reflect configured cluster-wide proxy")
-
-	Eventually(kom.Object(deploy), time.Minute*5).Should(
-		HaveField("Spec.Template.Spec.Containers", ContainElement(SatisfyAll(
-			HaveField("Name", Equal(machineControllerContainerName)),
-			HaveField("Env", SatisfyAll(
-				ContainElement(SatisfyAll(
-					HaveField("Name", "NO_PROXY"),
-					HaveField("Value", Not(BeEmpty())),
-				)),
-				ContainElement(SatisfyAll(
-					HaveField("Name", "HTTPS_PROXY"),
-					HaveField("Value", Not(BeEmpty())),
-				)),
-				ContainElement(SatisfyAll(
-					HaveField("Name", "HTTP_PROXY"),
-					HaveField("Value", Not(BeEmpty())),
-				)),
-			)),
-		))),
-		"Cluster-wide proxy environment variables were not set.",
-	)
 }
 
 // UnconfigureClusterWideProxy configures the Cluster-Wide Proxy to stop using the MITM Proxy.
 func UnconfigureClusterWideProxy(c client.Client, gomegaArgs ...interface{}) {
 	ctx := context.Background()
-	kom := komega.New(c)
 
 	proxy := &configv1.Proxy{}
 	Eventually(c.Get(ctx, client.ObjectKey{Name: "cluster"}, proxy)).Should(Succeed(), "timed out getting Proxy named 'cluster.'")
@@ -188,31 +165,70 @@ func UnconfigureClusterWideProxy(c client.Client, gomegaArgs ...interface{}) {
 		{"op": "remove", "path": "/spec/noProxy"},
 		{"op": "remove", "path": "/spec/trustedCA"}
 	]`)))).Should(Succeed(), "timed out patching Proxy Spec.")
+}
+
+// WaitForAllContainersProxyEnvVars waits for all containers in the given Deployment
+// to have HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables set.
+func WaitForAllContainersProxyEnvVars(c client.Client, namespace, deploymentName string) {
+	kom := komega.New(c)
 
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      mapiControllersDeploymentName,
-			Namespace: proxyNamespace,
+			Name:      deploymentName,
+			Namespace: namespace,
 		},
 	}
 
-	By("Waiting for machine-api-controller deployment to reflect unconfigured cluster-wide proxy")
+	proxyEnvMatcher := SatisfyAll(
+		ContainElement(SatisfyAll(
+			HaveField("Name", "NO_PROXY"),
+			HaveField("Value", Not(BeEmpty())),
+		)),
+		ContainElement(SatisfyAll(
+			HaveField("Name", "HTTPS_PROXY"),
+			HaveField("Value", Not(BeEmpty())),
+		)),
+		ContainElement(SatisfyAll(
+			HaveField("Name", "HTTP_PROXY"),
+			HaveField("Value", Not(BeEmpty())),
+		)),
+	)
+
+	By(fmt.Sprintf("Waiting for all containers in %s/%s to reflect configured cluster-wide proxy", namespace, deploymentName))
+
 	Eventually(kom.Object(deploy), time.Minute*5).Should(
-		HaveField("Spec.Template.Spec.Containers", ContainElement(SatisfyAll(
-			HaveField("Name", Equal(machineControllerContainerName)),
-			HaveField("Env", SatisfyAll(
-				Not(ContainElement(SatisfyAll(
-					HaveField("Name", "NO_PROXY"),
-				))),
-				Not(ContainElement(SatisfyAll(
-					HaveField("Name", "HTTPS_PROXY"),
-				))),
-				Not(ContainElement(SatisfyAll(
-					HaveField("Name", "HTTP_PROXY"),
-				))),
-			)),
+		HaveField("Spec.Template.Spec.Containers", Not(ContainElement(
+			HaveField("Env", Not(proxyEnvMatcher)),
 		))),
-		"Cluster-wide proxy environmenet variables were still set.",
+		fmt.Sprintf("Cluster-wide proxy environment variables were not set on all containers of %s/%s.", namespace, deploymentName),
+	)
+}
+
+// WaitForAllContainersNoProxyEnvVars waits for all containers in the given Deployment
+// to have HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables removed.
+func WaitForAllContainersNoProxyEnvVars(c client.Client, namespace, deploymentName string) {
+	kom := komega.New(c)
+
+	deploy := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      deploymentName,
+			Namespace: namespace,
+		},
+	}
+
+	noProxyEnvMatcher := SatisfyAll(
+		Not(ContainElement(HaveField("Name", "NO_PROXY"))),
+		Not(ContainElement(HaveField("Name", "HTTPS_PROXY"))),
+		Not(ContainElement(HaveField("Name", "HTTP_PROXY"))),
+	)
+
+	By(fmt.Sprintf("Waiting for all containers in %s/%s to reflect unconfigured cluster-wide proxy", namespace, deploymentName))
+
+	Eventually(kom.Object(deploy), time.Minute*5).Should(
+		HaveField("Spec.Template.Spec.Containers", Not(ContainElement(
+			HaveField("Env", Not(noProxyEnvMatcher)),
+		))),
+		fmt.Sprintf("Cluster-wide proxy environment variables were still set on some containers of %s/%s.", namespace, deploymentName),
 	)
 }
 
