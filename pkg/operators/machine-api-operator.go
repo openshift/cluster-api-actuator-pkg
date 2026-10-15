@@ -272,9 +272,10 @@ var _ = Describe(
 	Serial,
 	func() {
 		var (
-			gatherer *gatherer.StateGatherer
-			client   runtimeclient.Client
-			ctx      context.Context
+			gatherer                  *gatherer.StateGatherer
+			client                    runtimeclient.Client
+			ctx                       context.Context
+			originalProxyClusterState *framework.ProxyClusterState
 		)
 
 		BeforeEach(func() {
@@ -288,11 +289,59 @@ var _ = Describe(
 			gatherer, err = framework.NewGatherer()
 			Expect(err).ToNot(HaveOccurred(), "Failed to load gatherer")
 
+			By("capturing the original proxy settings, rendered pool configurations, and pre-existing nodes")
+			Eventually(func() error {
+				originalProxyClusterState, err = framework.CaptureProxyClusterState(ctx, client)
+				return err
+			}).Should(Succeed(), "Failed to capture original proxy state")
+
+			// Registered before MachineSet cleanup so proxy restoration runs last.
+			DeferCleanup(func() {
+				By("restoring the original cluster-wide proxy and waiting for rollback")
+				Expect(originalProxyClusterState.RestoreProxyAndWaitForClusterReady(context.Background(), client)).To(Succeed(), "Failed to restore the original proxy state")
+				By("waiting for MAO, KAPI and KCM cluster operators to become available")
+
+				By("waiting for KAPI cluster operator to become available")
+				Expect(framework.WaitForStatusAvailableOverLong(ctx, client, "kube-apiserver")).To(BeTrue(),
+					"Failed to wait for kube-apiserver Cluster Operator to become available")
+
+				By("waiting for KCM cluster operator to become available")
+				Expect(framework.WaitForStatusAvailableOverLong(ctx, client, "kube-controller-manager")).To(BeTrue(),
+					"Failed to wait for kube-controller-manager Cluster Operator to become available")
+
+				By("waiting for MAO cluster operator to become available")
+				Expect(framework.WaitForStatusAvailableMedium(ctx, client, "machine-api")).To(BeTrue(),
+					"Failed to wait for machine-api Cluster Operator to become available")
+
+				By("waiting for all cluster operators to become available")
+
+				coList := &configv1.ClusterOperatorList{}
+
+				Eventually(func() error {
+					return client.List(ctx, coList)
+				}).Should(Succeed(), "failed to list ClusterOperators.")
+
+				for _, co := range coList.Items {
+					Expect(framework.WaitForStatusAvailableOverLong(ctx, client, co.Name)).To(BeTrue(),
+						"Failed to wait for %s Cluster Operator to become available", co.Name)
+				}
+
+				By("Removing the mitm-proxy")
+				framework.DeleteProxy(client)
+			})
+
 			By("deploying an HTTP proxy")
 			framework.DeployProxy(client)
 
 			By("configuring cluster-wide proxy")
 			framework.ConfigureClusterWideProxy(client)
+		})
+
+		AfterEach(func() {
+			specReport := CurrentSpecReport()
+			if specReport.Failed() && gatherer != nil {
+				Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed(), "Failed to GatherAll")
+			}
 		})
 
 		// Machines required for test: 1
@@ -303,55 +352,13 @@ var _ = Describe(
 			machineSet, err := framework.CreateMachineSet(client, framework.BuildMachineSetParams(ctx, client, 1))
 			Expect(err).ToNot(HaveOccurred(), "Failed to create MachineSet")
 
+			DeferCleanup(func() {
+				By("destroying a machineset")
+				Expect(client.Delete(context.Background(), machineSet)).To(Succeed(), "Failed to delete MachineSet")
+				framework.WaitForMachineSetsDeleted(ctx, client, machineSet)
+			})
+
 			By("waiting for the all MachineSet's Machines (and Nodes) to become Running (and Ready)")
 			framework.WaitForMachineSet(ctx, client, machineSet.GetName())
-
-			By("destroying a machineset")
-			Expect(client.Delete(context.Background(), machineSet)).To(Succeed(), "Failed to delete MachineSet")
-			framework.WaitForMachineSetsDeleted(ctx, client, machineSet)
-		})
-
-		AfterEach(func() {
-			By("unconfiguring cluster-wide proxy")
-			framework.UnconfigureClusterWideProxy(client)
-
-			specReport := CurrentSpecReport()
-			if specReport.Failed() {
-				Expect(gatherer.WithSpecReport(specReport).GatherAll()).To(Succeed(), "Failed to GatherAll")
-			}
-
-			By("waiting for MAO, KAPI and KCM cluster operators to become available")
-
-			client, err := framework.LoadClient()
-			Expect(err).NotTo(HaveOccurred(), "Failed to load client")
-
-			By("waiting for KAPI cluster operator to become available")
-			Expect(framework.WaitForStatusAvailableOverLong(ctx, client, "kube-apiserver")).To(BeTrue(),
-				"Failed to wait for kube-apiserver Cluster Operator to become available")
-
-			By("waiting for KCM cluster operator to become available")
-			Expect(framework.WaitForStatusAvailableOverLong(ctx, client, "kube-controller-manager")).To(BeTrue(),
-				"Failed to wait for kube-controller-manager Cluster Operator to become available")
-
-			By("waiting for MAO cluster operator to become available")
-			Expect(framework.WaitForStatusAvailableMedium(ctx, client, "machine-api")).To(BeTrue(),
-				"Failed to wait for machine-api Cluster Operator to become available")
-
-			By("waiting for all nodes to become ready")
-			Expect(framework.WaitUntilAllNodesAreReady(ctx, client)).To(Succeed(),
-				"Failed to wait for all nodes to become ready")
-
-			By("waiting for all cluster operators to become available")
-
-			coList := &configv1.ClusterOperatorList{}
-			Eventually(client.List(ctx, coList)).Should(Succeed(), "failed to list ClusterOperators.")
-
-			for _, co := range coList.Items {
-				Expect(framework.WaitForStatusAvailableOverLong(ctx, client, co.Name)).To(BeTrue(),
-					"Failed to wait for %s Cluster Operator to become available", co.Name)
-			}
-
-			By("Removing the mitm-proxy")
-			framework.DeleteProxy(client)
 		})
 	})

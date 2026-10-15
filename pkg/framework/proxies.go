@@ -34,7 +34,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	apitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/komega"
@@ -174,48 +173,6 @@ func ConfigureClusterWideProxy(c client.Client, gomegaArgs ...interface{}) {
 	)
 }
 
-// UnconfigureClusterWideProxy configures the Cluster-Wide Proxy to stop using the MITM Proxy.
-func UnconfigureClusterWideProxy(c client.Client, gomegaArgs ...interface{}) {
-	ctx := context.Background()
-	kom := komega.New(c)
-
-	proxy := &configv1.Proxy{}
-	Eventually(c.Get(ctx, client.ObjectKey{Name: "cluster"}, proxy)).Should(Succeed(), "timed out getting Proxy named 'cluster.'")
-
-	Eventually(c.Patch(context.Background(), proxy, client.RawPatch(apitypes.JSONPatchType, []byte(`[
-		{"op": "remove", "path": "/spec/httpProxy"},
-		{"op": "remove", "path": "/spec/httpsProxy"},
-		{"op": "remove", "path": "/spec/noProxy"},
-		{"op": "remove", "path": "/spec/trustedCA"}
-	]`)))).Should(Succeed(), "timed out patching Proxy Spec.")
-
-	deploy := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      mapiControllersDeploymentName,
-			Namespace: proxyNamespace,
-		},
-	}
-
-	By("Waiting for machine-api-controller deployment to reflect unconfigured cluster-wide proxy")
-	Eventually(kom.Object(deploy), time.Minute*5).Should(
-		HaveField("Spec.Template.Spec.Containers", ContainElement(SatisfyAll(
-			HaveField("Name", Equal(machineControllerContainerName)),
-			HaveField("Env", SatisfyAll(
-				Not(ContainElement(SatisfyAll(
-					HaveField("Name", "NO_PROXY"),
-				))),
-				Not(ContainElement(SatisfyAll(
-					HaveField("Name", "HTTPS_PROXY"),
-				))),
-				Not(ContainElement(SatisfyAll(
-					HaveField("Name", "HTTP_PROXY"),
-				))),
-			)),
-		))),
-		"Cluster-wide proxy environmenet variables were still set.",
-	)
-}
-
 // DeleteProxy delete the MITM Proxy from the cluster.
 func DeleteProxy(c client.Client, gomegaArgs ...interface{}) {
 	ctx := context.Background()
@@ -228,17 +185,17 @@ func DeleteProxy(c client.Client, gomegaArgs ...interface{}) {
 	mitmService := corev1resourcebuilder.Service().WithName(mitmServiceName).WithNamespace(proxyNamespace).Build()
 
 	By("Deleting the MITM proxy Secret")
-	Eventually(c.Delete(ctx, mitmSignerSecret)).Should(Succeed(), "timed out deleting the MITM proxy Secret.")
+	Eventually(func() error { return client.IgnoreNotFound(c.Delete(ctx, mitmSignerSecret)) }).Should(Succeed(), "timed out deleting the MITM proxy Secret.")
 
 	By("Deleting the MITM proxy ConfigMaps")
-	Eventually(c.Delete(ctx, mitmBootstrapConfigMap)).Should(Succeed(), "timed out deleting the MITM proxy Bootstrap ConfigMap.")
-	Eventually(c.Delete(ctx, mitmCustomPkiConfigMap)).Should(Succeed(), "timed out deleting the MITM proxy Custom PKI ConfigMap.")
+	Eventually(func() error { return client.IgnoreNotFound(c.Delete(ctx, mitmBootstrapConfigMap)) }).Should(Succeed(), "timed out deleting the MITM proxy Bootstrap ConfigMap.")
+	Eventually(func() error { return client.IgnoreNotFound(c.Delete(ctx, mitmCustomPkiConfigMap)) }).Should(Succeed(), "timed out deleting the MITM proxy Custom PKI ConfigMap.")
 
 	By("Deleting the MITM proxy DaemonSet")
-	Eventually(c.Delete(ctx, mitmDaemonset)).Should(Succeed(), "timed out deleting the MITM proxy DaemonSet.")
+	Eventually(func() error { return client.IgnoreNotFound(c.Delete(ctx, mitmDaemonset)) }).Should(Succeed(), "timed out deleting the MITM proxy DaemonSet.")
 
 	By("Deleting the MITM proxy Service")
-	Eventually(c.Delete(ctx, mitmService)).Should(Succeed(), "timed out deleting the MITM proxy Service.")
+	Eventually(func() error { return client.IgnoreNotFound(c.Delete(ctx, mitmService)) }).Should(Succeed(), "timed out deleting the MITM proxy Service.")
 
 	By("Checking that the MITM proxy components are removed from the cluster")
 
