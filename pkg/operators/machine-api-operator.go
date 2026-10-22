@@ -294,7 +294,7 @@ var _ = Describe(
 
 			if isProxyJob {
 				By("cluster-wide proxy is already configured, leaving existing proxy unchanged")
-				framework.WaitForAllContainersProxyEnvVars(client, framework.MachineAPINamespace, maoManagedDeployment)
+				framework.WaitForMAPIControllersProxyEnvVars(client, framework.MachineAPINamespace, maoManagedDeployment)
 
 				return
 			}
@@ -348,7 +348,7 @@ var _ = Describe(
 			framework.ConfigureClusterWideProxy(client)
 
 			By("waiting for machine-api-controllers to reflect proxy configuration")
-			framework.WaitForAllContainersProxyEnvVars(client, framework.MachineAPINamespace, maoManagedDeployment)
+			framework.WaitForMAPIControllersProxyEnvVars(client, framework.MachineAPINamespace, maoManagedDeployment)
 		})
 
 		AfterEach(func() {
