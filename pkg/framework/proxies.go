@@ -25,6 +25,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -62,14 +63,34 @@ tar xvf mitmproxy-5.3.0-linux.tar.gz
 HOME=/.mitmproxy ./mitmdump --ssl-insecure
 `
 
-// IsClusterProxyEnabled returns true if the cluster has a global proxy enabled.
+// IsClusterProxyEnabled returns true if a global proxy is configured or still active in status.
 func IsClusterProxyEnabled(ctx context.Context, c client.Client) (bool, error) {
 	proxy := &configv1.Proxy{}
 	if err := c.Get(ctx, client.ObjectKey{Name: "cluster"}, proxy); err != nil {
 		return false, fmt.Errorf("failed to get cluster proxy: %w", err)
 	}
 
-	return len(proxy.Status.HTTPProxy) > 0 || len(proxy.Status.HTTPSProxy) > 0, nil
+	return proxy.Spec.HTTPProxy != "" || proxy.Spec.HTTPSProxy != "" ||
+		proxy.Status.HTTPProxy != "" || proxy.Status.HTTPSProxy != "", nil
+}
+
+// GetConfiguredProxyStatus returns proxy status only after configured endpoints have propagated.
+// Callers should retry while status is empty or differs from spec, including on preconfigured clusters.
+func GetConfiguredProxyStatus(ctx context.Context, c client.Client) (configv1.ProxyStatus, error) {
+	proxy := &configv1.Proxy{}
+	if err := c.Get(ctx, client.ObjectKey{Name: "cluster"}, proxy); err != nil {
+		return configv1.ProxyStatus{}, fmt.Errorf("failed to get cluster proxy: %w", err)
+	}
+
+	if proxy.Status.HTTPProxy == "" && proxy.Status.HTTPSProxy == "" {
+		return configv1.ProxyStatus{}, fmt.Errorf("waiting for configured Proxy status")
+	}
+
+	if proxy.Status.HTTPProxy != proxy.Spec.HTTPProxy || proxy.Status.HTTPSProxy != proxy.Spec.HTTPSProxy {
+		return configv1.ProxyStatus{}, fmt.Errorf("waiting for Proxy endpoints to propagate from spec to status")
+	}
+
+	return proxy.Status, nil
 }
 
 // DeployProxy deploys a MITM Proxy to the cluster.
@@ -151,41 +172,58 @@ func ConfigureClusterWideProxy(c client.Client, gomegaArgs ...interface{}) {
 	}), gomegaArgs...).Should(Succeed(), "cluster wide proxy set be able to be updated")
 }
 
-// WaitForAllContainersProxyEnvVars waits for all containers in the given Deployment
-// to have HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables set.
-func WaitForAllContainersProxyEnvVars(c client.Client, namespace, deploymentName string) {
-	kom := komega.New(c)
+// WaitForMAPIControllersProxyEnvVars waits for the MAPI controller containers in a Deployment
+// to match the configured Proxy status, including absence of unconfigured variables.
+// Metrics sidecars do not receive proxy variables and are excluded.
+func WaitForMAPIControllersProxyEnvVars(c client.Client, namespace, deploymentName string) {
+	ctx := context.Background()
 
-	deploy := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      deploymentName,
-			Namespace: namespace,
-		},
+	By(fmt.Sprintf("Waiting for MAPI controller containers in %s/%s to reflect configured cluster-wide proxy", namespace, deploymentName))
+
+	Eventually(func() error {
+		status, err := GetConfiguredProxyStatus(ctx, c)
+		if err != nil {
+			return err
+		}
+
+		deploy := &appsv1.Deployment{}
+		if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: deploymentName}, deploy); err != nil {
+			return err
+		}
+
+		return checkMAPIControllersProxyEnvVars(deploy, status)
+	}, WaitOverMedium).Should(Succeed(), "Deployment %s/%s did not reflect Proxy status", namespace, deploymentName)
+}
+
+func checkMAPIControllersProxyEnvVars(deploy *appsv1.Deployment, status configv1.ProxyStatus) error {
+	required := map[string]bool{
+		"machine-controller":    false,
+		"machineset-controller": false,
+		"nodelink-controller":   false,
 	}
 
-	proxyEnvMatcher := SatisfyAll(
-		ContainElement(SatisfyAll(
-			HaveField("Name", "NO_PROXY"),
-			HaveField("Value", Not(BeEmpty())),
-		)),
-		ContainElement(SatisfyAll(
-			HaveField("Name", "HTTPS_PROXY"),
-			HaveField("Value", Not(BeEmpty())),
-		)),
-		ContainElement(SatisfyAll(
-			HaveField("Name", "HTTP_PROXY"),
-			HaveField("Value", Not(BeEmpty())),
-		)),
-	)
+	for _, container := range deploy.Spec.Template.Spec.Containers {
+		_, isRequired := required[container.Name]
+		if !isRequired && container.Name != "machine-healthcheck-controller" {
+			continue
+		}
 
-	By(fmt.Sprintf("Waiting for all containers in %s/%s to reflect configured cluster-wide proxy", namespace, deploymentName))
+		if err := checkContainerProxyEnvVars(container, status); err != nil {
+			return err
+		}
 
-	Eventually(kom.Object(deploy), time.Minute*5).Should(
-		HaveField("Spec.Template.Spec.Containers", Not(ContainElement(
-			HaveField("Env", Not(proxyEnvMatcher)),
-		))),
-		fmt.Sprintf("Cluster-wide proxy environment variables were not set on all containers of %s/%s.", namespace, deploymentName),
-	)
+		if isRequired {
+			required[container.Name] = true
+		}
+	}
+
+	for name, found := range required {
+		if !found {
+			return fmt.Errorf("deployment %s/%s is missing required MAPI container %s", deploy.Namespace, deploy.Name, name)
+		}
+	}
+
+	return nil
 }
 
 // WaitForAllContainersNoProxyEnvVars waits for all containers in the given Deployment
@@ -208,7 +246,7 @@ func WaitForAllContainersNoProxyEnvVars(c client.Client, namespace, deploymentNa
 
 	By(fmt.Sprintf("Waiting for all containers in %s/%s to reflect unconfigured cluster-wide proxy", namespace, deploymentName))
 
-	Eventually(kom.Object(deploy), time.Minute*5).Should(
+	Eventually(kom.Object(deploy), WaitOverMedium).Should(
 		HaveField("Spec.Template.Spec.Containers", Not(ContainElement(
 			HaveField("Env", Not(noProxyEnvMatcher)),
 		))),
@@ -386,4 +424,102 @@ func generateCert() ([]byte, []byte, error) {
 	}
 
 	return certBytes, keyBytes, nil
+}
+
+const (
+	capiManagedLabel    = "capi-operator.openshift.io/managed-by"
+	capiProxyAnnotation = "capi-operator.openshift.io/inject-proxy"
+)
+
+// CheckCAPIProxyEnvVars checks managed Deployments' opted-in containers against Proxy status.
+func CheckCAPIProxyEnvVars(ctx context.Context, c client.Client, status configv1.ProxyStatus) error {
+	deployments := &appsv1.DeploymentList{}
+	if err := c.List(ctx, deployments, client.InNamespace(ClusterAPINamespace), client.HasLabels{capiManagedLabel}); err != nil {
+		return fmt.Errorf("listing managed CAPI Deployments: %w", err)
+	}
+
+	if len(deployments.Items) == 0 {
+		return fmt.Errorf("no managed CAPI Deployments found")
+	}
+
+	targets := 0
+
+	for _, deployment := range deployments.Items {
+		annotation, optedIn := deployment.Spec.Template.Annotations[capiProxyAnnotation]
+		if !optedIn {
+			continue
+		}
+
+		names := strings.FieldsFunc(annotation, func(r rune) bool { return r == ',' })
+		foundTargets := 0
+
+		for _, name := range names {
+			name = strings.TrimSpace(name)
+			if name == "" {
+				continue
+			}
+
+			found := false
+
+			for _, container := range deployment.Spec.Template.Spec.Containers {
+				if container.Name != name {
+					continue
+				}
+
+				found = true
+
+				if err := checkContainerProxyEnvVars(container, status); err != nil {
+					return fmt.Errorf("deployment %s/%s: %w", deployment.Namespace, deployment.Name, err)
+				}
+			}
+
+			if !found {
+				return fmt.Errorf("deployment %s/%s opts in unknown container %q", deployment.Namespace, deployment.Name, name)
+			}
+
+			foundTargets++
+		}
+
+		if foundTargets == 0 {
+			return fmt.Errorf("deployment %s/%s has an empty proxy injection annotation", deployment.Namespace, deployment.Name)
+		}
+
+		targets += foundTargets
+	}
+
+	if targets == 0 {
+		return fmt.Errorf("no managed CAPI containers opted in to proxy injection")
+	}
+
+	return nil
+}
+
+func checkContainerProxyEnvVars(container corev1.Container, status configv1.ProxyStatus) error {
+	expected := map[string]string{
+		"HTTP_PROXY":  status.HTTPProxy,
+		"HTTPS_PROXY": status.HTTPSProxy,
+		"NO_PROXY":    status.NoProxy,
+	}
+
+	for name, value := range expected {
+		count := 0
+
+		for _, env := range container.Env {
+			if env.Name != name {
+				continue
+			}
+
+			count++
+
+			if value == "" || env.Value != value || env.ValueFrom != nil {
+				return fmt.Errorf("container %s: %s does not match Proxy status", container.Name, name)
+			}
+		}
+
+		if (value != "" && count != 1) || (value == "" && count != 0) {
+			return fmt.Errorf("container %s: unexpected number of %s variables: %d", container.Name, name, count)
+		}
+	}
+
+	return nil
 }

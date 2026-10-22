@@ -2,13 +2,11 @@ package operators
 
 import (
 	"context"
-	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	configv1 "github.com/openshift/api/config/v1"
-	appsv1 "k8s.io/api/apps/v1"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
@@ -21,10 +19,9 @@ var _ = Describe(
 	Serial,
 	func() {
 		var (
-			gatherer   *gatherer.StateGatherer
-			client     runtimeclient.Client
-			ctx        context.Context
-			isProxyJob bool
+			gatherer *gatherer.StateGatherer
+			client   runtimeclient.Client
+			ctx      context.Context
 		)
 
 		BeforeEach(func() {
@@ -35,10 +32,22 @@ var _ = Describe(
 
 			ctx = framework.GetContext()
 
+			enabled, err := framework.ClusterAPIMachineManagementEnabled(ctx, client)
+			Expect(err).NotTo(HaveOccurred(), "Failed to determine ClusterAPIMachineManagement feature gate")
+
+			if !enabled {
+				Skip("ClusterAPIMachineManagement is disabled")
+			}
+
+			By("waiting for the desired ClusterAPI revision to be fully applied")
+			Eventually(func() error {
+				return framework.CheckClusterAPIReconciled(ctx, client)
+			}, framework.WaitOverMedium).Should(Succeed(), "ClusterAPI revision did not reconcile")
+
 			gatherer, err = framework.NewGatherer()
 			Expect(err).ToNot(HaveOccurred(), "Failed to load gatherer")
 
-			isProxyJob, err = framework.IsClusterProxyEnabled(ctx, client)
+			isProxyJob, err := framework.IsClusterProxyEnabled(ctx, client)
 			Expect(err).ToNot(HaveOccurred(), "Failed to check cluster proxy configuration")
 
 			if isProxyJob {
@@ -60,19 +69,15 @@ var _ = Describe(
 
 				By("verifying proxy env vars are removed from Cluster API provider Deployments")
 
-				deployments := &appsv1.DeploymentList{}
+				proxy := &configv1.Proxy{}
 
 				Eventually(func() error {
-					return client.List(ctx, deployments,
-						runtimeclient.InNamespace(framework.ClusterAPINamespace),
-						runtimeclient.HasLabels{"cluster.x-k8s.io/provider"},
-					)
-				}).Should(Succeed(), "timed out listing Cluster API provider Deployments.")
-				Expect(deployments.Items).NotTo(BeEmpty(), "no Cluster API provider Deployments found")
+					return client.Get(ctx, runtimeclient.ObjectKey{Name: "cluster"}, proxy)
+				}).Should(Succeed(), "Failed to get restored Proxy status")
 
-				for _, deploy := range deployments.Items {
-					framework.WaitForAllContainersNoProxyEnvVars(client, framework.ClusterAPINamespace, deploy.Name)
-				}
+				Eventually(func() error {
+					return framework.CheckCAPIProxyEnvVars(ctx, client, proxy.Status)
+				}, framework.WaitOverMedium).Should(Succeed(), "CAPI containers did not reflect restored Proxy status")
 
 				By("waiting for KAPI cluster operator to become available")
 				Expect(framework.WaitForStatusAvailableOverLong(ctx, client, "kube-apiserver")).To(BeTrue(),
@@ -116,20 +121,14 @@ var _ = Describe(
 		It("have proxy environment variables injected", func() {
 			By("waiting for Cluster API provider deployments to reflect proxy configuration")
 
-			deployments := &appsv1.DeploymentList{}
-
 			Eventually(func() error {
-				return client.List(ctx, deployments,
-					runtimeclient.InNamespace(framework.ClusterAPINamespace),
-					runtimeclient.HasLabels{"cluster.x-k8s.io/provider"},
-				)
-			}).Should(Succeed(), "timed out listing Cluster API provider Deployments.")
-			Expect(deployments.Items).NotTo(BeEmpty(), "no Cluster API provider Deployments found")
+				status, err := framework.GetConfiguredProxyStatus(ctx, client)
+				if err != nil {
+					return err
+				}
 
-			for _, deploy := range deployments.Items {
-				By(fmt.Sprintf("verifying proxy env vars on Deployment %s", deploy.Name))
-				framework.WaitForAllContainersProxyEnvVars(client, framework.ClusterAPINamespace, deploy.Name)
-			}
+				return framework.CheckCAPIProxyEnvVars(ctx, client, status)
+			}, framework.WaitOverMedium).Should(Succeed(), "CAPI containers did not reflect configured Proxy status")
 		})
 
 		AfterEach(func() {
