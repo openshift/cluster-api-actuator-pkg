@@ -48,6 +48,23 @@ const (
 	MachineAnnotationKey       = "machine.openshift.io/machine"
 	ClusterAPIActuatorPkgTaint = "cluster-api-actuator-pkg"
 
+	// machineAPIGroupVersion is the machine.openshift.io/v1beta1 apiVersion string.
+	machineAPIGroupVersion = "machine.openshift.io/v1beta1"
+	// capiClusterNameLabel is the Cluster API cluster-name label key.
+	capiClusterNameLabel = "cluster.x-k8s.io/cluster-name"
+
+	// Field keys and status values used when manipulating unstructured objects.
+	conditionsField       = "conditions"
+	conditionTypeField    = "type"
+	statusField           = "status"
+	nameField             = "name"
+	configurationField    = "configuration"
+	conditionStatusTrue   = "True"
+	conditionStatusFalse  = "False"
+	conditionTypeDegraded = "Degraded"
+	conditionTypeUpdated  = "Updated"
+	conditionTypeUpdating = "Updating"
+
 	// Openshift CI specific env variables.
 	isCI        = "OPENSHIFT_CI"
 	artifactDir = "ARTIFACT_DIR"
@@ -298,7 +315,7 @@ func SkipIfNotTechPreviewNoUpgrade(oc *gatherer.CLI, cl runtimeclient.Client) {
 
 // SkipIfNotTechPreviewNoUpgradeCtx skip test if a cluster is not a TechPreviewNoUpgrade cluster.
 func SkipIfNotTechPreviewNoUpgradeCtx(ctx context.Context, oc *gatherer.CLI, cl runtimeclient.Client) {
-	featureSet, err := oc.WithoutNamespace().Run("get").Args("featuregate", "cluster", "-o=jsonpath={.spec.featureSet}").OutputCtx(ctx)
+	featureSet, err := oc.WithoutNamespace().Run("get").Args("featuregate", GlobalInfrastuctureName, "-o=jsonpath={.spec.featureSet}").OutputCtx(ctx)
 	Expect(err).NotTo(HaveOccurred(), "Failed to get featureSet")
 
 	if featureSet != string(configv1.TechPreviewNoUpgrade) {
@@ -326,7 +343,7 @@ func GetCredentialsFromClusterCtx(ctx context.Context, oc *gatherer.CLI) ([]byte
 	Expect(err).NotTo(HaveOccurred(), "Failed to decode accessKeyID")
 	secureKey, err := base64.StdEncoding.DecodeString(secureKeyBase64)
 	Expect(err).NotTo(HaveOccurred(), "Failed to decode secureKey")
-	clusterRegion, err := oc.WithoutNamespace().Run("get").Args("infrastructure", "cluster", "-o=jsonpath={.status.platformStatus.aws.region}").OutputCtx(ctx)
+	clusterRegion, err := oc.WithoutNamespace().Run("get").Args("infrastructure", GlobalInfrastuctureName, "-o=jsonpath={.status.platformStatus.aws.region}").OutputCtx(ctx)
 	Expect(err).NotTo(HaveOccurred(), "Failed to get clusterRegion")
 
 	return accessKeyID, secureKey, clusterRegion

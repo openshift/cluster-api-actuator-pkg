@@ -22,7 +22,7 @@ type MachineHealthCheckParams struct {
 func CreateMHC(c client.Client, params MachineHealthCheckParams) (*machinev1.MachineHealthCheck, error) {
 	mhc := &machinev1.MachineHealthCheck{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "machine.openshift.io/v1beta1",
+			APIVersion: machineAPIGroupVersion,
 			Kind:       "MachineHealthCheck",
 		},
 		ObjectMeta: metav1.ObjectMeta{

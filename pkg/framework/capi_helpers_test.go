@@ -9,6 +9,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	revision2      = "revision-2"
+	currentVersion = "current"
+)
+
 func TestClusterAPIReconciled(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -18,9 +23,9 @@ func TestClusterAPIReconciled(t *testing.T) {
 		current    operatorv1alpha1.RevisionName
 		wantError  bool
 	}{
-		{name: "ready", generation: 2, observed: 2, desired: "revision-2", current: "revision-2"},
-		{name: "generation not observed", generation: 2, observed: 1, desired: "revision-2", current: "revision-2", wantError: true},
-		{name: "revision not applied", generation: 2, observed: 2, desired: "revision-2", current: "revision-1", wantError: true},
+		{name: "ready", generation: 2, observed: 2, desired: revision2, current: revision2},
+		{name: "generation not observed", generation: 2, observed: 1, desired: revision2, current: revision2, wantError: true},
+		{name: "revision not applied", generation: 2, observed: 2, desired: revision2, current: "revision-1", wantError: true},
 		{name: "empty revisions", generation: 2, observed: 2, wantError: true},
 		{name: "uninitialized", wantError: true},
 	}
@@ -52,11 +57,11 @@ func TestClusterAPIMachineManagementEnabled(t *testing.T) {
 		wantEnabled bool
 		wantError   bool
 	}{
-		{name: "enabled", details: []configv1.FeatureGateDetails{{Version: "current", Enabled: []configv1.FeatureGateAttributes{{Name: clusterAPIMachineManagementFeatureGate}}}}, wantEnabled: true},
-		{name: "disabled", details: []configv1.FeatureGateDetails{{Version: "current", Disabled: []configv1.FeatureGateAttributes{{Name: clusterAPIMachineManagementFeatureGate}}}}},
+		{name: "enabled", details: []configv1.FeatureGateDetails{{Version: currentVersion, Enabled: []configv1.FeatureGateAttributes{{Name: clusterAPIMachineManagementFeatureGate}}}}, wantEnabled: true},
+		{name: "disabled", details: []configv1.FeatureGateDetails{{Version: currentVersion, Disabled: []configv1.FeatureGateAttributes{{Name: clusterAPIMachineManagementFeatureGate}}}}},
 		{name: "old version does not enable current version", details: []configv1.FeatureGateDetails{
 			{Version: "old", Enabled: []configv1.FeatureGateAttributes{{Name: clusterAPIMachineManagementFeatureGate}}},
-			{Version: "current", Disabled: []configv1.FeatureGateAttributes{{Name: clusterAPIMachineManagementFeatureGate}}},
+			{Version: currentVersion, Disabled: []configv1.FeatureGateAttributes{{Name: clusterAPIMachineManagementFeatureGate}}},
 		}},
 		{name: "missing status", wantError: true},
 		{name: "missing current version", details: []configv1.FeatureGateDetails{{Version: "old"}}, wantError: true},
@@ -64,7 +69,7 @@ func TestClusterAPIMachineManagementEnabled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			version := &configv1.ClusterVersion{ObjectMeta: metav1.ObjectMeta{Name: "version"}, Status: configv1.ClusterVersionStatus{Desired: configv1.Release{Version: "current"}}}
+			version := &configv1.ClusterVersion{ObjectMeta: metav1.ObjectMeta{Name: "version"}, Status: configv1.ClusterVersionStatus{Desired: configv1.Release{Version: currentVersion}}}
 			gate := &configv1.FeatureGate{ObjectMeta: metav1.ObjectMeta{Name: "cluster"}, Status: configv1.FeatureGateStatus{FeatureGates: tt.details}}
 			c := &proxyTestClient{version: version, gate: gate}
 

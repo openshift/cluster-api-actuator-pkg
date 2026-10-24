@@ -72,11 +72,14 @@ linters:
       - legacy
       - std-error-handling
     rules:
-      # Current infrastructure provider APIs still embed core v1beta1 field types.
+      # resourcebuilder test fixtures intentionally populate deprecated status
+      # subresources to build complete objects: the cluster-api v1beta2
+      # ".Deprecated.V1Beta1" compat fields (and the v1beta1 package/errors they
+      # pull in) plus the provider v1beta1 status fields.
       - linters:
           - staticcheck
-        path: testutils/resourcebuilder/cluster-api/infrastructure/
-        text: 'SA1019: "sigs.k8s.io/cluster-api/api/core/v1beta1" is deprecated:'
+        path: testutils/resourcebuilder/cluster-api/
+        text: 'SA1019:.*(v1beta1 will be dropped|cluster-api/errors is deprecated|cluster-api-provider-.*Status\)\.(Ready|FailureReason|FailureMessage) is deprecated)'
     paths:
       - third_party$
       - builtin$

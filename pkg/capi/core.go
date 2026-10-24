@@ -20,6 +20,12 @@ import (
 	yaml "sigs.k8s.io/yaml"
 )
 
+const (
+	awsMachineTemplateKind   = "AWSMachineTemplate"
+	azureMachineTemplateKind = "AzureMachineTemplate"
+	gcpMachineTemplateKind   = "GCPMachineTemplate"
+)
+
 var _ = Describe("[sig-cluster-lifecycle] Cluster API MachineSet", framework.LabelCAPI, framework.LabelDisruptive, Ordered, func() {
 	var (
 		awsMachineTemplate   *awsv1.AWSMachineTemplate
@@ -68,15 +74,15 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API MachineSet", framework.Lab
 			awsMapiMachineSpec = &mapiv1.AWSMachineProviderConfig{}
 			Expect(yaml.Unmarshal(workerMachineSet.Spec.Template.Spec.ProviderSpec.Value.Raw, awsMapiMachineSpec)).To(Succeed(), "it should be able to unmarshal the raw yaml into providerSpec")
 			failureDomain = awsMapiMachineSpec.Placement.AvailabilityZone
-			kind = "AWSMachineTemplate"
+			kind = awsMachineTemplateKind
 		case configv1.AzurePlatformType:
 			azureMapiMachineSpec = getAzureMAPIProviderSpec(client)
 			failureDomain = azureMapiMachineSpec.Zone
-			kind = "AzureMachineTemplate"
+			kind = azureMachineTemplateKind
 		case configv1.GCPPlatformType:
 			gcpMapiMachineSpec = getGCPMAPIProviderSpec(client)
 			failureDomain = gcpMapiMachineSpec.Zone
-			kind = "GCPMachineTemplate"
+			kind = gcpMachineTemplateKind
 		default:
 			Skip(fmt.Sprintf("Platform %v does not support , skipping.", platform))
 		}

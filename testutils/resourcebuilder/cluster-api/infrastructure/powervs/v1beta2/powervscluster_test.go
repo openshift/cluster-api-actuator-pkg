@@ -40,7 +40,7 @@ var _ = Describe("IBMPowerVSCluster", func() {
 
 	Describe("WithAnnotations", func() {
 		It("should return the custom value when specified", func() {
-			annotations := map[string]string{"key": "value"}
+			annotations := map[string]string{testKey: testValue}
 			powerVSCluster := PowerVSCluster().WithAnnotations(annotations).Build()
 			Expect(powerVSCluster.Annotations).To(Equal(annotations))
 		})
@@ -72,7 +72,7 @@ var _ = Describe("IBMPowerVSCluster", func() {
 
 	Describe("WithLabels", func() {
 		It("should return the custom value when specified", func() {
-			labels := map[string]string{"key": "value"}
+			labels := map[string]string{testKey: testValue}
 			powerVSCluster := PowerVSCluster().WithLabels(labels).Build()
 			Expect(powerVSCluster.Labels).To(Equal(labels))
 		})

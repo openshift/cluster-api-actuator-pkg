@@ -22,6 +22,13 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const (
+	testKey            = "key"
+	testClusterName    = "test-cluster"
+	conditionTypeReady = "Ready"
+	testValue          = "value"
+)
+
 func TestV1Beta1(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "cluster-api core v1beta1 Suite")

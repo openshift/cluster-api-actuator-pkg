@@ -48,7 +48,7 @@ type AzureProviderSpecBuilder struct {
 func (m AzureProviderSpecBuilder) Build() *machinev1beta1.AzureMachineProviderSpec {
 	return &machinev1beta1.AzureMachineProviderSpec{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "machine.openshift.io/v1beta1",
+			APIVersion: apiVersionMachineOpenshiftV1beta1,
 			Kind:       "AzureMachineProviderSpec",
 		},
 		UserDataSecret: &v1.SecretReference{

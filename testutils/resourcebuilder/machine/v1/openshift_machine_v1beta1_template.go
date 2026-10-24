@@ -28,8 +28,8 @@ import (
 func OpenShiftMachineV1Beta1Template() OpenShiftMachineV1Beta1TemplateBuilder {
 	return OpenShiftMachineV1Beta1TemplateBuilder{
 		labels: map[string]string{
-			resourcebuilder.MachineRoleLabelName: "master",
-			resourcebuilder.MachineTypeLabelName: "master",
+			resourcebuilder.MachineRoleLabelName: masterRole,
+			resourcebuilder.MachineTypeLabelName: masterRole,
 			machinev1beta1.MachineClusterIDLabel: resourcebuilder.TestClusterIDValue,
 		},
 		providerSpecBuilder: machinev1beta1resourcebuilder.AWSProviderSpec(),

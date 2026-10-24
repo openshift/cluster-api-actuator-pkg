@@ -94,7 +94,7 @@ func GetControlPlaneHostAndPort(ctx context.Context, cl client.Client) (string, 
 
 	namespacedName := client.ObjectKey{
 		Namespace: ClusterAPINamespace,
-		Name:      "cluster",
+		Name:      GlobalInfrastuctureName,
 	}
 
 	if err := cl.Get(ctx, namespacedName, &infraCluster); err != nil {

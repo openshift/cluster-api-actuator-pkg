@@ -27,7 +27,6 @@ import (
 	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 
-	//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
 	capierrors "sigs.k8s.io/cluster-api/errors"
 )
 
@@ -41,7 +40,7 @@ var _ = Describe("Machine", func() {
 
 	Describe("Annotations", func() {
 		It("should have the correct annotations when set", func() {
-			annotations := map[string]string{"key": "value"}
+			annotations := map[string]string{testKey: testValue}
 			machine := Machine().WithAnnotations(annotations).Build()
 			Expect(machine.ObjectMeta.Annotations).To(Equal(annotations))
 		})
@@ -73,7 +72,7 @@ var _ = Describe("Machine", func() {
 
 	Describe("Labels", func() {
 		It("should have the correct labels when set", func() {
-			labels := map[string]string{"key": "value"}
+			labels := map[string]string{testKey: testValue}
 			machine := Machine().WithLabels(labels).Build()
 			Expect(machine.ObjectMeta.Labels).To(Equal(labels))
 		})
@@ -114,8 +113,8 @@ var _ = Describe("Machine", func() {
 
 	Describe("ClusterName", func() {
 		It("should have the correct cluster name when set", func() {
-			machine := Machine().WithClusterName("test-cluster").Build()
-			Expect(machine.Spec.ClusterName).To(Equal("test-cluster"))
+			machine := Machine().WithClusterName(testClusterName).Build()
+			Expect(machine.Spec.ClusterName).To(Equal(testClusterName))
 		})
 	})
 
@@ -237,7 +236,7 @@ var _ = Describe("Machine", func() {
 
 	Describe("Conditions", func() {
 		It("should have the correct conditions when set", func() {
-			condition := metav1.Condition{Type: "Ready", Status: metav1.ConditionTrue}
+			condition := metav1.Condition{Type: conditionTypeReady, Status: metav1.ConditionTrue}
 			machine := Machine().WithConditions([]metav1.Condition{condition}).Build()
 			Expect(machine.Status.Conditions).To(HaveLen(1))
 		})
@@ -245,9 +244,8 @@ var _ = Describe("Machine", func() {
 
 	Describe("V1Beta1Conditions", func() {
 		It("should have the correct conditions when set", func() {
-			condition := clusterv1.Condition{Type: "Ready", Status: corev1.ConditionTrue}
+			condition := clusterv1.Condition{Type: conditionTypeReady, Status: corev1.ConditionTrue}
 			machine := Machine().WithV1Beta1Conditions([]clusterv1.Condition{condition}).Build()
-			//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
 			Expect(machine.Status.Deprecated.V1Beta1.Conditions).To(HaveLen(1))
 		})
 	})
@@ -256,7 +254,6 @@ var _ = Describe("Machine", func() {
 		It("should have the correct failure reason when set", func() {
 			reason := capierrors.InvalidConfigurationMachineError
 			machine := Machine().WithFailureReason(&reason).Build()
-			//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
 			Expect(*machine.Status.Deprecated.V1Beta1.FailureReason).To(Equal(reason))
 		})
 	})
@@ -265,7 +262,6 @@ var _ = Describe("Machine", func() {
 		It("should have the correct failure message when set", func() {
 			message := "test-fail-msg"
 			machine := Machine().WithFailureMessage(&message).Build()
-			//nolint:staticcheck // Ignore SA1019 (deprecation) until v1beta2.
 			Expect(*machine.Status.Deprecated.V1Beta1.FailureMessage).To(Equal(message))
 		})
 	})

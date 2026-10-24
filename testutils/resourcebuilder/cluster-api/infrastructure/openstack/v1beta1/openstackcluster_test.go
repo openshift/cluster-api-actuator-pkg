@@ -38,7 +38,7 @@ var _ = Describe("OpenStackCluster", func() {
 
 	Describe("WithAnnotations", func() {
 		It("should return the custom value when specified", func() {
-			annotations := map[string]string{"key": "value"}
+			annotations := map[string]string{testKey: testValue}
 			openstackCluster := OpenStackCluster().WithAnnotations(annotations).Build()
 			Expect(openstackCluster.Annotations).To(Equal(annotations))
 		})
