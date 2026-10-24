@@ -39,12 +39,12 @@ func TestHasCAPIInsufficientCapacityUsesContractVersionedReference(t *testing.T)
 	infraMachine.SetKind("AWSMachine")
 	infraMachine.SetNamespace("test")
 	infraMachine.SetName("aws-machine")
-	infraMachine.Object["status"] = map[string]interface{}{
-		"conditions": []interface{}{
+	infraMachine.Object[statusField] = map[string]interface{}{
+		conditionsField: []interface{}{
 			map[string]interface{}{
-				"type":    "InstanceReady",
-				"status":  "False",
-				"message": insufficientInstanceCapacity,
+				conditionTypeField: "InstanceReady",
+				statusField:        conditionStatusFalse,
+				"message":          insufficientInstanceCapacity,
 			},
 		},
 	}

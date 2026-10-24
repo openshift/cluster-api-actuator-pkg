@@ -29,6 +29,7 @@ const (
 	awsMachineTemplateName = "aws-machine-template"
 	infrastructureName     = "cluster"
 	infraAPIGroup          = "infrastructure.cluster.x-k8s.io"
+	tagNameFilter          = "tag:Name"
 )
 
 var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cluster API AWS MachineSet", framework.LabelCAPI, framework.LabelDisruptive, Ordered, func() {
@@ -83,7 +84,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cl
 			mapiDefaultProviderSpec.Placement.AvailabilityZone,
 			1,
 			clusterv1.ContractVersionedObjectReference{
-				Kind:     "AWSMachineTemplate",
+				Kind:     awsMachineTemplateKind,
 				APIGroup: infraAPIGroup,
 				Name:     awsMachineTemplateName,
 			},
@@ -406,7 +407,7 @@ func newAWSMachineTemplate(name string, mapiProviderSpec *mapiv1.AWSMachineProvi
 		subnet = awsv1.AWSResourceReference{
 			Filters: []awsv1.Filter{
 				{
-					Name:   "tag:Name",
+					Name:   tagNameFilter,
 					Values: mapiProviderSpec.Subnet.Filters[0].Values,
 				},
 			},
@@ -424,7 +425,7 @@ func newAWSMachineTemplate(name string, mapiProviderSpec *mapiv1.AWSMachineProvi
 		{
 			Filters: []awsv1.Filter{
 				{
-					Name:   "tag:Name",
+					Name:   tagNameFilter,
 					Values: mapiProviderSpec.SecurityGroups[0].Filters[0].Values,
 				},
 			},
@@ -432,7 +433,7 @@ func newAWSMachineTemplate(name string, mapiProviderSpec *mapiv1.AWSMachineProvi
 		{
 			Filters: []awsv1.Filter{
 				{
-					Name:   "tag:Name",
+					Name:   tagNameFilter,
 					Values: mapiProviderSpec.SecurityGroups[1].Filters[0].Values,
 				},
 			},
@@ -511,7 +512,7 @@ func createAWSCAPIMachineSetWithRetry(ctx context.Context, cl client.Client, mac
 			mapiDefaultProviderSpec.Placement.AvailabilityZone,
 			1,
 			clusterv1.ContractVersionedObjectReference{
-				Kind:     "AWSMachineTemplate",
+				Kind:     awsMachineTemplateKind,
 				APIGroup: infraAPIGroup,
 				Name:     awsMachineTemplateName,
 			},

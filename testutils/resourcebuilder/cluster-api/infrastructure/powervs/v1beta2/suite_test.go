@@ -22,6 +22,11 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const (
+	testKey   = "key"
+	testValue = "value"
+)
+
 func TestPowerVSV1Beta2(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "cluster-api infrastructure powervs v1beta2 Suite")

@@ -89,7 +89,7 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API GCP MachineSet", framework
 				mapiMachineSpec.Zone,
 				1,
 				clusterv1.ContractVersionedObjectReference{
-					Kind:     "GCPMachineTemplate",
+					Kind:     gcpMachineTemplateKind,
 					APIGroup: infraAPIGroup,
 					Name:     gcpMachineTemplate.Name,
 				},
@@ -125,7 +125,7 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API GCP MachineSet", framework
 				mapiMachineSpec.Zone,
 				1,
 				clusterv1.ContractVersionedObjectReference{
-					Kind:     "GCPMachineTemplate",
+					Kind:     gcpMachineTemplateKind,
 					APIGroup: infraAPIGroup,
 					Name:     gcpMachineTemplate.Name,
 				},
@@ -196,7 +196,7 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API GCP MachineSet", framework
 				mapiProviderSpec.Zone,
 				1,
 				clusterv1.ContractVersionedObjectReference{
-					Kind:     "GCPMachineTemplate",
+					Kind:     gcpMachineTemplateKind,
 					APIGroup: infraAPIGroup,
 					Name:     gcpMachineTemplate.Name,
 				},
@@ -237,7 +237,7 @@ var _ = Describe("[sig-cluster-lifecycle] Cluster API GCP MachineSet", framework
 			mapiProviderSpec.Zone,
 			1,
 			clusterv1.ContractVersionedObjectReference{
-				Kind:     "GCPMachineTemplate",
+				Kind:     gcpMachineTemplateKind,
 				APIGroup: infraAPIGroup,
 				Name:     gcpMachineTemplate.Name,
 			},

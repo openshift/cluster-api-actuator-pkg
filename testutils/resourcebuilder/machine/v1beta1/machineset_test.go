@@ -44,7 +44,7 @@ var _ = Describe("MachineSet", func() {
 
 	Describe("WithAnnotations", func() {
 		It("should return the custom value when specified", func() {
-			annotations := map[string]string{"key": "value"}
+			annotations := map[string]string{testLabelKey: testLabelValue}
 			machineSet := MachineSet().WithAnnotations(annotations).Build()
 			Expect(machineSet.Annotations).To(Equal(annotations))
 		})
@@ -107,14 +107,14 @@ var _ = Describe("MachineSet", func() {
 
 	Describe("WithLabel", func() {
 		It("should return the custom value when specified", func() {
-			machineSet := MachineSet().WithLabel("key", "value").Build()
-			Expect(machineSet.ObjectMeta.Labels).To(HaveKeyWithValue("key", "value"))
+			machineSet := MachineSet().WithLabel(testLabelKey, testLabelValue).Build()
+			Expect(machineSet.ObjectMeta.Labels).To(HaveKeyWithValue(testLabelKey, testLabelValue))
 		})
 	})
 
 	Describe("WithLabels", func() {
 		It("should return the custom value when specified", func() {
-			labels := map[string]string{"key1": "value1", "key2": "value2"}
+			labels := map[string]string{testLabelKey1: testLabelValue1, testLabelKey2: testLabelValue2}
 			machineSet := MachineSet().WithLabels(labels).Build()
 			Expect(machineSet.ObjectMeta.Labels).To(Equal(labels))
 		})
@@ -168,7 +168,7 @@ var _ = Describe("MachineSet", func() {
 
 		It("should return the custom value when specified", func() {
 			meta := machinev1beta1.ObjectMeta{
-				Labels: map[string]string{"test": "label"},
+				Labels: map[string]string{testLabelTest: "label"},
 			}
 			machineSet := MachineSet().WithMachineSpecObjectMeta(meta).Build()
 			Expect(machineSet.Spec.Template.Spec.ObjectMeta).To(Equal(meta))
@@ -183,7 +183,7 @@ var _ = Describe("MachineSet", func() {
 
 		It("should return the custom value when specified", func() {
 			sel := metav1.LabelSelector{
-				MatchLabels: map[string]string{"test": "label"},
+				MatchLabels: map[string]string{testLabelTest: "label"},
 			}
 			machineSet := MachineSet().WithMachineSetSpecSelector(sel).Build()
 			Expect(machineSet.Spec.Selector).To(Equal(sel))
@@ -192,7 +192,7 @@ var _ = Describe("MachineSet", func() {
 
 	Describe("WithMachineTemplateAnnotations", func() {
 		It("should return the custom value when specified", func() {
-			annotations := map[string]string{"key": "value"}
+			annotations := map[string]string{testLabelKey: testLabelValue}
 			machineSet := MachineSet().WithMachineTemplateAnnotations(annotations).Build()
 			Expect(machineSet.Spec.Template.ObjectMeta.Annotations).To(Equal(annotations))
 		})
@@ -210,14 +210,14 @@ var _ = Describe("MachineSet", func() {
 
 	Describe("WithMachineTemplateLabel", func() {
 		It("should return the custom value when specified", func() {
-			machineSet := MachineSet().WithMachineTemplateLabel("key", "value").Build()
-			Expect(machineSet.Spec.Template.ObjectMeta.Labels).To(HaveKeyWithValue("key", "value"))
+			machineSet := MachineSet().WithMachineTemplateLabel(testLabelKey, testLabelValue).Build()
+			Expect(machineSet.Spec.Template.ObjectMeta.Labels).To(HaveKeyWithValue(testLabelKey, testLabelValue))
 		})
 	})
 
 	Describe("WithMachineTemplateLabels", func() {
 		It("should return the custom value when specified", func() {
-			labels := map[string]string{"key1": "value1", "key2": "value2"}
+			labels := map[string]string{testLabelKey1: testLabelValue1, testLabelKey2: testLabelValue2}
 			machineSet := MachineSet().WithMachineTemplateLabels(labels).Build()
 			Expect(machineSet.Spec.Template.ObjectMeta.Labels).To(Equal(labels))
 		})
@@ -314,7 +314,7 @@ var _ = Describe("MachineSet", func() {
 		})
 
 		It("should return the custom value when specified", func() {
-			taints := []corev1.Taint{{Key: "test", Value: "taint", Effect: corev1.TaintEffectNoSchedule}}
+			taints := []corev1.Taint{{Key: testLabelTest, Value: "taint", Effect: corev1.TaintEffectNoSchedule}}
 			machineSet := MachineSet().WithTaints(taints).Build()
 			Expect(machineSet.Spec.Template.Spec.Taints).To(Equal(taints))
 		})

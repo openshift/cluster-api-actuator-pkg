@@ -84,7 +84,7 @@ type AWSMachineBuilder struct {
 func (a AWSMachineBuilder) Build() *capav1.AWSMachine {
 	awsMachine := &capav1.AWSMachine{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "infrastructure.cluster.x-k8s.io/v1beta2",
+			APIVersion: infraAPIVersion,
 			Kind:       "AWSMachine",
 		},
 		ObjectMeta: metav1.ObjectMeta{

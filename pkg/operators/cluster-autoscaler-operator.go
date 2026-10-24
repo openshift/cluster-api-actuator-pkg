@@ -91,7 +91,7 @@ var _ = Describe("Cluster autoscaler operator should", framework.LabelAutoscaler
 				ScaleTargetRef: caov1beta1.CrossVersionObjectReference{
 					APIVersion: "machine.openshift.io/v1beta1",
 					Kind:       "MachineSet",
-					Name:       "test",
+					Name:       testString,
 				},
 			},
 		}
@@ -128,6 +128,7 @@ const (
 	caoWebhookServiceName = "cluster-autoscaler-operator"
 	apiServerName         = "cluster"
 	featureGateName       = "cluster"
+	testString            = "test"
 )
 
 // customTLSProfile returns a Custom TLS profile with a restricted cipher suite set for testing.

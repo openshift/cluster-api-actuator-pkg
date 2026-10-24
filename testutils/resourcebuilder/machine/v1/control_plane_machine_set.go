@@ -28,6 +28,9 @@ const (
 	// ControlPlaneMachineSetName is the only valid name allowed.
 	// A ControlPlaneMachineSet is a singleton within the cluster, this matches other singletons such as Infrastructure.
 	ControlPlaneMachineSetName = "cluster"
+
+	// masterRole is the machine role/type used for control plane machines.
+	masterRole = "master"
 )
 
 // ControlPlaneMachineSetInterface is the interface to controlplanemachineset builder.
@@ -55,8 +58,8 @@ func ControlPlaneMachineSet() ControlPlaneMachineSetBuilder {
 		state:                  machinev1.ControlPlaneMachineSetStateActive,
 		selector: metav1.LabelSelector{
 			MatchLabels: map[string]string{
-				resourcebuilder.MachineRoleLabelName: "master",
-				resourcebuilder.MachineTypeLabelName: "master",
+				resourcebuilder.MachineRoleLabelName: masterRole,
+				resourcebuilder.MachineTypeLabelName: masterRole,
 				machinev1beta1.MachineClusterIDLabel: resourcebuilder.TestClusterIDValue,
 			},
 		},

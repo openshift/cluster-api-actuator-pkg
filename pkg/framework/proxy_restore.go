@@ -43,7 +43,7 @@ func machineConfigObject(kind, name string) *unstructured.Unstructured {
 // It does not wait for a proxy-enabled rollout or impose a setup health gate.
 func CaptureProxyClusterState(ctx context.Context, c client.Client) (*ProxyClusterState, error) {
 	state := &ProxyClusterState{proxy: &configv1.Proxy{}, pools: map[string]string{}}
-	if err := c.Get(ctx, client.ObjectKey{Name: "cluster"}, state.proxy); err != nil {
+	if err := c.Get(ctx, client.ObjectKey{Name: GlobalInfrastuctureName}, state.proxy); err != nil {
 		return nil, err
 	}
 
@@ -55,7 +55,7 @@ func CaptureProxyClusterState(ctx context.Context, c client.Client) (*ProxyClust
 	}
 
 	for _, pool := range pools.Items {
-		name, _, err := unstructured.NestedString(pool.Object, "spec", "configuration", "name")
+		name, _, err := unstructured.NestedString(pool.Object, "spec", configurationField, nameField)
 		if err != nil {
 			return nil, fmt.Errorf("reading pool %s configuration: %w", pool.GetName(), err)
 		}
@@ -125,7 +125,7 @@ func (s *ProxyClusterState) RestoreProxyAndWaitForClusterReady(ctx context.Conte
 // observations of incomplete propagation within the shared cleanup deadline.
 func (s *ProxyClusterState) restoreProxy(ctx context.Context, c client.Client, rollback map[string]poolRollback) error {
 	proxy := &configv1.Proxy{}
-	if err := c.Get(ctx, client.ObjectKey{Name: "cluster"}, proxy); err != nil {
+	if err := c.Get(ctx, client.ObjectKey{Name: GlobalInfrastuctureName}, proxy); err != nil {
 		return err
 	}
 
@@ -150,7 +150,7 @@ func (s *ProxyClusterState) rollbackTargets(ctx context.Context, c client.Client
 			return nil, err
 		}
 
-		rendered, _, err := unstructured.NestedString(pool.Object, "spec", "configuration", "name")
+		rendered, _, err := unstructured.NestedString(pool.Object, "spec", configurationField, nameField)
 		if err != nil {
 			return nil, err
 		}
@@ -224,7 +224,7 @@ func proxyRenderingComplete(controller *unstructured.Unstructured, status config
 	}
 
 	if !generationObserved(controller) || !hasConditions(controller, map[string]string{
-		"TemplateControllerCompleted": "True", "TemplateControllerRunning": "False", "TemplateControllerFailing": "False",
+		"TemplateControllerCompleted": conditionStatusTrue, "TemplateControllerRunning": conditionStatusFalse, "TemplateControllerFailing": conditionStatusFalse,
 	}) {
 		return fmt.Errorf("template controller has not completed rendering the restored proxy settings")
 	}
@@ -233,12 +233,12 @@ func proxyRenderingComplete(controller *unstructured.Unstructured, status config
 }
 
 func generationObserved(obj *unstructured.Unstructured) bool {
-	observed, found, err := unstructured.NestedInt64(obj.Object, "status", "observedGeneration")
+	observed, found, err := unstructured.NestedInt64(obj.Object, statusField, "observedGeneration")
 	return err == nil && found && observed == obj.GetGeneration()
 }
 
 func hasConditions(obj *unstructured.Unstructured, expected map[string]string) bool {
-	conditions, _, err := unstructured.NestedSlice(obj.Object, "status", "conditions")
+	conditions, _, err := unstructured.NestedSlice(obj.Object, statusField, conditionsField)
 	if err != nil {
 		return false
 	}
@@ -248,7 +248,7 @@ func hasConditions(obj *unstructured.Unstructured, expected map[string]string) b
 
 		for _, entry := range conditions {
 			condition, ok := entry.(map[string]interface{})
-			if ok && condition["type"] == conditionType && condition["status"] == status {
+			if ok && condition[conditionTypeField] == conditionType && condition[statusField] == status {
 				found = true
 			}
 		}
@@ -262,25 +262,25 @@ func hasConditions(obj *unstructured.Unstructured, expected map[string]string) b
 }
 
 func poolRestored(pool *unstructured.Unstructured, rollback poolRollback) error {
-	desired, _, _ := unstructured.NestedString(pool.Object, "spec", "configuration", "name")
-	applied, _, _ := unstructured.NestedString(pool.Object, "status", "configuration", "name")
+	desired, _, _ := unstructured.NestedString(pool.Object, "spec", configurationField, nameField)
+	applied, _, _ := unstructured.NestedString(pool.Object, statusField, configurationField, nameField)
 
 	if rollback.changed && (desired == rollback.rendered || pool.GetGeneration() <= rollback.generation) {
 		return fmt.Errorf("pool %s still reports its pre-rollback configuration %s", pool.GetName(), rollback.rendered)
 	}
 
 	if desired == "" || applied != desired || !generationObserved(pool) ||
-		!hasConditions(pool, map[string]string{"Updated": "True", "Updating": "False", "Degraded": "False"}) {
-		return fmt.Errorf("pool %s has not observed and applied its desired configuration (desired %s, applied %s, status %v)", pool.GetName(), desired, applied, pool.Object["status"])
+		!hasConditions(pool, map[string]string{conditionTypeUpdated: conditionStatusTrue, conditionTypeUpdating: conditionStatusFalse, conditionTypeDegraded: conditionStatusFalse}) {
+		return fmt.Errorf("pool %s has not observed and applied its desired configuration (desired %s, applied %s, status %v)", pool.GetName(), desired, applied, pool.Object[statusField])
 	}
 
-	count, found, err := unstructured.NestedInt64(pool.Object, "status", "machineCount")
+	count, found, err := unstructured.NestedInt64(pool.Object, statusField, "machineCount")
 	if err != nil || !found {
 		return fmt.Errorf("pool %s has no machine count", pool.GetName())
 	}
 
 	for _, field := range []string{"updatedMachineCount", "readyMachineCount", "unavailableMachineCount", "degradedMachineCount"} {
-		value, found, err := unstructured.NestedInt64(pool.Object, "status", field)
+		value, found, err := unstructured.NestedInt64(pool.Object, statusField, field)
 
 		want := int64(0)
 		if field == "updatedMachineCount" || field == "readyMachineCount" {

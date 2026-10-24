@@ -28,6 +28,11 @@ import (
 	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework/gatherer"
 )
 
+const (
+	appLabelKey   = "app"
+	nginxAppLabel = "nginx"
+)
+
 var nodeDrainLabels = map[string]string{
 	framework.WorkerNodeRoleLabel: "",
 	"node-draining-test":          string(uuid.NewUUID()),
@@ -71,13 +76,13 @@ func replicationControllerWorkload(namespace string) *corev1.ReplicationControll
 		Spec: corev1.ReplicationControllerSpec{
 			Replicas: &replicas,
 			Selector: map[string]string{
-				"app": "nginx",
+				appLabelKey: nginxAppLabel,
 			},
 			Template: &corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "nginx",
+					Name: nginxAppLabel,
 					Labels: map[string]string{
-						"app": "nginx",
+						appLabelKey: nginxAppLabel,
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -118,7 +123,7 @@ func podDisruptionBudget(namespace string) *policyv1.PodDisruptionBudget {
 		Spec: policyv1.PodDisruptionBudgetSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"app": "nginx",
+					appLabelKey: nginxAppLabel,
 				},
 			},
 			MaxUnavailable: &maxUnavailable,

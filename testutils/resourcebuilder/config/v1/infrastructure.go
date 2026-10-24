@@ -26,6 +26,15 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 )
 
+const (
+	testAPIServerURL         = "https://api.test-cluster.test-domain:6443"
+	testAPIServerInternalURL = "https://api-int.test-cluster.test-domain:6443"
+	testAPIServerInternalIP  = "10.0.0.5"
+	testIngressIP            = "10.0.0.7"
+	testRegion               = "us-central"
+	testVCenterServer        = "vcenter.test.com"
+)
+
 // Infrastructure creates a new infrastructure builder.
 func Infrastructure() InfrastructureBuilder {
 	return InfrastructureBuilder{
@@ -75,8 +84,8 @@ func (i InfrastructureBuilder) AsAWS(name string, region string) InfrastructureB
 	}
 	i.status = &configv1.InfrastructureStatus{
 		InfrastructureName:     name,
-		APIServerURL:           "https://api.test-cluster.test-domain:6443",
-		APIServerInternalURL:   "https://api-int.test-cluster.test-domain:6443",
+		APIServerURL:           testAPIServerURL,
+		APIServerInternalURL:   testAPIServerInternalURL,
 		EtcdDiscoveryDomain:    "",
 		ControlPlaneTopology:   configv1.HighlyAvailableTopologyMode,
 		InfrastructureTopology: configv1.HighlyAvailableTopologyMode,
@@ -101,8 +110,8 @@ func (i InfrastructureBuilder) AsAzure(name string) InfrastructureBuilder {
 	}
 	i.status = &configv1.InfrastructureStatus{
 		InfrastructureName:     name,
-		APIServerURL:           "https://api.test-cluster.test-domain:6443",
-		APIServerInternalURL:   "https://api-int.test-cluster.test-domain:6443",
+		APIServerURL:           testAPIServerURL,
+		APIServerInternalURL:   testAPIServerInternalURL,
 		EtcdDiscoveryDomain:    "",
 		ControlPlaneTopology:   configv1.HighlyAvailableTopologyMode,
 		InfrastructureTopology: configv1.HighlyAvailableTopologyMode,
@@ -125,8 +134,8 @@ func (i InfrastructureBuilder) AsGCP(name string, region string) InfrastructureB
 	}
 	i.status = &configv1.InfrastructureStatus{
 		InfrastructureName:     name,
-		APIServerURL:           "https://api.test-cluster.test-domain:6443",
-		APIServerInternalURL:   "https://api-int.test-cluster.test-domain:6443",
+		APIServerURL:           testAPIServerURL,
+		APIServerInternalURL:   testAPIServerInternalURL,
 		EtcdDiscoveryDomain:    "",
 		ControlPlaneTopology:   configv1.HighlyAvailableTopologyMode,
 		InfrastructureTopology: configv1.HighlyAvailableTopologyMode,
@@ -151,16 +160,16 @@ func (i InfrastructureBuilder) AsOpenStack(name string) InfrastructureBuilder {
 	}
 	i.status = &configv1.InfrastructureStatus{
 		InfrastructureName:     name,
-		APIServerURL:           "https://api.test-cluster.test-domain:6443",
-		APIServerInternalURL:   "https://api-int.test-cluster.test-domain:6443",
+		APIServerURL:           testAPIServerURL,
+		APIServerInternalURL:   testAPIServerInternalURL,
 		EtcdDiscoveryDomain:    "",
 		ControlPlaneTopology:   configv1.HighlyAvailableTopologyMode,
 		InfrastructureTopology: configv1.HighlyAvailableTopologyMode,
 		PlatformStatus: &configv1.PlatformStatus{
 			Type: configv1.OpenStackPlatformType,
 			OpenStack: &configv1.OpenStackPlatformStatus{
-				APIServerInternalIPs: []string{"10.0.0.5"},
-				IngressIPs:           []string{"10.0.0.7"},
+				APIServerInternalIPs: []string{testAPIServerInternalIP},
+				IngressIPs:           []string{testIngressIP},
 			},
 		},
 	}
@@ -193,16 +202,16 @@ func (i InfrastructureBuilder) AsNutanix(name string) InfrastructureBuilder {
 
 	i.status = &configv1.InfrastructureStatus{
 		InfrastructureName:     name,
-		APIServerURL:           "https://api.test-cluster.test-domain:6443",
-		APIServerInternalURL:   "https://api-int.test-cluster.test-domain:6443",
+		APIServerURL:           testAPIServerURL,
+		APIServerInternalURL:   testAPIServerInternalURL,
 		EtcdDiscoveryDomain:    "",
 		ControlPlaneTopology:   configv1.HighlyAvailableTopologyMode,
 		InfrastructureTopology: configv1.HighlyAvailableTopologyMode,
 		PlatformStatus: &configv1.PlatformStatus{
 			Type: configv1.NutanixPlatformType,
 			Nutanix: &configv1.NutanixPlatformStatus{
-				APIServerInternalIPs: []string{"10.0.0.5"},
-				IngressIPs:           []string{"10.0.0.7"},
+				APIServerInternalIPs: []string{testAPIServerInternalIP},
+				IngressIPs:           []string{testIngressIP},
 			},
 		},
 	}
@@ -272,16 +281,16 @@ func (i InfrastructureBuilder) AsVSphere(name string) InfrastructureBuilder {
 	}
 	i.status = &configv1.InfrastructureStatus{
 		InfrastructureName:     name,
-		APIServerURL:           "https://api.test-cluster.test-domain:6443",
-		APIServerInternalURL:   "https://api-int.test-cluster.test-domain:6443",
+		APIServerURL:           testAPIServerURL,
+		APIServerInternalURL:   testAPIServerInternalURL,
 		EtcdDiscoveryDomain:    "",
 		ControlPlaneTopology:   configv1.HighlyAvailableTopologyMode,
 		InfrastructureTopology: configv1.HighlyAvailableTopologyMode,
 		PlatformStatus: &configv1.PlatformStatus{
 			Type: configv1.VSpherePlatformType,
 			VSphere: &configv1.VSpherePlatformStatus{
-				APIServerInternalIPs: []string{"10.0.0.5"},
-				IngressIPs:           []string{"10.0.0.7"},
+				APIServerInternalIPs: []string{testAPIServerInternalIP},
+				IngressIPs:           []string{testIngressIP},
 			},
 		},
 	}
@@ -300,9 +309,9 @@ func (i InfrastructureBuilder) AsVSphereWithFailureDomains(name string, failureD
 		infraBuilder.spec.PlatformSpec.VSphere.FailureDomains = []configv1.VSpherePlatformFailureDomainSpec{
 			{
 				Name:   "us-central1-a",
-				Region: "us-central",
+				Region: testRegion,
 				Zone:   "1-a",
-				Server: "vcenter.test.com",
+				Server: testVCenterServer,
 				Topology: configv1.VSpherePlatformTopology{
 					Datacenter:     "test-dc1",
 					ComputeCluster: "/test-dc1/host/test-cluster-1",
@@ -315,9 +324,9 @@ func (i InfrastructureBuilder) AsVSphereWithFailureDomains(name string, failureD
 			},
 			{
 				Name:   "us-central1-b",
-				Region: "us-central",
+				Region: testRegion,
 				Zone:   "1-b",
-				Server: "vcenter.test.com",
+				Server: testVCenterServer,
 				Topology: configv1.VSpherePlatformTopology{
 					Datacenter:     "test-dc2",
 					ComputeCluster: "/test-dc2/host/test-cluster-2",
@@ -330,9 +339,9 @@ func (i InfrastructureBuilder) AsVSphereWithFailureDomains(name string, failureD
 			},
 			{
 				Name:   "us-central1-c",
-				Region: "us-central",
+				Region: testRegion,
 				Zone:   "1-c",
-				Server: "vcenter.test.com",
+				Server: testVCenterServer,
 				Topology: configv1.VSpherePlatformTopology{
 					Datacenter:     "test-dc3",
 					ComputeCluster: "/test-dc3/host/test-cluster-3",
@@ -398,8 +407,8 @@ func (i InfrastructureBuilder) AsPowerVS(name string) InfrastructureBuilder {
 			Type:    configv1.PowerVSPlatformType,
 			PowerVS: &configv1.PowerVSPlatformStatus{},
 		},
-		APIServerURL:           "https://api.test-cluster.test-domain:6443",
-		APIServerInternalURL:   "https://api-int.test-cluster.test-domain:6443",
+		APIServerURL:           testAPIServerURL,
+		APIServerInternalURL:   testAPIServerInternalURL,
 		ControlPlaneTopology:   configv1.HighlyAvailableTopologyMode,
 		InfrastructureTopology: configv1.HighlyAvailableTopologyMode,
 	}
