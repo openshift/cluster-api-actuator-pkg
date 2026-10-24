@@ -57,7 +57,7 @@ type GCPProviderSpecBuilder struct {
 func (m GCPProviderSpecBuilder) Build() *machinev1beta1.GCPMachineProviderSpec {
 	return &machinev1beta1.GCPMachineProviderSpec{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "machine.openshift.io/v1beta1",
+			APIVersion: apiVersionMachineOpenshiftV1beta1,
 			Kind:       "GCPMachineProviderSpec",
 		},
 		MachineType: m.machineType,

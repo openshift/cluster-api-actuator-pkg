@@ -131,7 +131,7 @@ func ConfigureClusterWideProxy(c client.Client, gomegaArgs ...interface{}) {
 	Eventually(c.List(ctx, services, client.MatchingLabels(map[string]string{"app": "mitm-proxy"}))).Should(Succeed(), "timed out listing Services for app=mitm-proxy.")
 
 	proxy := &configv1.Proxy{}
-	Eventually(c.Get(ctx, client.ObjectKey{Name: "cluster"}, proxy)).Should(Succeed(), "timed out getting Proxy named 'cluster.'")
+	Eventually(c.Get(ctx, client.ObjectKey{Name: GlobalInfrastuctureName}, proxy)).Should(Succeed(), "timed out getting Proxy named 'cluster.'")
 
 	Eventually(kom.Update(proxy, func() {
 		proxy.Spec.HTTPProxy = "http://" + services.Items[0].Spec.ClusterIP + ":8080"

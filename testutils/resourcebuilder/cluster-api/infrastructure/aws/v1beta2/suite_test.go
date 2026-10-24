@@ -22,7 +22,12 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-const testPrefix = "test-"
+const (
+	testPrefix          = "test-"
+	testKey             = "key"
+	testSecurityGroupID = "sg-12345"
+	testValue           = "value"
+)
 
 func TestAWSV1Beta2(t *testing.T) {
 	RegisterFailHandler(Fail)

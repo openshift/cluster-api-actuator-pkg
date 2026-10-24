@@ -24,6 +24,9 @@ import (
 const (
 	namespace = "openshift-machine-api"
 
+	appLabelKey   = "app"
+	appLabelValue = "test"
+
 	// Timeout constants for service operations.
 	serviceTimeout      = 3 * time.Minute
 	servicePollInterval = 10 * time.Second
@@ -91,7 +94,7 @@ var _ = Describe("[sig-cluster-lifecycle] CCM Service Annotation tests GCP", fra
 			},
 			Spec: corev1.ServiceSpec{
 				Type:     corev1.ServiceTypeLoadBalancer,
-				Selector: map[string]string{"app": "test"},
+				Selector: map[string]string{appLabelKey: appLabelValue},
 				Ports: []corev1.ServicePort{{
 					Port: 80,
 				}},
@@ -216,7 +219,7 @@ var _ = Describe("[sig-cluster-lifecycle] CCM Service Annotation tests GCP", fra
 			},
 			Spec: corev1.ServiceSpec{
 				Type:     corev1.ServiceTypeLoadBalancer,
-				Selector: map[string]string{"app": "test"},
+				Selector: map[string]string{appLabelKey: appLabelValue},
 				Ports: []corev1.ServicePort{{
 					Port: 80,
 				}},
@@ -254,7 +257,7 @@ var _ = Describe("[sig-cluster-lifecycle] CCM Service Annotation tests GCP", fra
 			},
 			Spec: corev1.ServiceSpec{
 				Type:     corev1.ServiceTypeLoadBalancer,
-				Selector: map[string]string{"app": "test"},
+				Selector: map[string]string{appLabelKey: appLabelValue},
 				Ports: []corev1.ServicePort{{
 					Port: 80,
 				}},

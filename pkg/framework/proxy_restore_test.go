@@ -10,8 +10,10 @@ import (
 
 const restoredRendered = "rendered-worker-restored-with-other-changes"
 
+const testHTTPProxyURL = "http://original:8080"
+
 func poolStatus(pool *unstructured.Unstructured) map[string]interface{} {
-	status, ok := pool.Object["status"].(map[string]interface{})
+	status, ok := pool.Object[statusField].(map[string]interface{})
 	if !ok {
 		panic("test fixture has no pool status")
 	}
@@ -22,16 +24,16 @@ func poolStatus(pool *unstructured.Unstructured) map[string]interface{} {
 func restoredPool() *unstructured.Unstructured {
 	pool := machineConfigObject("MachineConfigPool", "worker")
 	pool.SetGeneration(3)
-	pool.Object["spec"] = map[string]interface{}{"configuration": map[string]interface{}{"name": restoredRendered}}
-	pool.Object["status"] = map[string]interface{}{
+	pool.Object["spec"] = map[string]interface{}{configurationField: map[string]interface{}{nameField: restoredRendered}}
+	pool.Object[statusField] = map[string]interface{}{
 		"observedGeneration": int64(3),
-		"configuration":      map[string]interface{}{"name": restoredRendered},
+		configurationField:   map[string]interface{}{nameField: restoredRendered},
 		"machineCount":       int64(2), "updatedMachineCount": int64(2), "readyMachineCount": int64(2),
 		"unavailableMachineCount": int64(0), "degradedMachineCount": int64(0),
-		"conditions": []interface{}{
-			map[string]interface{}{"type": "Updated", "status": "True"},
-			map[string]interface{}{"type": "Updating", "status": "False"},
-			map[string]interface{}{"type": "Degraded", "status": "False"},
+		conditionsField: []interface{}{
+			map[string]interface{}{conditionTypeField: conditionTypeUpdated, statusField: conditionStatusTrue},
+			map[string]interface{}{conditionTypeField: conditionTypeUpdating, statusField: conditionStatusFalse},
+			map[string]interface{}{conditionTypeField: conditionTypeDegraded, statusField: conditionStatusFalse},
 		},
 	}
 
@@ -46,11 +48,11 @@ func TestPoolRestored(t *testing.T) {
 		mutate func(*unstructured.Unstructured)
 	}{
 		{"healthy earlier configuration", func(p *unstructured.Unstructured) {
-			p.Object["spec"] = map[string]interface{}{"configuration": map[string]interface{}{"name": rollback.rendered}}
-			poolStatus(p)["configuration"] = map[string]interface{}{"name": rollback.rendered}
+			p.Object["spec"] = map[string]interface{}{configurationField: map[string]interface{}{nameField: rollback.rendered}}
+			poolStatus(p)[configurationField] = map[string]interface{}{nameField: rollback.rendered}
 		}},
 		{"rollback in flight", func(p *unstructured.Unstructured) {
-			poolStatus(p)["configuration"] = map[string]interface{}{"name": rollback.rendered}
+			poolStatus(p)[configurationField] = map[string]interface{}{nameField: rollback.rendered}
 		}},
 		{"unchanged generation", func(p *unstructured.Unstructured) {
 			p.SetGeneration(2)
@@ -67,29 +69,29 @@ func TestPoolRestored(t *testing.T) {
 		}{field, func(p *unstructured.Unstructured) { poolStatus(p)[field] = int64(1) }})
 	}
 
-	for _, condition := range []string{"Updated", "Updating", "Degraded"} {
+	for _, condition := range []string{conditionTypeUpdated, conditionTypeUpdating, conditionTypeDegraded} {
 		tests = append(tests, struct {
 			name   string
 			mutate func(*unstructured.Unstructured)
 		}{condition, func(p *unstructured.Unstructured) {
-			status := "True"
-			if condition == "Updated" {
-				status = "False"
+			status := conditionStatusTrue
+			if condition == conditionTypeUpdated {
+				status = conditionStatusFalse
 			}
 
 			conditions := []interface{}{
-				map[string]interface{}{"type": "Updated", "status": "True"},
-				map[string]interface{}{"type": "Updating", "status": "False"},
-				map[string]interface{}{"type": "Degraded", "status": "False"},
+				map[string]interface{}{conditionTypeField: conditionTypeUpdated, statusField: conditionStatusTrue},
+				map[string]interface{}{conditionTypeField: conditionTypeUpdating, statusField: conditionStatusFalse},
+				map[string]interface{}{conditionTypeField: conditionTypeDegraded, statusField: conditionStatusFalse},
 			}
 
-			for i, name := range []string{"Updated", "Updating", "Degraded"} {
+			for i, name := range []string{conditionTypeUpdated, conditionTypeUpdating, conditionTypeDegraded} {
 				if name == condition {
-					conditions[i] = map[string]interface{}{"type": condition, "status": status}
+					conditions[i] = map[string]interface{}{conditionTypeField: condition, statusField: status}
 				}
 			}
 
-			poolStatus(p)["conditions"] = conditions
+			poolStatus(p)[conditionsField] = conditions
 		}})
 	}
 
@@ -153,30 +155,30 @@ func TestProxyRenderingComplete(t *testing.T) {
 		"proxy": nil, "additionalTrustBundle": "an independently changed trust bundle",
 	}
 
-	controller.Object["status"] = map[string]interface{}{
+	controller.Object[statusField] = map[string]interface{}{
 		"observedGeneration": int64(4),
-		"conditions": []interface{}{
-			map[string]interface{}{"type": "TemplateControllerCompleted", "status": "True"},
-			map[string]interface{}{"type": "TemplateControllerRunning", "status": "False"},
-			map[string]interface{}{"type": "TemplateControllerFailing", "status": "False"},
+		conditionsField: []interface{}{
+			map[string]interface{}{conditionTypeField: "TemplateControllerCompleted", statusField: conditionStatusTrue},
+			map[string]interface{}{conditionTypeField: "TemplateControllerRunning", statusField: conditionStatusFalse},
+			map[string]interface{}{conditionTypeField: "TemplateControllerFailing", statusField: conditionStatusFalse},
 		},
 	}
 	if err := proxyRenderingComplete(controller, configv1.ProxyStatus{}); err != nil {
 		t.Fatalf("rejected an observed empty proxy with unrelated trust changes: %v", err)
 	}
 
-	if err := proxyRenderingComplete(controller, configv1.ProxyStatus{HTTPProxy: "http://original:8080"}); err == nil {
+	if err := proxyRenderingComplete(controller, configv1.ProxyStatus{HTTPProxy: testHTTPProxyURL}); err == nil {
 		t.Fatal("accepted rendering that has not observed the restored proxy")
 	}
 
-	controller.Object["spec"] = map[string]interface{}{"proxy": map[string]interface{}{"httpProxy": "http://original:8080"}}
-	if err := proxyRenderingComplete(controller, configv1.ProxyStatus{HTTPProxy: "http://original:8080"}); err != nil {
+	controller.Object["spec"] = map[string]interface{}{"proxy": map[string]interface{}{"httpProxy": testHTTPProxyURL}}
+	if err := proxyRenderingComplete(controller, configv1.ProxyStatus{HTTPProxy: testHTTPProxyURL}); err != nil {
 		t.Fatalf("rejected the restored non-empty proxy: %v", err)
 	}
 
 	controller.SetGeneration(5)
 
-	if err := proxyRenderingComplete(controller, configv1.ProxyStatus{HTTPProxy: "http://original:8080"}); err == nil {
+	if err := proxyRenderingComplete(controller, configv1.ProxyStatus{HTTPProxy: testHTTPProxyURL}); err == nil {
 		t.Fatal("accepted stale template-controller status")
 	}
 }

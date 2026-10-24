@@ -30,7 +30,7 @@ var _ = Describe("AWSCluster", func() {
 		It("should return a default AWSCluster when no options are specified", func() {
 			awsCluster := AWSCluster().Build()
 			Expect(awsCluster).ToNot(BeNil())
-			Expect(awsCluster.TypeMeta.APIVersion).To(Equal("infrastructure.cluster.x-k8s.io/v1beta2"))
+			Expect(awsCluster.TypeMeta.APIVersion).To(Equal(infraAPIVersion))
 			Expect(awsCluster.TypeMeta.Kind).To(Equal("AWSCluster"))
 		})
 	})
@@ -39,7 +39,7 @@ var _ = Describe("AWSCluster", func() {
 
 	Describe("WithAnnotations", func() {
 		It("should return the custom value when specified", func() {
-			annotations := map[string]string{"key": "value"}
+			annotations := map[string]string{testKey: testValue}
 			awsCluster := AWSCluster().WithAnnotations(annotations).Build()
 			Expect(awsCluster.Annotations).To(Equal(annotations))
 		})
@@ -70,7 +70,7 @@ var _ = Describe("AWSCluster", func() {
 
 	Describe("WithLabels", func() {
 		It("should return the custom value when specified", func() {
-			labels := map[string]string{"key": "value"}
+			labels := map[string]string{testKey: testValue}
 			awsCluster := AWSCluster().WithLabels(labels).Build()
 			Expect(awsCluster.Labels).To(Equal(labels))
 		})
@@ -95,7 +95,7 @@ var _ = Describe("AWSCluster", func() {
 
 	Describe("WithAdditionalTags", func() {
 		It("should return the custom value when specified", func() {
-			tags := capav1.Tags{"key": "value"}
+			tags := capav1.Tags{testKey: testValue}
 			awsCluster := AWSCluster().WithAdditionalTags(tags).Build()
 			Expect(awsCluster.Spec.AdditionalTags).To(Equal(tags))
 		})
@@ -232,7 +232,7 @@ var _ = Describe("AWSCluster", func() {
 	Describe("WithNetwork", func() {
 		It("should return the custom value when specified", func() {
 			network := capav1.NetworkStatus{SecurityGroups: map[capav1.SecurityGroupRole]capav1.SecurityGroup{
-				capav1.SecurityGroupControlPlane: {ID: "sg-12345"},
+				capav1.SecurityGroupControlPlane: {ID: testSecurityGroupID},
 			}}
 			awsCluster := AWSCluster().WithNetwork(network).Build()
 			Expect(awsCluster.Status.Network).To(Equal(network))

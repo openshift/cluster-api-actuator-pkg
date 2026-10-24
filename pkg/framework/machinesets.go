@@ -239,7 +239,7 @@ func CreateMachineSet(c runtimeclient.Client, params MachineSetParams) (*machine
 	ms := &machinev1.MachineSet{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "MachineSet",
-			APIVersion: "machine.openshift.io/v1beta1",
+			APIVersion: machineAPIGroupVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      params.Name,
@@ -515,7 +515,7 @@ func NewMachineSet(
 	ms := machinev1.MachineSet{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "MachineSet",
-			APIVersion: "machine.openshift.io/v1beta1",
+			APIVersion: machineAPIGroupVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
