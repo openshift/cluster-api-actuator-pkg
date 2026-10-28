@@ -44,16 +44,14 @@ import (
 )
 
 const (
-	mapiControllersDeploymentName         = "machine-api-controllers"
-	machineControllerContainerName string = "machine-controller"
-	proxyNamespace                        = MachineAPINamespace
-	proxyName                             = "mitm-proxy"
-	mitmSignerName                        = "mitm-signer"
-	mitmBootstrapName                     = "mitm-bootstrap"
-	mitmCustomPKIName                     = "mitm-custom-pki"
-	mitmCustomPKINamespace                = "openshift-config"
-	mitmDaemonsetName                     = proxyName
-	mitmServiceName                       = proxyName
+	proxyNamespace         = MachineAPINamespace
+	proxyName              = "mitm-proxy"
+	mitmSignerName         = "mitm-signer"
+	mitmBootstrapName      = "mitm-bootstrap"
+	mitmCustomPKIName      = "mitm-custom-pki"
+	mitmCustomPKINamespace = "openshift-config"
+	mitmDaemonsetName      = proxyName
+	mitmServiceName        = proxyName
 )
 
 const proxySetup = `
@@ -63,6 +61,36 @@ curl -O https://snapshots.mitmproxy.org/5.3.0/mitmproxy-5.3.0-linux.tar.gz
 tar xvf mitmproxy-5.3.0-linux.tar.gz
 HOME=/.mitmproxy ./mitmdump --ssl-insecure
 `
+
+// IsClusterProxyEnabled returns true if a global proxy is configured or still active in status.
+func IsClusterProxyEnabled(ctx context.Context, c client.Client) (bool, error) {
+	proxy := &configv1.Proxy{}
+	if err := c.Get(ctx, client.ObjectKey{Name: "cluster"}, proxy); err != nil {
+		return false, fmt.Errorf("failed to get cluster proxy: %w", err)
+	}
+
+	return proxy.Spec.HTTPProxy != "" || proxy.Spec.HTTPSProxy != "" ||
+		proxy.Status.HTTPProxy != "" || proxy.Status.HTTPSProxy != "", nil
+}
+
+// GetConfiguredProxyStatus returns proxy status only after configured endpoints have propagated.
+// Callers should retry while status is empty or differs from spec, including on preconfigured clusters.
+func GetConfiguredProxyStatus(ctx context.Context, c client.Client) (configv1.ProxyStatus, error) {
+	proxy := &configv1.Proxy{}
+	if err := c.Get(ctx, client.ObjectKey{Name: "cluster"}, proxy); err != nil {
+		return configv1.ProxyStatus{}, fmt.Errorf("failed to get cluster proxy: %w", err)
+	}
+
+	if proxy.Status.HTTPProxy == "" && proxy.Status.HTTPSProxy == "" {
+		return configv1.ProxyStatus{}, fmt.Errorf("waiting for configured Proxy status")
+	}
+
+	if proxy.Status.HTTPProxy != proxy.Spec.HTTPProxy || proxy.Status.HTTPSProxy != proxy.Spec.HTTPSProxy {
+		return configv1.ProxyStatus{}, fmt.Errorf("waiting for Proxy endpoints to propagate from spec to status")
+	}
+
+	return proxy.Status, nil
+}
 
 // DeployProxy deploys a MITM Proxy to the cluster.
 func DeployProxy(c client.Client, gomegaArgs ...interface{}) {
@@ -141,36 +169,112 @@ func ConfigureClusterWideProxy(c client.Client, gomegaArgs ...interface{}) {
 			Name: mitmCustomPKIName,
 		}
 	}), gomegaArgs...).Should(Succeed(), "cluster wide proxy set be able to be updated")
+}
+
+// WaitForMAPIControllersProxyEnvVars waits for the MAPI controller containers in a Deployment
+// to match the configured Proxy status, including absence of unconfigured variables.
+// Metrics sidecars do not receive proxy variables and are excluded.
+func WaitForMAPIControllersProxyEnvVars(c client.Client, namespace, deploymentName string) {
+	ctx := context.Background()
+
+	By(fmt.Sprintf("Waiting for MAPI controller containers in %s/%s to reflect configured cluster-wide proxy", namespace, deploymentName))
+
+	status := WaitForConfiguredProxyStatus(ctx, c)
+	deploy := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: deploymentName}}
+
+	Eventually(komega.New(c).Object(deploy), WaitOverMedium).Should(
+		WithTransform(mapiControllersProxyEnvVars, HaveEach(ConsistOf(proxyEnvVarsFromStatus(status)))),
+		"Deployment %s/%s did not reflect Proxy status", namespace, deploymentName,
+	)
+}
+
+func mapiControllersProxyEnvVars(deploy *appsv1.Deployment) (map[string][]corev1.EnvVar, error) {
+	all := proxyEnvVarsByContainer(deploy)
+	selected := map[string][]corev1.EnvVar{}
+
+	for _, name := range []string{"machine-controller", "machineset-controller", "nodelink-controller"} {
+		env, found := all[name]
+		if !found {
+			return nil, fmt.Errorf("deployment %s/%s is missing required MAPI container %s", deploy.Namespace, deploy.Name, name)
+		}
+
+		selected[name] = env
+	}
+
+	if env, found := all["machine-healthcheck-controller"]; found {
+		selected["machine-healthcheck-controller"] = env
+	}
+
+	return selected, nil
+}
+
+// WaitForConfiguredProxyStatus waits for configured proxy endpoints to propagate.
+func WaitForConfiguredProxyStatus(ctx context.Context, c client.Client) configv1.ProxyStatus {
+	var (
+		status configv1.ProxyStatus
+		err    error
+	)
+
+	Eventually(func() error {
+		status, err = GetConfiguredProxyStatus(ctx, c)
+		return err
+	}, WaitOverMedium).Should(Succeed(), "Cluster proxy endpoints did not propagate to status")
+
+	return status
+}
+
+func proxyEnvVarsFromStatus(status configv1.ProxyStatus) []corev1.EnvVar {
+	var env []corev1.EnvVar
+
+	for _, variable := range []corev1.EnvVar{
+		{Name: "HTTP_PROXY", Value: status.HTTPProxy},
+		{Name: "HTTPS_PROXY", Value: status.HTTPSProxy},
+		{Name: "NO_PROXY", Value: status.NoProxy},
+	} {
+		if variable.Value != "" {
+			env = append(env, variable)
+		}
+	}
+
+	return env
+}
+
+// WaitForAllContainersNoProxyEnvVars waits for all containers in the given Deployment
+// to have HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables removed.
+func WaitForAllContainersNoProxyEnvVars(c client.Client, namespace, deploymentName string) {
+	kom := komega.New(c)
 
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      mapiControllersDeploymentName,
-			Namespace: proxyNamespace,
+			Name:      deploymentName,
+			Namespace: namespace,
 		},
 	}
 
-	By("Waiting for machine-api-controller deployment to reflect configured cluster-wide proxy")
+	By(fmt.Sprintf("Waiting for all containers in %s/%s to reflect unconfigured cluster-wide proxy", namespace, deploymentName))
 
-	Eventually(kom.Object(deploy), time.Minute*5).Should(
-		HaveField("Spec.Template.Spec.Containers", ContainElement(SatisfyAll(
-			HaveField("Name", Equal(machineControllerContainerName)),
-			HaveField("Env", SatisfyAll(
-				ContainElement(SatisfyAll(
-					HaveField("Name", "NO_PROXY"),
-					HaveField("Value", Not(BeEmpty())),
-				)),
-				ContainElement(SatisfyAll(
-					HaveField("Name", "HTTPS_PROXY"),
-					HaveField("Value", Not(BeEmpty())),
-				)),
-				ContainElement(SatisfyAll(
-					HaveField("Name", "HTTP_PROXY"),
-					HaveField("Value", Not(BeEmpty())),
-				)),
-			)),
-		))),
-		"Cluster-wide proxy environment variables were not set.",
+	Eventually(kom.Object(deploy), WaitOverMedium).Should(
+		WithTransform(proxyEnvVarsByContainer, HaveEach(BeEmpty())),
+		fmt.Sprintf("Cluster-wide proxy environment variables were still set on some containers of %s/%s.", namespace, deploymentName),
 	)
+}
+
+// proxyEnvVarsByContainer extracts proxy variables while retaining entries for containers without any.
+func proxyEnvVarsByContainer(deploy *appsv1.Deployment) map[string][]corev1.EnvVar {
+	result := make(map[string][]corev1.EnvVar, len(deploy.Spec.Template.Spec.Containers))
+
+	for _, container := range deploy.Spec.Template.Spec.Containers {
+		result[container.Name] = nil
+
+		for _, env := range container.Env {
+			switch env.Name {
+			case "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY":
+				result[container.Name] = append(result[container.Name], env)
+			}
+		}
+	}
+
+	return result
 }
 
 // DeleteProxy delete the MITM Proxy from the cluster.
@@ -343,4 +447,32 @@ func generateCert() ([]byte, []byte, error) {
 	}
 
 	return certBytes, keyBytes, nil
+}
+
+// WaitForCAPIProxyEnvVars waits for the capi-controllers container to match Proxy status.
+func WaitForCAPIProxyEnvVars(ctx context.Context, c client.Client, status configv1.ProxyStatus) {
+	Eventually(func() (map[string][]corev1.EnvVar, error) {
+		return capiProxyEnvVars(ctx, c)
+	}, WaitOverMedium).Should(
+		HaveEach(ConsistOf(proxyEnvVarsFromStatus(status))),
+		"The capi-controllers container did not reflect Proxy status",
+	)
+}
+
+func capiProxyEnvVars(ctx context.Context, c client.Client) (map[string][]corev1.EnvVar, error) {
+	const controllerName = "capi-controllers"
+
+	deployment := &appsv1.Deployment{}
+	key := client.ObjectKey{Namespace: ClusterAPINamespace, Name: controllerName}
+
+	if err := c.Get(ctx, key, deployment); err != nil {
+		return nil, fmt.Errorf("getting CAPI Deployment %s: %w", key, err)
+	}
+
+	env, found := proxyEnvVarsByContainer(deployment)[controllerName]
+	if !found {
+		return nil, fmt.Errorf("deployment %s is missing required container %s", key, controllerName)
+	}
+
+	return map[string][]corev1.EnvVar{key.String() + "/" + controllerName: env}, nil
 }

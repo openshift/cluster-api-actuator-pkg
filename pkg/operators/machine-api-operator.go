@@ -289,6 +289,16 @@ var _ = Describe(
 			gatherer, err = framework.NewGatherer()
 			Expect(err).ToNot(HaveOccurred(), "Failed to load gatherer")
 
+			isProxyJob, err := framework.IsClusterProxyEnabled(ctx, client)
+			Expect(err).ToNot(HaveOccurred(), "Failed to check cluster proxy configuration")
+
+			if isProxyJob {
+				By("cluster-wide proxy is already configured, leaving existing proxy unchanged")
+				framework.WaitForMAPIControllersProxyEnvVars(client, framework.MachineAPINamespace, maoManagedDeployment)
+
+				return
+			}
+
 			By("capturing the original proxy settings, rendered pool configurations, and pre-existing nodes")
 			Eventually(func() error {
 				originalProxyClusterState, err = framework.CaptureProxyClusterState(ctx, client)
@@ -299,6 +309,7 @@ var _ = Describe(
 			DeferCleanup(func() {
 				By("restoring the original cluster-wide proxy and waiting for rollback")
 				Expect(originalProxyClusterState.RestoreProxyAndWaitForClusterReady(context.Background(), client)).To(Succeed(), "Failed to restore the original proxy state")
+				framework.WaitForAllContainersNoProxyEnvVars(client, framework.MachineAPINamespace, maoManagedDeployment)
 				By("waiting for MAO, KAPI and KCM cluster operators to become available")
 
 				By("waiting for KAPI cluster operator to become available")
@@ -335,6 +346,9 @@ var _ = Describe(
 
 			By("configuring cluster-wide proxy")
 			framework.ConfigureClusterWideProxy(client)
+
+			By("waiting for machine-api-controllers to reflect proxy configuration")
+			framework.WaitForMAPIControllersProxyEnvVars(client, framework.MachineAPINamespace, maoManagedDeployment)
 		})
 
 		AfterEach(func() {

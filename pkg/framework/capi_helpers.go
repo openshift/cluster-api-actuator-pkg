@@ -8,6 +8,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
+	operatorv1alpha1 "github.com/openshift/api/operator/v1alpha1"
 	"github.com/openshift/cluster-capi-operator/pkg/conversion/capi2mapi"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog"
@@ -15,6 +16,8 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+const clusterAPIMachineManagementFeatureGate configv1.FeatureGateName = "ClusterAPIMachineManagement"
 
 // errUnsupportedCAPIToMAPIPlatform is returned when a CAPI to MAPI MachineSet
 // conversion is attempted on a platform that is not yet supported by this
@@ -185,6 +188,60 @@ func sanitizeAWSKeyName(mapiMachineSet *machinev1.MachineSet) error {
 	}
 
 	mapiMachineSet.Spec.Template.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawProviderSpec}
+
+	return nil
+}
+
+// ClusterAPIMachineManagementEnabled checks the effective gate for the cluster's desired version.
+// Missing status and API errors are errors, not reasons to silently skip coverage.
+func ClusterAPIMachineManagementEnabled(ctx context.Context, c client.Client) (bool, error) {
+	version := &configv1.ClusterVersion{}
+	if err := c.Get(ctx, client.ObjectKey{Name: "version"}, version); err != nil {
+		return false, fmt.Errorf("getting ClusterVersion: %w", err)
+	}
+
+	gate := &configv1.FeatureGate{}
+	if err := c.Get(ctx, client.ObjectKey{Name: GlobalInfrastuctureName}, gate); err != nil {
+		return false, fmt.Errorf("getting FeatureGate: %w", err)
+	}
+
+	for _, details := range gate.Status.FeatureGates {
+		if details.Version != version.Status.Desired.Version || details.Version == "" {
+			continue
+		}
+
+		for _, enabled := range details.Enabled {
+			if enabled.Name == clusterAPIMachineManagementFeatureGate {
+				return true, nil
+			}
+		}
+
+		for _, disabled := range details.Disabled {
+			if disabled.Name == clusterAPIMachineManagementFeatureGate {
+				return false, nil
+			}
+		}
+	}
+
+	return false, fmt.Errorf("ClusterAPIMachineManagement status unavailable for version %q", version.Status.Desired.Version)
+}
+
+// CheckClusterAPIReconciled reports whether the desired, nonempty revision is fully applied.
+// Proxy changes do not necessarily create revisions; callers must also check proxy env vars.
+func CheckClusterAPIReconciled(ctx context.Context, c client.Client) error {
+	clusterAPI := &operatorv1alpha1.ClusterAPI{}
+
+	if err := c.Get(ctx, client.ObjectKey{Name: GlobalInfrastuctureName}, clusterAPI); err != nil {
+		return fmt.Errorf("getting ClusterAPI: %w", err)
+	}
+
+	observed := clusterAPI.Status.ObservedRevisionGeneration
+	desired := clusterAPI.Status.DesiredRevision
+	current := clusterAPI.Status.CurrentRevision
+
+	if clusterAPI.GetGeneration() < 1 || observed != clusterAPI.GetGeneration() || desired == "" || desired != current {
+		return fmt.Errorf("ClusterAPI not reconciled: generation=%d observed=%d desired=%q current=%q", clusterAPI.GetGeneration(), observed, desired, current)
+	}
 
 	return nil
 }
