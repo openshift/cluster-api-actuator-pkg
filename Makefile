@@ -1,4 +1,6 @@
 BUILD_DEST ?= bin/cluster-api-e2e
+TESTS_EXT_KIND ?= non-payload
+TESTS_EXT_BINARY = $(PROJECT_DIR)/bin/cluster-api-actuator-tests-ext
 
 GO111MODULE = on
 export GO111MODULE
@@ -55,11 +57,13 @@ vendor:
 lint-fix: ## Go lint and fix your code
 	( GOLANGCI_LINT_CACHE=$(PROJECT_DIR)/.cache $(GOLANGCI_LINT) run --fix --timeout 10m )
 	make -C testutils lint-fix
+	cd openshift-tests-extension && GOLANGCI_LINT_CACHE=$(PROJECT_DIR)/.cache $(GOLANGCI_LINT) run --fix --config ../.golangci.yaml --timeout 10m
 
 .PHONY: lint
 lint: ## Go lint your code
 	( GOLANGCI_LINT_CACHE=$(PROJECT_DIR)/.cache $(GOLANGCI_LINT) run --timeout 10m )
 	make -C testutils lint
+	cd openshift-tests-extension && GOLANGCI_LINT_CACHE=$(PROJECT_DIR)/.cache $(GOLANGCI_LINT) run --config ../.golangci.yaml --timeout 10m
 
 .PHONY: fmt
 fmt: ## Go fmt your code
@@ -73,6 +77,23 @@ goimports: ## Go fmt your code
 unit: ## Run unit tests
 	go test ./pkg/framework
 	make -C testutils unit
+
+.PHONY: tests-ext-build
+tests-ext-build: ## Build the standalone OTE binary
+	mkdir -p bin
+	$(DOCKER_CMD) env CGO_ENABLED=0 GO_COMPLIANCE_POLICY=exempt_all go build -ldflags="-X main.componentKind=$(TESTS_EXT_KIND)" -o bin/cluster-api-actuator-tests-ext ./openshift-tests-extension/cmd
+
+.PHONY: tests-ext-package
+tests-ext-package: tests-ext-build ## Compress the OTE binary for image packaging
+	gzip -n -c $(TESTS_EXT_BINARY) > $(TESTS_EXT_BINARY).gz
+
+.PHONY: tests-ext-update
+tests-ext-update: tests-ext-build ## Update committed OTE test metadata
+	cd hack && $(TESTS_EXT_BINARY) update
+
+.PHONY: tests-ext-verify
+tests-ext-verify: tests-ext-build ## Verify OTE test metadata without modifying the checkout
+	hack/verify-tests-extension.sh $(TESTS_EXT_BINARY)
 
 .PHONY: build-e2e
 build-e2e:

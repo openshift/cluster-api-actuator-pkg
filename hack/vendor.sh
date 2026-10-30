@@ -2,7 +2,7 @@
 
 set -e
 
-modules=". testutils"
+modules=". testutils openshift-tests-extension"
 
 echo "Updating dependencies for all modules in workspace"
 

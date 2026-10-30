@@ -1,0 +1,1818 @@
+[
+  {
+    "name": "[sig-cluster-lifecycle] CCM Service Annotation tests GCP should validate network-tier annotation with GCP CLI verification",
+    "labels": {
+      "ccm": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/annotations/gcp.go:37",
+      "pkg/annotations/gcp.go:45",
+      "pkg/annotations/gcp.go:69",
+      "pkg/annotations/gcp.go:81"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] CCM Service Annotation tests GCP should reject invalid network-tier annotation values",
+    "labels": {
+      "ccm": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/annotations/gcp.go:37",
+      "pkg/annotations/gcp.go:45",
+      "pkg/annotations/gcp.go:69",
+      "pkg/annotations/gcp.go:206"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] CCM Service Annotation tests GCP should validate other GCP annotations(local-with-fallback, load-balancer-backend-share, internal-load-balancer-allow-global-access, internal-load-balancer-subnet)",
+    "labels": {
+      "ccm": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/annotations/gcp.go:37",
+      "pkg/annotations/gcp.go:45",
+      "pkg/annotations/gcp.go:69",
+      "pkg/annotations/gcp.go:239"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "Autoscaler should use a ClusterAutoscaler that has 100 maximum total nodes count It scales from/to zero",
+    "labels": {
+      "Serial": {},
+      "autoscaler": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/autoscaler/autoscaler.go:114",
+      "pkg/autoscaler/autoscaler.go:133",
+      "pkg/autoscaler/autoscaler.go:182",
+      "pkg/autoscaler/autoscaler.go:188",
+      "pkg/autoscaler/autoscaler.go:213",
+      "pkg/autoscaler/autoscaler.go:242"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "Autoscaler should use a ClusterAutoscaler that has 100 maximum total nodes count It scales from/to zero a machine set with the architecture requested by the workload",
+    "labels": {
+      "Serial": {},
+      "autoscaler": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/autoscaler/autoscaler.go:114",
+      "pkg/autoscaler/autoscaler.go:133",
+      "pkg/autoscaler/autoscaler.go:182",
+      "pkg/autoscaler/autoscaler.go:188",
+      "pkg/autoscaler/autoscaler.go:213",
+      "pkg/autoscaler/autoscaler.go:349"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "Autoscaler should use a ClusterAutoscaler that has 100 maximum total nodes count cleanup deletion information after scale down [Slow]",
+    "labels": {
+      "Serial": {},
+      "autoscaler": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/autoscaler/autoscaler.go:114",
+      "pkg/autoscaler/autoscaler.go:133",
+      "pkg/autoscaler/autoscaler.go:182",
+      "pkg/autoscaler/autoscaler.go:188",
+      "pkg/autoscaler/autoscaler.go:213",
+      "pkg/autoscaler/autoscaler.go:459"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "Autoscaler should use a ClusterAutoscaler that has 100 maximum total nodes count should not enforce minimum size",
+    "labels": {
+      "Serial": {},
+      "autoscaler": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/autoscaler/autoscaler.go:114",
+      "pkg/autoscaler/autoscaler.go:133",
+      "pkg/autoscaler/autoscaler.go:182",
+      "pkg/autoscaler/autoscaler.go:188",
+      "pkg/autoscaler/autoscaler.go:213",
+      "pkg/autoscaler/autoscaler.go:591"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "Autoscaler should use a ClusterAutoscaler that has balance similar nodes enabled and 100 maximum total nodes places nodes evenly across node groups [Slow]",
+    "labels": {
+      "Serial": {},
+      "autoscaler": {},
+      "disruptive": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/autoscaler/autoscaler.go:114",
+      "pkg/autoscaler/autoscaler.go:133",
+      "pkg/autoscaler/autoscaler.go:639",
+      "pkg/autoscaler/autoscaler.go:642",
+      "pkg/autoscaler/autoscaler.go:658",
+      "pkg/autoscaler/autoscaler.go:686"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "Autoscaler should use a ClusterAutoscaler with maximum total nodes scales up and down while respecting MaxNodesTotal [Slow][Serial]",
+    "labels": {
+      "Serial": {},
+      "autoscaler": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/autoscaler/autoscaler.go:114",
+      "pkg/autoscaler/autoscaler.go:133",
+      "pkg/autoscaler/autoscaler.go:846",
+      "pkg/autoscaler/autoscaler.go:854",
+      "pkg/autoscaler/autoscaler.go:883",
+      "pkg/autoscaler/autoscaler.go:911"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "Autoscaler should use a ClusterAutoscaler that has priority expander option enabled high priority machineset should be scaled up first [Slow]",
+    "labels": {
+      "Serial": {},
+      "autoscaler": {},
+      "disruptive": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/autoscaler/autoscaler.go:114",
+      "pkg/autoscaler/autoscaler.go:133",
+      "pkg/autoscaler/autoscaler.go:1025",
+      "pkg/autoscaler/autoscaler.go:1028",
+      "pkg/autoscaler/autoscaler.go:1042",
+      "pkg/autoscaler/autoscaler.go:1072"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "Autoscaler should use a ClusterAutoscaler with NewPodScaleUpDelay option should not schedule pods on nodes",
+    "labels": {
+      "Serial": {},
+      "autoscaler": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/autoscaler/autoscaler.go:114",
+      "pkg/autoscaler/autoscaler.go:133",
+      "pkg/autoscaler/autoscaler.go:1150",
+      "pkg/autoscaler/autoscaler.go:1156",
+      "pkg/autoscaler/autoscaler.go:1176",
+      "pkg/autoscaler/autoscaler.go:1200"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "Autoscaler should use a ClusterAutoscaler with EnforceNodeGroupMinSize should enforce minimum size and scale up from 0 to 1 replica when enabled",
+    "labels": {
+      "Serial": {},
+      "autoscaler": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/autoscaler/autoscaler.go:114",
+      "pkg/autoscaler/autoscaler.go:133",
+      "pkg/autoscaler/autoscaler.go:1344",
+      "pkg/autoscaler/autoscaler.go:1349",
+      "pkg/autoscaler/autoscaler.go:1362",
+      "pkg/autoscaler/autoscaler.go:1391"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cluster API AWS MachineSet should be able to run a machine with a default provider spec",
+    "labels": {
+      "capi": {},
+      "disruptive": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/aws.go:35",
+      "pkg/capi/aws.go:49",
+      "pkg/capi/aws.go:95",
+      "pkg/capi/aws.go:107"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cluster API AWS MachineSet should be able to run a machine with cluster placement group",
+    "labels": {
+      "capi": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/aws.go:35",
+      "pkg/capi/aws.go:49",
+      "pkg/capi/aws.go:95",
+      "pkg/capi/aws.go:118"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cluster API AWS MachineSet should be able to run a machine using KMS keys",
+    "labels": {
+      "capi": {},
+      "disruptive": {},
+      "periodic": {},
+      "qe-only": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/aws.go:35",
+      "pkg/capi/aws.go:49",
+      "pkg/capi/aws.go:95",
+      "pkg/capi/aws.go:142"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cluster API AWS MachineSet should be able to run a machine with dedicated instance",
+    "labels": {
+      "capi": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/aws.go:35",
+      "pkg/capi/aws.go:49",
+      "pkg/capi/aws.go:95",
+      "pkg/capi/aws.go:176"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cluster API AWS MachineSet should be able to run a machine with more than one block device",
+    "labels": {
+      "capi": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/aws.go:35",
+      "pkg/capi/aws.go:49",
+      "pkg/capi/aws.go:95",
+      "pkg/capi/aws.go:192"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cluster API AWS MachineSet should be able to run a machine with user defined tags",
+    "labels": {
+      "capi": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/aws.go:35",
+      "pkg/capi/aws.go:49",
+      "pkg/capi/aws.go:95",
+      "pkg/capi/aws.go:218"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cluster API AWS MachineSet should be able to run a machine with capacity-reservations",
+    "labels": {
+      "capi": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/aws.go:35",
+      "pkg/capi/aws.go:49",
+      "pkg/capi/aws.go:95",
+      "pkg/capi/aws.go:235"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cluster API AWS MachineSet should be able to run a machine with EFA network interface type",
+    "labels": {
+      "capi": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/aws.go:35",
+      "pkg/capi/aws.go:49",
+      "pkg/capi/aws.go:95",
+      "pkg/capi/aws.go:260"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cluster API AWS MachineSet should be able to run a machine with SpotMarketOptions",
+    "labels": {
+      "capi": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/aws.go:35",
+      "pkg/capi/aws.go:49",
+      "pkg/capi/aws.go:95",
+      "pkg/capi/aws.go:278"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cluster API AWS MachineSet should be able to run a machine with capacity reservation preference None",
+    "labels": {
+      "capi": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/aws.go:35",
+      "pkg/capi/aws.go:49",
+      "pkg/capi/aws.go:95",
+      "pkg/capi/aws.go:294"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle][OCPFeatureGate:MachineAPIMigration] Cluster API AWS MachineSet should be able to run a machine with capacity reservation preference CapacityReservationsOnly",
+    "labels": {
+      "capi": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/aws.go:35",
+      "pkg/capi/aws.go:49",
+      "pkg/capi/aws.go:95",
+      "pkg/capi/aws.go:313"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Cluster API Azure MachineSet should be able to run a machine",
+    "labels": {
+      "capi": {},
+      "disruptive": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/azure.go:29",
+      "pkg/capi/azure.go:41",
+      "pkg/capi/azure.go:66",
+      "pkg/capi/azure.go:79"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Cluster API Azure MachineSet should be able to run a machine with host-based disk encryption",
+    "labels": {
+      "capi": {},
+      "disruptive": {},
+      "periodic": {},
+      "qe-only": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/azure.go:29",
+      "pkg/capi/azure.go:41",
+      "pkg/capi/azure.go:66",
+      "pkg/capi/azure.go:100"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Cluster API Azure MachineSet should be able to run a machine with accelerated network",
+    "labels": {
+      "capi": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/azure.go:29",
+      "pkg/capi/azure.go:41",
+      "pkg/capi/azure.go:66",
+      "pkg/capi/azure.go:126"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Cluster API Azure MachineSet should be able to run a machine with SpotVMOptions",
+    "labels": {
+      "capi": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/azure.go:29",
+      "pkg/capi/azure.go:41",
+      "pkg/capi/azure.go:66",
+      "pkg/capi/azure.go:155"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Cluster API MachineSet should be able to run a machine with labels and annotations and they are propagated to nodes",
+    "labels": {
+      "capi": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/core.go:29",
+      "pkg/capi/core.go:49",
+      "pkg/capi/core.go:91",
+      "pkg/capi/core.go:114"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Cluster API GCP MachineSet should be able to run a machine with disk types Disk type pd-standard",
+    "labels": {
+      "capi": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/gcp.go:32",
+      "pkg/capi/gcp.go:43",
+      "pkg/capi/gcp.go:69",
+      "pkg/capi/gcp.go:79",
+      "pkg/capi/gcp.go:101"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Cluster API GCP MachineSet should be able to run a machine with disk types Disk type pd-ssd",
+    "labels": {
+      "capi": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/gcp.go:32",
+      "pkg/capi/gcp.go:43",
+      "pkg/capi/gcp.go:69",
+      "pkg/capi/gcp.go:79",
+      "pkg/capi/gcp.go:102"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Cluster API GCP MachineSet should configure Shielded VM options correctly all Shielded VM options enabled",
+    "labels": {
+      "capi": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/gcp.go:32",
+      "pkg/capi/gcp.go:43",
+      "pkg/capi/gcp.go:69",
+      "pkg/capi/gcp.go:104",
+      "pkg/capi/gcp.go:149"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Cluster API GCP MachineSet should configure Shielded VM options correctly only SecureBoot enabled",
+    "labels": {
+      "capi": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/gcp.go:32",
+      "pkg/capi/gcp.go:43",
+      "pkg/capi/gcp.go:69",
+      "pkg/capi/gcp.go:104",
+      "pkg/capi/gcp.go:150"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Cluster API GCP MachineSet should configure Confidential VM correctly Confidential Compute enabled",
+    "labels": {
+      "capi": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/gcp.go:32",
+      "pkg/capi/gcp.go:43",
+      "pkg/capi/gcp.go:69",
+      "pkg/capi/gcp.go:159",
+      "pkg/capi/gcp.go:216"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Cluster API GCP MachineSet should configure Confidential VM correctly Confidential Compute disabled",
+    "labels": {
+      "capi": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/gcp.go:32",
+      "pkg/capi/gcp.go:43",
+      "pkg/capi/gcp.go:69",
+      "pkg/capi/gcp.go:159",
+      "pkg/capi/gcp.go:217"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Cluster API GCP MachineSet should configure Confidential VM correctly Confidential Compute AMDEncryptedVirtualization",
+    "labels": {
+      "capi": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/gcp.go:32",
+      "pkg/capi/gcp.go:43",
+      "pkg/capi/gcp.go:69",
+      "pkg/capi/gcp.go:159",
+      "pkg/capi/gcp.go:218"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Cluster API GCP MachineSet should configure Confidential VM correctly Confidential Compute AMDEncryptedVirtualizationNestedPaging",
+    "labels": {
+      "capi": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/gcp.go:32",
+      "pkg/capi/gcp.go:43",
+      "pkg/capi/gcp.go:69",
+      "pkg/capi/gcp.go:159",
+      "pkg/capi/gcp.go:219"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Cluster API GCP MachineSet should configure Confidential VM correctly Confidential Compute IntelTrustedDomainExtensions",
+    "labels": {
+      "capi": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/gcp.go:32",
+      "pkg/capi/gcp.go:43",
+      "pkg/capi/gcp.go:69",
+      "pkg/capi/gcp.go:159",
+      "pkg/capi/gcp.go:220"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Cluster API GCP MachineSet should provision Preemptible machine successfully",
+    "labels": {
+      "capi": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/capi/gcp.go:32",
+      "pkg/capi/gcp.go:43",
+      "pkg/capi/gcp.go:69",
+      "pkg/capi/gcp.go:222"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] MachineHealthCheck should remediate unhealthy nodes",
+    "labels": {
+      "disruptive": {},
+      "machine-health-check": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/machinehealthcheck/machinehealthcheck.go:19",
+      "pkg/machinehealthcheck/machinehealthcheck.go:46",
+      "pkg/machinehealthcheck/machinehealthcheck.go:78",
+      "pkg/machinehealthcheck/machinehealthcheck.go:87"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] MachineHealthCheck should not remediate larger number of unhealthy machines then maxUnhealthy",
+    "labels": {
+      "disruptive": {},
+      "machine-health-check": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/machinehealthcheck/machinehealthcheck.go:19",
+      "pkg/machinehealthcheck/machinehealthcheck.go:46",
+      "pkg/machinehealthcheck/machinehealthcheck.go:78",
+      "pkg/machinehealthcheck/machinehealthcheck.go:143"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "Cluster autoscaler operator should reject invalid ClusterAutoscaler resources early via webhook",
+    "labels": {
+      "autoscaler": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/operators/cluster-autoscaler-operator.go:33",
+      "pkg/operators/cluster-autoscaler-operator.go:40",
+      "pkg/operators/cluster-autoscaler-operator.go:55",
+      "pkg/operators/cluster-autoscaler-operator.go:62"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "Cluster autoscaler operator should reject invalid MachineAutoscaler resources early via webhook",
+    "labels": {
+      "autoscaler": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/operators/cluster-autoscaler-operator.go:33",
+      "pkg/operators/cluster-autoscaler-operator.go:40",
+      "pkg/operators/cluster-autoscaler-operator.go:55",
+      "pkg/operators/cluster-autoscaler-operator.go:77"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "Cluster autoscaler operator deployment should be available",
+    "labels": {
+      "LEVEL0": {},
+      "autoscaler": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/operators/cluster-autoscaler-operator.go:103",
+      "pkg/operators/cluster-autoscaler-operator.go:104"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "Cluster autoscaler cluster operator status should be available",
+    "labels": {
+      "LEVEL0": {},
+      "autoscaler": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/operators/cluster-autoscaler-operator.go:114",
+      "pkg/operators/cluster-autoscaler-operator.go:115"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "Cluster autoscaler operator TLS adherence should configure webhook TLS to match custom cluster profile when TLSAdherence is StrictAllComponents",
+    "labels": {
+      "Serial": {},
+      "autoscaler": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/operators/cluster-autoscaler-operator.go:454",
+      "pkg/operators/cluster-autoscaler-operator.go:464",
+      "pkg/operators/cluster-autoscaler-operator.go:485",
+      "pkg/operators/cluster-autoscaler-operator.go:500",
+      "pkg/operators/cluster-autoscaler-operator.go:518",
+      "pkg/operators/cluster-autoscaler-operator.go:555"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "Cluster autoscaler operator TLS adherence should use default TLS config when TLSAdherence is LegacyAdheringComponentsOnly",
+    "labels": {
+      "Serial": {},
+      "autoscaler": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/operators/cluster-autoscaler-operator.go:454",
+      "pkg/operators/cluster-autoscaler-operator.go:464",
+      "pkg/operators/cluster-autoscaler-operator.go:485",
+      "pkg/operators/cluster-autoscaler-operator.go:500",
+      "pkg/operators/cluster-autoscaler-operator.go:518",
+      "pkg/operators/cluster-autoscaler-operator.go:571"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "Cluster autoscaler operator TLS adherence should update webhook TLS when TLSAdherence transitions to StrictAllComponents",
+    "labels": {
+      "Serial": {},
+      "autoscaler": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/operators/cluster-autoscaler-operator.go:454",
+      "pkg/operators/cluster-autoscaler-operator.go:464",
+      "pkg/operators/cluster-autoscaler-operator.go:485",
+      "pkg/operators/cluster-autoscaler-operator.go:500",
+      "pkg/operators/cluster-autoscaler-operator.go:518",
+      "pkg/operators/cluster-autoscaler-operator.go:584"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "Cluster autoscaler operator TLS adherence should revert webhook TLS when TLSAdherence transitions from StrictAllComponents to LegacyAdheringComponentsOnly",
+    "labels": {
+      "Serial": {},
+      "autoscaler": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/operators/cluster-autoscaler-operator.go:454",
+      "pkg/operators/cluster-autoscaler-operator.go:464",
+      "pkg/operators/cluster-autoscaler-operator.go:485",
+      "pkg/operators/cluster-autoscaler-operator.go:500",
+      "pkg/operators/cluster-autoscaler-operator.go:518",
+      "pkg/operators/cluster-autoscaler-operator.go:601"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Cluster API cluster-wide proxy configuration propagates proxy settings to the capi-controllers container",
+    "labels": {
+      "Serial": {},
+      "capi": {},
+      "connected-only": {},
+      "disruptive": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/operators/cluster-capi-operator.go:16",
+      "pkg/operators/cluster-capi-operator.go:40",
+      "pkg/operators/cluster-capi-operator.go:136",
+      "pkg/operators/cluster-capi-operator.go:143"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Cluster API preconfigured cluster-wide proxy propagates proxy settings to the capi-controllers container",
+    "labels": {
+      "capi": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/operators/cluster-capi-operator.go:24",
+      "pkg/operators/cluster-capi-operator.go:40",
+      "pkg/operators/cluster-capi-operator.go:136",
+      "pkg/operators/cluster-capi-operator.go:143"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Cluster Machine Approver deployment should be available",
+    "labels": {
+      "LEVEL0": {},
+      "machine-approver": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/operators/cluster-machine-approver.go:16",
+      "pkg/operators/cluster-machine-approver.go:17"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Cluster Machine Approver Cluster Operator Status should be available",
+    "labels": {
+      "LEVEL0": {},
+      "machine-approver": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/operators/cluster-machine-approver.go:28",
+      "pkg/operators/cluster-machine-approver.go:29"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API operator deployment should be available",
+    "labels": {
+      "LEVEL0": {},
+      "Serial": {},
+      "mapi": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/operators/machine-api-operator.go:26",
+      "pkg/operators/machine-api-operator.go:33",
+      "pkg/operators/machine-api-operator.go:40",
+      "pkg/operators/machine-api-operator.go:47"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API operator deployment should reconcile controllers deployment",
+    "labels": {
+      "Serial": {},
+      "disruptive": {},
+      "mapi": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/operators/machine-api-operator.go:26",
+      "pkg/operators/machine-api-operator.go:33",
+      "pkg/operators/machine-api-operator.go:40",
+      "pkg/operators/machine-api-operator.go:55"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API operator deployment should maintains deployment spec",
+    "labels": {
+      "Serial": {},
+      "disruptive": {},
+      "mapi": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/operators/machine-api-operator.go:26",
+      "pkg/operators/machine-api-operator.go:33",
+      "pkg/operators/machine-api-operator.go:40",
+      "pkg/operators/machine-api-operator.go:80"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API operator deployment should reconcile mutating webhook configuration",
+    "labels": {
+      "Serial": {},
+      "mapi": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/operators/machine-api-operator.go:26",
+      "pkg/operators/machine-api-operator.go:33",
+      "pkg/operators/machine-api-operator.go:40",
+      "pkg/operators/machine-api-operator.go:108"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API operator deployment should reconcile validating webhook configuration",
+    "labels": {
+      "Serial": {},
+      "mapi": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/operators/machine-api-operator.go:26",
+      "pkg/operators/machine-api-operator.go:33",
+      "pkg/operators/machine-api-operator.go:40",
+      "pkg/operators/machine-api-operator.go:118"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API operator deployment should recover after validating webhook configuration deletion",
+    "labels": {
+      "Serial": {},
+      "mapi": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/operators/machine-api-operator.go:26",
+      "pkg/operators/machine-api-operator.go:33",
+      "pkg/operators/machine-api-operator.go:40",
+      "pkg/operators/machine-api-operator.go:128"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API operator deployment should recover after mutating webhook configuration deletion",
+    "labels": {
+      "Serial": {},
+      "mapi": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/operators/machine-api-operator.go:26",
+      "pkg/operators/machine-api-operator.go:33",
+      "pkg/operators/machine-api-operator.go:40",
+      "pkg/operators/machine-api-operator.go:160"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API operator deployment should maintains spec after mutating webhook configuration change and preserve caBundle",
+    "labels": {
+      "Serial": {},
+      "mapi": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/operators/machine-api-operator.go:26",
+      "pkg/operators/machine-api-operator.go:33",
+      "pkg/operators/machine-api-operator.go:40",
+      "pkg/operators/machine-api-operator.go:191"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API operator deployment should maintains spec after validating webhook configuration change and preserve caBundle",
+    "labels": {
+      "Serial": {},
+      "disruptive": {},
+      "mapi": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/operators/machine-api-operator.go:26",
+      "pkg/operators/machine-api-operator.go:33",
+      "pkg/operators/machine-api-operator.go:40",
+      "pkg/operators/machine-api-operator.go:223"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API cluster operator status should be available",
+    "labels": {
+      "LEVEL0": {},
+      "mapi": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/operators/machine-api-operator.go:256",
+      "pkg/operators/machine-api-operator.go:258"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API When cluster-wide proxy is configured, Machine API cluster operator should  create machines when configured behind a proxy",
+    "labels": {
+      "Serial": {},
+      "connected-only": {},
+      "dev-only": {},
+      "disruptive": {},
+      "mapi": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/operators/machine-api-operator.go:269",
+      "pkg/operators/machine-api-operator.go:281",
+      "pkg/operators/machine-api-operator.go:354",
+      "pkg/operators/machine-api-operator.go:363"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API MetadataServiceOptions should not allow to create machineset with incorrect metadataServiceOptions.authentication",
+    "labels": {
+      "disruptive": {},
+      "mapi": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/providers/aws.go:26",
+      "pkg/providers/aws.go:39",
+      "pkg/providers/aws.go:69",
+      "pkg/providers/aws.go:146"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API MetadataServiceOptions should enforce auth on metadata service if metadataServiceOptions.authentication set to Required",
+    "labels": {
+      "disruptive": {},
+      "mapi": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/providers/aws.go:26",
+      "pkg/providers/aws.go:39",
+      "pkg/providers/aws.go:69",
+      "pkg/providers/aws.go:154"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API MetadataServiceOptions should allow unauthorized requests to metadata service if metadataServiceOptions.authentication is Optional",
+    "labels": {
+      "disruptive": {},
+      "mapi": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/providers/aws.go:26",
+      "pkg/providers/aws.go:39",
+      "pkg/providers/aws.go:69",
+      "pkg/providers/aws.go:162"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API CapacityReservationID should not allow to create machineset with incorrect capacityReservationId",
+    "labels": {
+      "disruptive": {},
+      "mapi": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/providers/aws.go:169",
+      "pkg/providers/aws.go:178",
+      "pkg/providers/aws.go:204",
+      "pkg/providers/aws.go:238"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API CapacityReservationID machine should get Running with active capacityReservationId",
+    "labels": {
+      "disruptive": {},
+      "mapi": {},
+      "periodic": {},
+      "qe-only": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/providers/aws.go:169",
+      "pkg/providers/aws.go:178",
+      "pkg/providers/aws.go:204",
+      "pkg/providers/aws.go:245"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API Managed cluster should when machineset has one replica publish selector in the scale subresource for HPA targets",
+    "labels": {
+      "disruptive": {},
+      "mapi": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/infra/infra.go:185",
+      "pkg/infra/infra.go:195",
+      "pkg/infra/infra.go:221",
+      "pkg/infra/infra.go:228",
+      "pkg/infra/infra.go:231",
+      "pkg/infra/infra.go:246",
+      "pkg/infra/infra.go:263"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API Managed cluster should when machineset has one replica have ability to additively reconcile taints from machine to nodes",
+    "labels": {
+      "disruptive": {},
+      "mapi": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/infra/infra.go:185",
+      "pkg/infra/infra.go:195",
+      "pkg/infra/infra.go:221",
+      "pkg/infra/infra.go:228",
+      "pkg/infra/infra.go:231",
+      "pkg/infra/infra.go:246",
+      "pkg/infra/infra.go:359"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API Managed cluster should when machineset has 2 replicas recover from deleted worker machines",
+    "labels": {
+      "LEVEL0": {},
+      "disruptive": {},
+      "mapi": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/infra/infra.go:185",
+      "pkg/infra/infra.go:195",
+      "pkg/infra/infra.go:221",
+      "pkg/infra/infra.go:421",
+      "pkg/infra/infra.go:422",
+      "pkg/infra/infra.go:437"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API Managed cluster should when machineset has 2 replicas grow and decrease when scaling different machineSets simultaneously",
+    "labels": {
+      "LEVEL0": {},
+      "disruptive": {},
+      "mapi": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/infra/infra.go:185",
+      "pkg/infra/infra.go:195",
+      "pkg/infra/infra.go:221",
+      "pkg/infra/infra.go:421",
+      "pkg/infra/infra.go:422",
+      "pkg/infra/infra.go:452"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API Managed cluster should when machineset has 2 replicas drain node before removing machine resource",
+    "labels": {
+      "disruptive": {},
+      "mapi": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/infra/infra.go:185",
+      "pkg/infra/infra.go:195",
+      "pkg/infra/infra.go:221",
+      "pkg/infra/infra.go:421",
+      "pkg/infra/infra.go:422",
+      "pkg/infra/infra.go:477"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API Managed cluster should reject invalid machinesets",
+    "labels": {
+      "mapi": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/infra/infra.go:185",
+      "pkg/infra/infra.go:195",
+      "pkg/infra/infra.go:221",
+      "pkg/infra/infra.go:546"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API Lifecycle Hooks should pause lifecycle actions when present",
+    "labels": {
+      "disruptive": {},
+      "mapi": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/infra/lifecyclehooks.go:32",
+      "pkg/infra/lifecyclehooks.go:43",
+      "pkg/infra/lifecyclehooks.go:117",
+      "pkg/infra/lifecyclehooks.go:126"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API Running on Spot should handle the spot instances",
+    "labels": {
+      "disruptive": {},
+      "mapi": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/infra/spot.go:37",
+      "pkg/infra/spot.go:51",
+      "pkg/infra/spot.go:161",
+      "pkg/infra/spot.go:170"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API Webhooks should be able to create a machine from a minimal providerSpec",
+    "labels": {
+      "disruptive": {},
+      "mapi": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/infra/webhooks.go:26",
+      "pkg/infra/webhooks.go:38",
+      "pkg/infra/webhooks.go:94",
+      "pkg/infra/webhooks.go:103"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API Webhooks should be able to create machines from a machineset with a minimal providerSpec",
+    "labels": {
+      "disruptive": {},
+      "mapi": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/infra/webhooks.go:26",
+      "pkg/infra/webhooks.go:38",
+      "pkg/infra/webhooks.go:94",
+      "pkg/infra/webhooks.go:150"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API Webhooks should return an error when removing required fields from the Machine providerSpec",
+    "labels": {
+      "disruptive": {},
+      "mapi": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/infra/webhooks.go:26",
+      "pkg/infra/webhooks.go:38",
+      "pkg/infra/webhooks.go:94",
+      "pkg/infra/webhooks.go:159"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API Webhooks should return an error when removing required fields from the MachineSet providerSpec",
+    "labels": {
+      "disruptive": {},
+      "mapi": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/infra/webhooks.go:26",
+      "pkg/infra/webhooks.go:38",
+      "pkg/infra/webhooks.go:94",
+      "pkg/infra/webhooks.go:198"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API AWS MachineSet should be able to run a machine with user defined tags",
+    "labels": {
+      "disruptive": {},
+      "mapi": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/mapi/aws.go:23",
+      "pkg/mapi/aws.go:34",
+      "pkg/mapi/aws.go:58",
+      "pkg/mapi/aws.go:91"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API AWS MachineSet should be able to run a machine with EFA network interface type",
+    "labels": {
+      "disruptive": {},
+      "mapi": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/mapi/aws.go:23",
+      "pkg/mapi/aws.go:34",
+      "pkg/mapi/aws.go:58",
+      "pkg/mapi/aws.go:150"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API AWS MachineSet should be able to run a machine with cluster placement group",
+    "labels": {
+      "disruptive": {},
+      "mapi": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/mapi/aws.go:23",
+      "pkg/mapi/aws.go:34",
+      "pkg/mapi/aws.go:58",
+      "pkg/mapi/aws.go:197"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API AWS MachineSet should be able to run a machine with more than one block device",
+    "labels": {
+      "disruptive": {},
+      "mapi": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/mapi/aws.go:23",
+      "pkg/mapi/aws.go:34",
+      "pkg/mapi/aws.go:58",
+      "pkg/mapi/aws.go:250"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API AWS MachineSet should be able to run a machine using KMS keys",
+    "labels": {
+      "disruptive": {},
+      "mapi": {},
+      "periodic": {},
+      "qe-only": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/mapi/aws.go:23",
+      "pkg/mapi/aws.go:34",
+      "pkg/mapi/aws.go:58",
+      "pkg/mapi/aws.go:310"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API GCP MachineSet should have all Shielded VM options disabled when using nonUefi image",
+    "labels": {
+      "disruptive": {},
+      "mapi": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/mapi/gcp.go:27",
+      "pkg/mapi/gcp.go:35",
+      "pkg/mapi/gcp.go:49",
+      "pkg/mapi/gcp.go:66"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API GCP MachineSet should provision Spot instance with provisioningModel: Spot successfully",
+    "labels": {
+      "disruptive": {},
+      "mapi": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/mapi/gcp.go:27",
+      "pkg/mapi/gcp.go:35",
+      "pkg/mapi/gcp.go:49",
+      "pkg/mapi/gcp.go:120"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API GCP MachineSet should reject when both preemptible: true and provisioningModel: Spot are set",
+    "labels": {
+      "disruptive": {},
+      "mapi": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/mapi/gcp.go:27",
+      "pkg/mapi/gcp.go:35",
+      "pkg/mapi/gcp.go:49",
+      "pkg/mapi/gcp.go:175"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[sig-cluster-lifecycle] Machine API GCP MachineSet should allow MachineSet update to set preemptible when provisioningModel is not set",
+    "labels": {
+      "disruptive": {},
+      "mapi": {},
+      "periodic": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:non-payload:cluster-api-actuator-pkg",
+    "codeLocations": [
+      "pkg/mapi/gcp.go:27",
+      "pkg/mapi/gcp.go:35",
+      "pkg/mapi/gcp.go:49",
+      "pkg/mapi/gcp.go:216"
+    ],
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  }
+]
