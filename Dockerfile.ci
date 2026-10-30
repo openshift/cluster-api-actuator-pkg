@@ -1,3 +1,5 @@
 FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.26-openshift-5.1
 WORKDIR /go/src/github.com/openshift/cluster-api-actuator-pkg
 COPY . .
+RUN make tests-ext-package && \
+    install -m 0644 bin/cluster-api-actuator-tests-ext.gz /usr/bin/cluster-api-actuator-tests-ext.gz

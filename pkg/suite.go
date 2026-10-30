@@ -1,0 +1,99 @@
+package e2e
+
+import (
+	"fmt"
+	"time"
+
+	. "github.com/onsi/ginkgo/v2"
+
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/klog"
+
+	osconfigv1 "github.com/openshift/api/config/v1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
+	operatorv1alpha1 "github.com/openshift/api/operator/v1alpha1"
+	"github.com/openshift/cluster-api-actuator-pkg/pkg/framework"
+	caov1alpha1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	awsv1 "sigs.k8s.io/cluster-api-provider-aws/v2/api/v1beta2"
+	azurev1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
+	gcpv1 "sigs.k8s.io/cluster-api-provider-gcp/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
+
+	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/annotations"
+	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/autoscaler"
+	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/capi"
+	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/infra"
+	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/machinehealthcheck"
+	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/mapi"
+	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/operators"
+	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/providers"
+)
+
+func init() {
+	klog.InitFlags(nil)
+
+	if err := machinev1.AddToScheme(scheme.Scheme); err != nil {
+		klog.Fatal(err)
+	}
+
+	if err := caov1alpha1.AddToScheme(scheme.Scheme); err != nil {
+		klog.Fatal(err)
+	}
+
+	if err := osconfigv1.AddToScheme(scheme.Scheme); err != nil {
+		klog.Fatal(err)
+	}
+
+	if err := operatorv1alpha1.AddToScheme(scheme.Scheme); err != nil {
+		klog.Fatal(err)
+	}
+
+	if err := clusterv1.AddToScheme(scheme.Scheme); err != nil {
+		klog.Fatal(err)
+	}
+
+	if err := apiextensionsv1.AddToScheme(scheme.Scheme); err != nil {
+		klog.Fatal(err)
+	}
+
+	if err := azurev1.AddToScheme(scheme.Scheme); err != nil {
+		klog.Fatal(err)
+	}
+
+	if err := gcpv1.AddToScheme(scheme.Scheme); err != nil {
+		klog.Fatal(err)
+	}
+
+	if err := awsv1.AddToScheme(scheme.Scheme); err != nil {
+		klog.Fatal(err)
+	}
+}
+
+// InitializeSuite configures cluster-dependent defaults for both Ginkgo and OTE execution.
+// Discovery must not call this function.
+func InitializeSuite() error {
+	klog.SetOutput(GinkgoWriter)
+
+	client, err := framework.LoadClient()
+	if err != nil {
+		return fmt.Errorf("load suite client: %w", err)
+	}
+
+	ctx := framework.GetContext()
+
+	platform, err := framework.GetPlatform(ctx, client)
+	if err != nil {
+		return fmt.Errorf("detect suite platform: %w", err)
+	}
+
+	// Extend timeouts for slower providers
+	switch platform {
+	case osconfigv1.AzurePlatformType, osconfigv1.GCPPlatformType, osconfigv1.VSpherePlatformType, osconfigv1.OpenStackPlatformType, osconfigv1.PowerVSPlatformType, osconfigv1.NutanixPlatformType:
+		framework.WaitShort = 2 * time.Minute  // Normally 1m
+		framework.WaitMedium = 6 * time.Minute // Normally 3m
+		framework.WaitLong = 30 * time.Minute  // Normally 15m
+	}
+
+	return nil
+}

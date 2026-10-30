@@ -5,6 +5,9 @@
 # 4d63.com/gochecknoglobals v0.2.2
 ## explicit; go 1.18
 4d63.com/gochecknoglobals/checknoglobals
+# cel.dev/expr v0.25.1
+## explicit; go 1.23.0
+cel.dev/expr
 # charm.land/lipgloss/v2 v2.0.6
 ## explicit; go 1.25.0
 charm.land/lipgloss/v2
@@ -126,6 +129,11 @@ github.com/alingse/asasalint
 ## explicit; go 1.22.0
 github.com/alingse/nilnesserr
 github.com/alingse/nilnesserr/internal/typeparams
+# github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230305170008-8188dc5388df
+## explicit; go 1.18
+# github.com/antlr4-go/antlr/v4 v4.13.1
+## explicit; go 1.22
+github.com/antlr4-go/antlr/v4
 # github.com/ashanbrown/forbidigo/v2 v2.3.1
 ## explicit; go 1.24.0
 github.com/ashanbrown/forbidigo/v2/forbidigo
@@ -417,6 +425,8 @@ github.com/go-openapi/swag/conv
 # github.com/go-openapi/swag/fileutils v0.27.1
 ## explicit; go 1.25.0
 github.com/go-openapi/swag/fileutils
+# github.com/go-openapi/swag/jsonname v0.25.5
+## explicit; go 1.24.0
 # github.com/go-openapi/swag/jsonutils v0.27.1
 ## explicit; go 1.25.0
 github.com/go-openapi/swag/jsonutils
@@ -742,6 +752,29 @@ github.com/golangci/unconvert
 # github.com/google/btree v1.1.3
 ## explicit; go 1.18
 github.com/google/btree
+# github.com/google/cel-go v0.29.2
+## explicit; go 1.23.0
+github.com/google/cel-go/cel
+github.com/google/cel-go/checker
+github.com/google/cel-go/checker/decls
+github.com/google/cel-go/common
+github.com/google/cel-go/common/ast
+github.com/google/cel-go/common/containers
+github.com/google/cel-go/common/debug
+github.com/google/cel-go/common/decls
+github.com/google/cel-go/common/env
+github.com/google/cel-go/common/functions
+github.com/google/cel-go/common/operators
+github.com/google/cel-go/common/overloads
+github.com/google/cel-go/common/runes
+github.com/google/cel-go/common/stdlib
+github.com/google/cel-go/common/types
+github.com/google/cel-go/common/types/pb
+github.com/google/cel-go/common/types/ref
+github.com/google/cel-go/common/types/traits
+github.com/google/cel-go/interpreter
+github.com/google/cel-go/parser
+github.com/google/cel-go/parser/gen
 # github.com/google/gnostic-models v0.7.1
 ## explicit; go 1.22
 github.com/google/gnostic-models/compiler
@@ -984,7 +1017,7 @@ github.com/nunnatsa/ginkgolinter/version
 # github.com/oklog/ulid v1.3.1
 ## explicit
 github.com/oklog/ulid
-# github.com/onsi/ginkgo/v2 v2.32.0
+# github.com/onsi/ginkgo/v2 v2.32.0 => github.com/openshift/onsi-ginkgo/v2 v2.6.1-0.20260922200432-2b15107f443d
 ## explicit; go 1.25.0
 github.com/onsi/ginkgo/v2
 github.com/onsi/ginkgo/v2/config
@@ -1021,6 +1054,22 @@ github.com/onsi/gomega/matchers/support/goraph/edge
 github.com/onsi/gomega/matchers/support/goraph/node
 github.com/onsi/gomega/matchers/support/goraph/util
 github.com/onsi/gomega/types
+# github.com/openshift-eng/openshift-tests-extension v0.0.0-20260812190735-a8b44e9f9fed
+## explicit; go 1.23.0
+github.com/openshift-eng/openshift-tests-extension/pkg/cmd
+github.com/openshift-eng/openshift-tests-extension/pkg/cmd/cmdimages
+github.com/openshift-eng/openshift-tests-extension/pkg/cmd/cmdinfo
+github.com/openshift-eng/openshift-tests-extension/pkg/cmd/cmdlist
+github.com/openshift-eng/openshift-tests-extension/pkg/cmd/cmdrun
+github.com/openshift-eng/openshift-tests-extension/pkg/cmd/cmdupdate
+github.com/openshift-eng/openshift-tests-extension/pkg/dbtime
+github.com/openshift-eng/openshift-tests-extension/pkg/extension
+github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests
+github.com/openshift-eng/openshift-tests-extension/pkg/flags
+github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo
+github.com/openshift-eng/openshift-tests-extension/pkg/junit
+github.com/openshift-eng/openshift-tests-extension/pkg/util/sets
+github.com/openshift-eng/openshift-tests-extension/pkg/version
 # github.com/openshift/api v0.0.0-20261006163836-502232e87aad
 ## explicit; go 1.26.0
 github.com/openshift/api
@@ -1134,6 +1183,8 @@ github.com/openshift/client-go/machine/informers/externalversions/machine/v1beta
 github.com/openshift/client-go/machine/listers/machine/v1beta1
 github.com/openshift/client-go/operator/applyconfigurations/internal
 github.com/openshift/client-go/operator/applyconfigurations/operator/v1
+# github.com/openshift/cluster-api-actuator-pkg v0.0.0 => .
+## explicit; go 1.26.0
 # github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0 => ./testutils
 ## explicit; go 1.26.0
 # github.com/openshift/cluster-autoscaler-operator v0.0.1-0.20261012104908-49d03c60e05e
@@ -1351,6 +1402,8 @@ github.com/ssgreg/nlreturn/v2/pkg/nlreturn
 # github.com/stbenjam/no-sprintf-host-port v0.3.1
 ## explicit; go 1.24.0
 github.com/stbenjam/no-sprintf-host-port/pkg/analyzer
+# github.com/stoewer/go-strcase v1.3.0
+## explicit; go 1.11
 # github.com/stretchr/objx v0.5.3
 ## explicit; go 1.20
 github.com/stretchr/objx
@@ -1494,6 +1547,9 @@ go.yaml.in/yaml/v3
 # golang.org/x/crypto v0.55.0
 ## explicit; go 1.25.0
 golang.org/x/crypto/sha3
+# golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f
+## explicit; go 1.25.0
+golang.org/x/exp/slices
 # golang.org/x/exp/typeparams v0.0.0-20260811152304-ee035b5b010f
 ## explicit; go 1.25.0
 golang.org/x/exp/typeparams
@@ -1670,16 +1726,25 @@ golang.org/x/tools/refactor/satisfy
 # gomodules.xyz/jsonpatch/v2 v2.5.0
 ## explicit; go 1.20
 gomodules.xyz/jsonpatch/v2
+# google.golang.org/genproto/googleapis/api v0.0.0-20260630182238-925bb5da69e7
+## explicit; go 1.25.0
+google.golang.org/genproto/googleapis/api/expr/v1alpha1
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800
+## explicit; go 1.25.0
+google.golang.org/genproto/googleapis/rpc/status
 # google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af
 ## explicit; go 1.23
 google.golang.org/protobuf/encoding/protodelim
+google.golang.org/protobuf/encoding/protojson
 google.golang.org/protobuf/encoding/prototext
 google.golang.org/protobuf/encoding/protowire
 google.golang.org/protobuf/internal/descfmt
 google.golang.org/protobuf/internal/descopts
 google.golang.org/protobuf/internal/detrand
 google.golang.org/protobuf/internal/editiondefaults
+google.golang.org/protobuf/internal/editionssupport
 google.golang.org/protobuf/internal/encoding/defval
+google.golang.org/protobuf/internal/encoding/json
 google.golang.org/protobuf/internal/encoding/messageset
 google.golang.org/protobuf/internal/encoding/tag
 google.golang.org/protobuf/internal/encoding/text
@@ -1696,13 +1761,20 @@ google.golang.org/protobuf/internal/set
 google.golang.org/protobuf/internal/strs
 google.golang.org/protobuf/internal/version
 google.golang.org/protobuf/proto
+google.golang.org/protobuf/reflect/protodesc
 google.golang.org/protobuf/reflect/protoreflect
 google.golang.org/protobuf/reflect/protoregistry
 google.golang.org/protobuf/runtime/protoiface
 google.golang.org/protobuf/runtime/protoimpl
 google.golang.org/protobuf/types/descriptorpb
+google.golang.org/protobuf/types/dynamicpb
+google.golang.org/protobuf/types/gofeaturespb
 google.golang.org/protobuf/types/known/anypb
+google.golang.org/protobuf/types/known/durationpb
+google.golang.org/protobuf/types/known/emptypb
+google.golang.org/protobuf/types/known/structpb
 google.golang.org/protobuf/types/known/timestamppb
+google.golang.org/protobuf/types/known/wrapperspb
 # gopkg.in/evanphx/json-patch.v4 v4.13.0
 ## explicit
 gopkg.in/evanphx/json-patch.v4
@@ -2657,3 +2729,4 @@ sigs.k8s.io/yaml
 sigs.k8s.io/yaml/goyaml.v2
 sigs.k8s.io/yaml/kyaml
 # sigs.k8s.io/cluster-api => sigs.k8s.io/cluster-api v1.13.3
+# github.com/onsi/ginkgo/v2 => github.com/openshift/onsi-ginkgo/v2 v2.6.1-0.20260922200432-2b15107f443d

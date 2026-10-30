@@ -2,6 +2,11 @@
 
 Shared packages for Cluster API actuators.
 
+## OpenShift Tests Extension
+
+See [OpenShift Tests Extension](docs/openshift-tests-extension.md) for running the
+existing Ginkgo tests through OTE, build targets, and the metadata workflow.
+
 ## Running the cluster autoscaler operator e2e tests against an OpenShift cluster
 
 This test suite is designed to run against a full OpenShift 4 cluster.
