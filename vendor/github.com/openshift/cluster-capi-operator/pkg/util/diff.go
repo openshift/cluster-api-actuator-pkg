@@ -252,17 +252,21 @@ func WithIgnoreField(path ...string) DiffOption {
 	}
 }
 
+// conditionPaths return a list of all possible paths to a conditions field.
+func conditionPaths() [][]string {
+	//nolint:goconst
+	return [][]string{
+		{"status", "conditions"},
+		{"status", "v1beta2", "conditions"},
+		{"status", "deprecated", "v1beta1", "conditions"},
+	}
+}
+
 // WithIgnoreConditionsLastTransitionTime configures the differ to ignore LastTransitionTime for conditions when executing Diff.
 func WithIgnoreConditionsLastTransitionTime() DiffOption {
 	return func(d *differ) {
 		d.modifyFuncs["RemoveConditionsLastTransitionTime"] = func(a map[string]interface{}) error {
-			conditionPaths := [][]string{
-				{"status", "conditions"},
-				{"status", "v1beta2", "conditions"},
-				{"status", "deprecated", "v1beta1", "conditions"},
-			}
-
-			for _, conditionPath := range conditionPaths {
+			for _, conditionPath := range conditionPaths() {
 				conditions, found, err := unstructured.NestedSlice(a, conditionPath...)
 				if !found || err != nil {
 					continue
@@ -292,13 +296,7 @@ func WithIgnoreConditionsLastTransitionTime() DiffOption {
 func WithConditionsAsMap() DiffOption {
 	return func(d *differ) {
 		d.lateModifyFuncs["ConditionsAsMap"] = func(a map[string]interface{}) error {
-			conditionPaths := [][]string{
-				{"status", "conditions"},
-				{"status", "v1beta2", "conditions"},
-				{"status", "deprecated", "v1beta1", "conditions"},
-			}
-
-			for _, conditionPath := range conditionPaths {
+			for _, conditionPath := range conditionPaths() {
 				conditions, found, err := unstructured.NestedSlice(a, conditionPath...)
 				if !found || err != nil {
 					continue
@@ -334,13 +332,7 @@ func WithConditionsAsMap() DiffOption {
 func WithIgnoreConditionType(conditionType string) DiffOption {
 	return func(d *differ) {
 		d.modifyFuncs[fmt.Sprintf("RemoveCondition[%s]", conditionType)] = func(a map[string]interface{}) error {
-			conditionPaths := [][]string{
-				{"status", "conditions"},
-				{"status", "v1beta2", "conditions"},
-				{"status", "deprecated", "v1beta1", "conditions"},
-			}
-
-			for _, conditionPath := range conditionPaths {
+			for _, conditionPath := range conditionPaths() {
 				conditions, found, err := unstructured.NestedSlice(a, conditionPath...)
 				if !found || err != nil {
 					continue

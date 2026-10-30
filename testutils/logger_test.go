@@ -24,6 +24,12 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const (
+	testLogMessage = "some log message"
+	testLogDetail  = "detail"
+	testLogExtra   = "extra"
+)
+
 var _ = Describe("TestLogger", func() {
 	var logger TestLogger
 
@@ -32,14 +38,14 @@ var _ = Describe("TestLogger", func() {
 	})
 
 	It("adds info logs to the entries", func() {
-		logger.Logger().V(1).Info("some log message", "extra", "detail")
+		logger.Logger().V(1).Info(testLogMessage, testLogExtra, testLogDetail)
 		logger.Logger().V(3).Info("another log message", "key", "value")
 
 		Expect(logger.Entries()).To(ConsistOf(
 			LogEntry{
 				Level:         1,
-				Message:       "some log message",
-				KeysAndValues: []interface{}{"extra", "detail"},
+				Message:       testLogMessage,
+				KeysAndValues: []interface{}{testLogExtra, testLogDetail},
 			},
 			LogEntry{
 				Level:         3,
@@ -51,13 +57,13 @@ var _ = Describe("TestLogger", func() {
 
 	It("adds error logs to the entries", func() {
 		err := errors.New("error")
-		logger.Logger().Error(err, "some log message", "extra", "detail")
+		logger.Logger().Error(err, testLogMessage, testLogExtra, testLogDetail)
 
 		Expect(logger.Entries()).To(ConsistOf(
 			LogEntry{
 				Error:         err,
-				Message:       "some log message",
-				KeysAndValues: []interface{}{"extra", "detail"},
+				Message:       testLogMessage,
+				KeysAndValues: []interface{}{testLogExtra, testLogDetail},
 			},
 		))
 	})
@@ -70,25 +76,25 @@ var _ = Describe("TestLogger", func() {
 		})
 
 		It("adds the key and value to the logs", func() {
-			myKeyValueLogger.V(2).Info("some log message", "extra", "detail")
+			myKeyValueLogger.V(2).Info(testLogMessage, testLogExtra, testLogDetail)
 
 			Expect(logger.Entries()).To(ConsistOf(
 				LogEntry{
 					Level:         2,
-					Message:       "some log message",
-					KeysAndValues: []interface{}{"myKey", "myValue", "extra", "detail"},
+					Message:       testLogMessage,
+					KeysAndValues: []interface{}{"myKey", "myValue", testLogExtra, testLogDetail},
 				},
 			))
 		})
 
 		It("does not add the key and value to the logs from the parent logger", func() {
-			logger.Logger().V(2).Info("some log message", "extra", "detail")
+			logger.Logger().V(2).Info(testLogMessage, testLogExtra, testLogDetail)
 
 			Expect(logger.Entries()).To(ConsistOf(
 				LogEntry{
 					Level:         2,
-					Message:       "some log message",
-					KeysAndValues: []interface{}{"extra", "detail"},
+					Message:       testLogMessage,
+					KeysAndValues: []interface{}{testLogExtra, testLogDetail},
 				},
 			))
 		})

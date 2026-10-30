@@ -39,7 +39,7 @@ var _ = Describe("OpenStackMachineBuilder", func() {
 
 	Describe("WithAnnotations", func() {
 		It("should return the custom value when specified", func() {
-			annotations := map[string]string{"key": "value"}
+			annotations := map[string]string{testKey: testValue}
 			openstackMachine := OpenStackMachine().WithAnnotations(annotations).Build()
 			Expect(openstackMachine.Annotations).To(Equal(annotations))
 		})

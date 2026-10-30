@@ -32,7 +32,7 @@ var _ = Describe("AWSMachineBuilder", func() {
 		It("should return a default AWSMachine when no options are specified", func() {
 			awsMachine := AWSMachine().Build()
 			Expect(awsMachine).ToNot(BeNil())
-			Expect(awsMachine.TypeMeta.APIVersion).To(Equal("infrastructure.cluster.x-k8s.io/v1beta2"))
+			Expect(awsMachine.TypeMeta.APIVersion).To(Equal(infraAPIVersion))
 			Expect(awsMachine.TypeMeta.Kind).To(Equal("AWSMachine"))
 		})
 	})
@@ -40,7 +40,7 @@ var _ = Describe("AWSMachineBuilder", func() {
 	// Object meta fields
 	Describe("WithAnnotations", func() {
 		It("should return the custom value when specified", func() {
-			annotations := map[string]string{"key": "value"}
+			annotations := map[string]string{testKey: testValue}
 			awsMachine := AWSMachine().WithAnnotations(annotations).Build()
 			Expect(awsMachine.Annotations).To(Equal(annotations))
 		})
@@ -48,7 +48,7 @@ var _ = Describe("AWSMachineBuilder", func() {
 
 	Describe("WithLabels", func() {
 		It("should return the custom value when specified", func() {
-			labels := map[string]string{"key": "value"}
+			labels := map[string]string{testKey: testValue}
 			awsMachine := AWSMachine().WithLabels(labels).Build()
 			Expect(awsMachine.Labels).To(Equal(labels))
 		})
@@ -88,7 +88,7 @@ var _ = Describe("AWSMachineBuilder", func() {
 	// Spec fields
 	Describe("WithAdditionalSecurityGroups", func() {
 		It("should return the custom value when specified", func() {
-			groups := []capav1.AWSResourceReference{{ID: ptr.To("sg-12345")}}
+			groups := []capav1.AWSResourceReference{{ID: ptr.To(testSecurityGroupID)}}
 			awsMachine := AWSMachine().WithAdditionalSecurityGroups(groups).Build()
 			Expect(awsMachine.Spec.AdditionalSecurityGroups).To(Equal(groups))
 		})
@@ -96,7 +96,7 @@ var _ = Describe("AWSMachineBuilder", func() {
 
 	Describe("WithAdditionalTags", func() {
 		It("should return the custom value when specified", func() {
-			tags := capav1.Tags{"key": "value"}
+			tags := capav1.Tags{testKey: testValue}
 			awsMachine := AWSMachine().WithAdditionalTags(tags).Build()
 			Expect(awsMachine.Spec.AdditionalTags).To(Equal(tags))
 		})
@@ -271,7 +271,7 @@ var _ = Describe("AWSMachineBuilder", func() {
 
 	Describe("WithSecurityGroupOverrides", func() {
 		It("should return the custom value when specified", func() {
-			overrides := map[capav1.SecurityGroupRole]string{capav1.SecurityGroupNode: "sg-12345"}
+			overrides := map[capav1.SecurityGroupRole]string{capav1.SecurityGroupNode: testSecurityGroupID}
 			awsMachine := AWSMachine().WithSecurityGroupOverrides(overrides).Build()
 			Expect(awsMachine.Spec.SecurityGroupOverrides).To(Equal(overrides))
 		})

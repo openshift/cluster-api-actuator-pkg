@@ -381,7 +381,7 @@ const (
 
 func getMetadataMockLabels() map[string]string {
 	return map[string]string{
-		"app": "metadata-mock",
+		appLabelKey: "metadata-mock",
 	}
 }
 

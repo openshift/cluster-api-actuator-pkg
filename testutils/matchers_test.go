@@ -21,6 +21,14 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const (
+	testNameJohn = "John"
+	testKey1     = "key1"
+	testKey2     = "key2"
+	testValue1   = "value1"
+	testValue2   = "value2"
+)
+
 var _ = Describe("Matchers", func() {
 	Context("MatchViaJSON", func() {
 		type testStruct struct {
@@ -31,70 +39,70 @@ var _ = Describe("Matchers", func() {
 		}
 
 		testStructBasic := testStruct{
-			Name: "John",
+			Name: testNameJohn,
 			Age:  30,
 			Labels: map[string]string{
-				"key1": "value1",
-				"key2": "value2",
+				testKey1: testValue1,
+				testKey2: testValue2,
 			},
 			List: []string{"a", "b", "c"},
 		}
 
 		testStructVaryingMapOrder := testStruct{
-			Name: "John",
+			Name: testNameJohn,
 			Age:  30,
 			Labels: map[string]string{
-				"key2": "value2",
-				"key1": "value1",
+				testKey2: testValue2,
+				testKey1: testValue1,
 			},
 			List: []string{"a", "b", "c"},
 		}
 
 		testStructMissingMapEntry := testStruct{
-			Name: "John",
+			Name: testNameJohn,
 			Age:  30,
 			Labels: map[string]string{
-				"key1": "value1",
+				testKey1: testValue1,
 			},
 			List: []string{"a", "b", "c"},
 		}
 
 		testStructMissingListEntry := testStruct{
-			Name: "John",
+			Name: testNameJohn,
 			Age:  30,
 			Labels: map[string]string{
-				"key1": "value1",
-				"key2": "value2",
+				testKey1: testValue1,
+				testKey2: testValue2,
 			},
 			List: []string{"a", "b"},
 		}
 
 		testStructExtraListEntry := testStruct{
-			Name: "John",
+			Name: testNameJohn,
 			Age:  30,
 			Labels: map[string]string{
-				"key1": "value1",
-				"key2": "value2",
+				testKey1: testValue1,
+				testKey2: testValue2,
 			},
 			List: []string{"a", "b", "c", "d"},
 		}
 
 		testStructDifferentListValue := testStruct{
-			Name: "John",
+			Name: testNameJohn,
 			Age:  30,
 			Labels: map[string]string{
-				"key1": "value1",
-				"key2": "value2",
+				testKey1: testValue1,
+				testKey2: testValue2,
 			},
 			List: []string{"a", "b", "d"},
 		}
 
 		testStructDifferentInt := testStruct{
-			Name: "John",
+			Name: testNameJohn,
 			Age:  31,
 			Labels: map[string]string{
-				"key1": "value1",
-				"key2": "value2",
+				testKey1: testValue1,
+				testKey2: testValue2,
 			},
 			List: []string{"a", "b", "c"},
 		}
@@ -103,8 +111,8 @@ var _ = Describe("Matchers", func() {
 			Name: "Jane",
 			Age:  30,
 			Labels: map[string]string{
-				"key1": "value1",
-				"key2": "value2",
+				testKey1: testValue1,
+				testKey2: testValue2,
 			},
 			List: []string{"a", "b", "c"},
 		}

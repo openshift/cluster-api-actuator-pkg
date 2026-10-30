@@ -42,7 +42,7 @@ var _ = Describe("PowerVSMachine", func() {
 
 	Describe("WithAnnotations", func() {
 		It("should return the custom value when specified", func() {
-			annotations := map[string]string{"key": "value"}
+			annotations := map[string]string{testKey: testValue}
 			PowerVSMachine := PowerVSMachine().WithAnnotations(annotations).Build()
 			Expect(PowerVSMachine.Annotations).To(Equal(annotations))
 		})
@@ -50,7 +50,7 @@ var _ = Describe("PowerVSMachine", func() {
 
 	Describe("WithLabels", func() {
 		It("should return the custom value when specified", func() {
-			labels := map[string]string{"key": "value"}
+			labels := map[string]string{testKey: testValue}
 			PowerVSMachine := PowerVSMachine().WithLabels(labels).Build()
 			Expect(PowerVSMachine.Labels).To(Equal(labels))
 		})
@@ -201,7 +201,6 @@ var _ = Describe("PowerVSMachine", func() {
 		It("should return the custom value when specified", func() {
 			message := "test failure message"
 			powerVSMachine := PowerVSMachine().WithFailureMessage(&message).Build()
-			//nolint:staticcheck
 			Expect(powerVSMachine.Status.FailureMessage).To(Equal(&message))
 		})
 	})
@@ -210,7 +209,6 @@ var _ = Describe("PowerVSMachine", func() {
 		It("should return the custom value when specified", func() {
 			reason := "CreateError"
 			powerVSMachine := PowerVSMachine().WithFailureReason(&reason).Build()
-			//nolint:staticcheck
 			Expect(powerVSMachine.Status.FailureReason).To(Equal(&reason))
 		})
 	})

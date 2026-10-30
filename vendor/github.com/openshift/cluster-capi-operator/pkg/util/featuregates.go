@@ -110,3 +110,26 @@ func IsCAPIEnabledForPlatform(currentFeatureGates featuregates.FeatureGate, plat
 		return false
 	}
 }
+
+// IsMAPIMigrationEnabledForPlatform returns true if MAPI migration is enabled for the given
+// platform in the given feature gates.
+func IsMAPIMigrationEnabledForPlatform(featureGates featuregates.FeatureGate, platform configv1.PlatformType) bool {
+	switch platform {
+	case configv1.AWSPlatformType:
+		return featureGates.Enabled(features.FeatureGateMachineAPIMigrationAWS)
+	case configv1.GCPPlatformType:
+		return featureGates.Enabled(features.FeatureGateMachineAPIMigrationGCP)
+	case configv1.AzurePlatformType:
+		return featureGates.Enabled(features.FeatureGateMachineAPIMigrationAzure)
+	case configv1.PowerVSPlatformType:
+		return featureGates.Enabled(features.FeatureGateMachineAPIMigrationPowerVS)
+	case configv1.VSpherePlatformType:
+		return featureGates.Enabled(features.FeatureGateMachineAPIMigrationVSphere)
+	case configv1.OpenStackPlatformType:
+		return featureGates.Enabled(features.FeatureGateMachineAPIMigrationOpenStack)
+	case configv1.BareMetalPlatformType:
+		return featureGates.Enabled(features.FeatureGateMachineAPIMigrationBareMetal)
+	}
+
+	return false
+}

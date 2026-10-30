@@ -18,19 +18,35 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const (
+	httpProxyEnvName     = "HTTP_PROXY"
+	httpsProxyEnvName    = "HTTPS_PROXY"
+	noProxyBypass        = ".internal"
+	proxyResourceName    = "proxy"
+	testControllerName   = "controller"
+	unrelatedEnvName     = "UNRELATED"
+	wrongProxyValue      = "http://wrong"
+	managerContainerName = "manager"
+	noProxyEnvName       = "NO_PROXY"
+	testProxyURL         = "http://proxy"
+	testSecureProxyURL   = "http://secure-proxy"
+	sidecarContainerName = "sidecar"
+	testEnvValue         = "value"
+)
+
 func TestProxyEnvVarsByContainer(t *testing.T) {
 	proxyEnv := []corev1.EnvVar{
-		{Name: "HTTP_PROXY", Value: "http://proxy"},
-		{Name: "HTTPS_PROXY", Value: "http://secure-proxy"},
-		{Name: "NO_PROXY", Value: ".internal"},
-		{Name: "HTTP_PROXY", Value: "http://duplicate"},
-		{Name: "HTTPS_PROXY", ValueFrom: &corev1.EnvVarSource{
+		{Name: httpProxyEnvName, Value: testProxyURL},
+		{Name: httpsProxyEnvName, Value: testSecureProxyURL},
+		{Name: noProxyEnvName, Value: noProxyBypass},
+		{Name: httpProxyEnvName, Value: "http://duplicate"},
+		{Name: httpsProxyEnvName, ValueFrom: &corev1.EnvVarSource{
 			SecretKeyRef: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: "proxy"},
+				LocalObjectReference: corev1.LocalObjectReference{Name: proxyResourceName},
 				Key:                  "url",
 			},
 		}},
-		{Name: "NO_PROXY"},
+		{Name: noProxyEnvName},
 	}
 
 	tests := []struct {
@@ -41,28 +57,28 @@ func TestProxyEnvVarsByContainer(t *testing.T) {
 		{name: "no containers", want: map[string][]corev1.EnvVar{}},
 		{
 			name:       "containers without environment variables retained",
-			containers: []corev1.Container{{Name: "controller"}, {Name: "sidecar"}},
-			want:       map[string][]corev1.EnvVar{"controller": nil, "sidecar": nil},
+			containers: []corev1.Container{{Name: testControllerName}, {Name: sidecarContainerName}},
+			want:       map[string][]corev1.EnvVar{testControllerName: nil, sidecarContainerName: nil},
 		},
 		{
 			name: "unrelated variables ignored",
-			containers: []corev1.Container{{Name: "controller", Env: []corev1.EnvVar{
-				{Name: "UNRELATED", Value: "value"},
-				{Name: "HTTP_PROXY_OTHER", Value: "value"},
+			containers: []corev1.Container{{Name: testControllerName, Env: []corev1.EnvVar{
+				{Name: unrelatedEnvName, Value: testEnvValue},
+				{Name: "HTTP_PROXY_OTHER", Value: testEnvValue},
 			}}},
-			want: map[string][]corev1.EnvVar{"controller": nil},
+			want: map[string][]corev1.EnvVar{testControllerName: nil},
 		},
 		{
 			name: "proxy entries preserved and grouped by container",
 			containers: []corev1.Container{
-				{Name: "controller", Env: append([]corev1.EnvVar{{Name: "UNRELATED", Value: "value"}}, proxyEnv...)},
-				{Name: "other-controller", Env: []corev1.EnvVar{{Name: "HTTP_PROXY", Value: "http://other"}}},
-				{Name: "sidecar"},
+				{Name: testControllerName, Env: append([]corev1.EnvVar{{Name: unrelatedEnvName, Value: testEnvValue}}, proxyEnv...)},
+				{Name: "other-controller", Env: []corev1.EnvVar{{Name: httpProxyEnvName, Value: "http://other"}}},
+				{Name: sidecarContainerName},
 			},
 			want: map[string][]corev1.EnvVar{
-				"controller":       proxyEnv,
-				"other-controller": {{Name: "HTTP_PROXY", Value: "http://other"}},
-				"sidecar":          nil,
+				testControllerName:   proxyEnv,
+				"other-controller":   {{Name: httpProxyEnvName, Value: "http://other"}},
+				sidecarContainerName: nil,
 			},
 		},
 	}
@@ -98,42 +114,42 @@ func TestClusterProxyConfiguration(t *testing.T) {
 	}{
 		{name: "missing proxy", wantError: true},
 		{name: "unconfigured", proxy: &configv1.Proxy{}},
-		{name: "bypass only", proxy: &configv1.Proxy{Status: configv1.ProxyStatus{NoProxy: ".internal"}}},
+		{name: "bypass only", proxy: &configv1.Proxy{Status: configv1.ProxyStatus{NoProxy: noProxyBypass}}},
 		{
 			name: "HTTP spec only", wantEnabled: true,
-			proxy: &configv1.Proxy{Spec: configv1.ProxySpec{HTTPProxy: "http://proxy"}},
+			proxy: &configv1.Proxy{Spec: configv1.ProxySpec{HTTPProxy: testProxyURL}},
 		},
 		{
 			name: "HTTPS spec only", wantEnabled: true,
-			proxy: &configv1.Proxy{Spec: configv1.ProxySpec{HTTPSProxy: "http://proxy"}},
+			proxy: &configv1.Proxy{Spec: configv1.ProxySpec{HTTPSProxy: testProxyURL}},
 		},
 		{
 			name: "HTTP status only", wantEnabled: true,
-			proxy: &configv1.Proxy{Status: configv1.ProxyStatus{HTTPProxy: "http://proxy"}},
+			proxy: &configv1.Proxy{Status: configv1.ProxyStatus{HTTPProxy: testProxyURL}},
 		},
 		{
 			name: "HTTPS status only", wantEnabled: true,
-			proxy: &configv1.Proxy{Status: configv1.ProxyStatus{HTTPSProxy: "http://proxy"}},
+			proxy: &configv1.Proxy{Status: configv1.ProxyStatus{HTTPSProxy: testProxyURL}},
 		},
 		{
 			name: "HTTP ready", wantEnabled: true, wantReady: true,
 			proxy: &configv1.Proxy{
-				Spec:   configv1.ProxySpec{HTTPProxy: "http://proxy", NoProxy: ".internal"},
-				Status: configv1.ProxyStatus{HTTPProxy: "http://proxy", NoProxy: ".internal,.svc"},
+				Spec:   configv1.ProxySpec{HTTPProxy: testProxyURL, NoProxy: noProxyBypass},
+				Status: configv1.ProxyStatus{HTTPProxy: testProxyURL, NoProxy: ".internal,.svc"},
 			},
 		},
 		{
 			name: "HTTPS ready", wantEnabled: true, wantReady: true,
 			proxy: &configv1.Proxy{
-				Spec:   configv1.ProxySpec{HTTPSProxy: "http://proxy"},
-				Status: configv1.ProxyStatus{HTTPSProxy: "http://proxy"},
+				Spec:   configv1.ProxySpec{HTTPSProxy: testProxyURL},
+				Status: configv1.ProxyStatus{HTTPSProxy: testProxyURL},
 			},
 		},
 		{
 			name: "both endpoints ready", wantEnabled: true, wantReady: true,
 			proxy: &configv1.Proxy{
-				Spec:   configv1.ProxySpec{HTTPProxy: "http://proxy", HTTPSProxy: "http://secure-proxy"},
-				Status: configv1.ProxyStatus{HTTPProxy: "http://proxy", HTTPSProxy: "http://secure-proxy"},
+				Spec:   configv1.ProxySpec{HTTPProxy: testProxyURL, HTTPSProxy: testSecureProxyURL},
+				Status: configv1.ProxyStatus{HTTPProxy: testProxyURL, HTTPSProxy: testSecureProxyURL},
 			},
 		},
 		{
@@ -153,8 +169,8 @@ func TestClusterProxyConfiguration(t *testing.T) {
 		{
 			name: "only one endpoint propagated", wantEnabled: true,
 			proxy: &configv1.Proxy{
-				Spec:   configv1.ProxySpec{HTTPProxy: "http://proxy", HTTPSProxy: "http://proxy"},
-				Status: configv1.ProxyStatus{HTTPProxy: "http://proxy"},
+				Spec:   configv1.ProxySpec{HTTPProxy: testProxyURL, HTTPSProxy: testProxyURL},
+				Status: configv1.ProxyStatus{HTTPProxy: testProxyURL},
 			},
 		},
 	}
@@ -190,33 +206,33 @@ func TestContainerProxyEnvVars(t *testing.T) {
 		{name: "no proxy"},
 		{
 			name:   "all proxy values",
-			status: configv1.ProxyStatus{HTTPProxy: "http://proxy", HTTPSProxy: "http://secure-proxy", NoProxy: ".internal"},
+			status: configv1.ProxyStatus{HTTPProxy: testProxyURL, HTTPSProxy: testSecureProxyURL, NoProxy: noProxyBypass},
 			env: []corev1.EnvVar{
-				{Name: "HTTP_PROXY", Value: "http://proxy"},
-				{Name: "HTTPS_PROXY", Value: "http://secure-proxy"},
-				{Name: "NO_PROXY", Value: ".internal"},
-				{Name: "UNRELATED", Value: "preserved"},
+				{Name: httpProxyEnvName, Value: testProxyURL},
+				{Name: httpsProxyEnvName, Value: testSecureProxyURL},
+				{Name: noProxyEnvName, Value: noProxyBypass},
+				{Name: unrelatedEnvName, Value: "preserved"},
 			},
 		},
-		{name: "HTTP only", status: configv1.ProxyStatus{HTTPProxy: "http://proxy"}, env: []corev1.EnvVar{{Name: "HTTP_PROXY", Value: "http://proxy"}}},
-		{name: "HTTPS only", status: configv1.ProxyStatus{HTTPSProxy: "http://proxy"}, env: []corev1.EnvVar{{Name: "HTTPS_PROXY", Value: "http://proxy"}}},
-		{name: "bypass only", status: configv1.ProxyStatus{NoProxy: ".internal"}, env: []corev1.EnvVar{{Name: "NO_PROXY", Value: ".internal"}}},
-		{name: "wrong value", status: configv1.ProxyStatus{HTTPProxy: "http://proxy"}, env: []corev1.EnvVar{{Name: "HTTP_PROXY", Value: "http://wrong"}}, wantError: true},
-		{name: "missing value", status: configv1.ProxyStatus{HTTPProxy: "http://proxy"}, wantError: true},
-		{name: "stale value", env: []corev1.EnvVar{{Name: "HTTP_PROXY", Value: "http://proxy"}}, wantError: true},
-		{name: "empty variable must be absent", env: []corev1.EnvVar{{Name: "HTTPS_PROXY"}}, wantError: true},
-		{name: "duplicate variable", status: configv1.ProxyStatus{HTTPProxy: "http://proxy"}, env: []corev1.EnvVar{{Name: "HTTP_PROXY", Value: "http://proxy"}, {Name: "HTTP_PROXY", Value: "http://proxy"}}, wantError: true},
-		{name: "value reference", status: configv1.ProxyStatus{HTTPProxy: "http://proxy"}, env: []corev1.EnvVar{{Name: "HTTP_PROXY", ValueFrom: &corev1.EnvVarSource{}}}, wantError: true},
+		{name: "HTTP only", status: configv1.ProxyStatus{HTTPProxy: testProxyURL}, env: []corev1.EnvVar{{Name: httpProxyEnvName, Value: testProxyURL}}},
+		{name: "HTTPS only", status: configv1.ProxyStatus{HTTPSProxy: testProxyURL}, env: []corev1.EnvVar{{Name: httpsProxyEnvName, Value: testProxyURL}}},
+		{name: "bypass only", status: configv1.ProxyStatus{NoProxy: noProxyBypass}, env: []corev1.EnvVar{{Name: noProxyEnvName, Value: noProxyBypass}}},
+		{name: "wrong value", status: configv1.ProxyStatus{HTTPProxy: testProxyURL}, env: []corev1.EnvVar{{Name: httpProxyEnvName, Value: wrongProxyValue}}, wantError: true},
+		{name: "missing value", status: configv1.ProxyStatus{HTTPProxy: testProxyURL}, wantError: true},
+		{name: "stale value", env: []corev1.EnvVar{{Name: httpProxyEnvName, Value: testProxyURL}}, wantError: true},
+		{name: "empty variable must be absent", env: []corev1.EnvVar{{Name: httpsProxyEnvName}}, wantError: true},
+		{name: "duplicate variable", status: configv1.ProxyStatus{HTTPProxy: testProxyURL}, env: []corev1.EnvVar{{Name: httpProxyEnvName, Value: testProxyURL}, {Name: httpProxyEnvName, Value: testProxyURL}}, wantError: true},
+		{name: "value reference", status: configv1.ProxyStatus{HTTPProxy: testProxyURL}, env: []corev1.EnvVar{{Name: httpProxyEnvName, ValueFrom: &corev1.EnvVarSource{}}}, wantError: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			deployment := &appsv1.Deployment{Spec: appsv1.DeploymentSpec{
 				Template: corev1.PodTemplateSpec{Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{Name: "manager", Env: tt.env}},
+					Containers: []corev1.Container{{Name: managerContainerName, Env: tt.env}},
 				}},
 			}}
-			actual := proxyEnvVarsByContainer(deployment)["manager"]
+			actual := proxyEnvVarsByContainer(deployment)[managerContainerName]
 
 			matched, err := gomega.ConsistOf(proxyEnvVarsFromStatus(tt.status)).Match(actual)
 			if err != nil || matched == tt.wantError {
@@ -228,7 +244,7 @@ func TestContainerProxyEnvVars(t *testing.T) {
 
 func TestProxyEnvVarsMismatchDiagnostics(t *testing.T) {
 	actual := map[string][]corev1.EnvVar{
-		"manager": {{Name: "HTTP_PROXY", Value: "http://wrong"}},
+		managerContainerName: {{Name: httpProxyEnvName, Value: wrongProxyValue}},
 	}
 	expected := proxyEnvVarsFromStatus(configv1.ProxyStatus{HTTPProxy: "http://expected"})
 	matcher := gomega.HaveEach(gomega.ConsistOf(expected))
@@ -240,7 +256,7 @@ func TestProxyEnvVarsMismatchDiagnostics(t *testing.T) {
 
 	message := matcher.FailureMessage(actual)
 
-	for _, detail := range []string{"manager", "HTTP_PROXY", "http://wrong", "http://expected"} {
+	for _, detail := range []string{managerContainerName, httpProxyEnvName, wrongProxyValue, "http://expected"} {
 		if !strings.Contains(message, detail) {
 			t.Errorf("failure message %q does not contain %q", message, detail)
 		}
@@ -255,8 +271,8 @@ func TestMAPIControllersProxyEnvVars(t *testing.T) {
 		wantError bool
 	}{
 		{name: "controllers configured and metrics sidecars excluded"},
-		{name: "HTTP only", status: configv1.ProxyStatus{HTTPProxy: "http://proxy"}},
-		{name: "HTTPS only", status: configv1.ProxyStatus{HTTPSProxy: "http://proxy"}},
+		{name: "HTTP only", status: configv1.ProxyStatus{HTTPProxy: testProxyURL}},
+		{name: "HTTPS only", status: configv1.ProxyStatus{HTTPSProxy: testProxyURL}},
 		{name: "optional healthcheck absent", mutate: func(d *appsv1.Deployment) {
 			d.Spec.Template.Spec.Containers = append(d.Spec.Template.Spec.Containers[:3], d.Spec.Template.Spec.Containers[4:]...)
 		}},
@@ -288,7 +304,7 @@ func TestMAPIControllersProxyEnvVars(t *testing.T) {
 			d.Spec.Template.Spec.Containers[3].Env = nil
 		}, wantError: true},
 		{name: "wrong proxy value", mutate: func(d *appsv1.Deployment) {
-			d.Spec.Template.Spec.Containers[0].Env[0].Value = "http://wrong"
+			d.Spec.Template.Spec.Containers[0].Env[0].Value = wrongProxyValue
 		}, wantError: true},
 	}
 
@@ -296,7 +312,7 @@ func TestMAPIControllersProxyEnvVars(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			status := tt.status
 			if status.HTTPProxy == "" && status.HTTPSProxy == "" {
-				status = configv1.ProxyStatus{HTTPProxy: "http://proxy", HTTPSProxy: "http://secure-proxy", NoProxy: ".internal"}
+				status = configv1.ProxyStatus{HTTPProxy: testProxyURL, HTTPSProxy: testSecureProxyURL, NoProxy: noProxyBypass}
 			}
 
 			deployment := &appsv1.Deployment{}
@@ -304,7 +320,7 @@ func TestMAPIControllersProxyEnvVars(t *testing.T) {
 			for _, name := range []string{"machine-controller", "machineset-controller", "nodelink-controller", "machine-healthcheck-controller"} {
 				container := corev1.Container{Name: name}
 
-				for key, value := range map[string]string{"HTTP_PROXY": status.HTTPProxy, "HTTPS_PROXY": status.HTTPSProxy, "NO_PROXY": status.NoProxy} {
+				for key, value := range map[string]string{httpProxyEnvName: status.HTTPProxy, httpsProxyEnvName: status.HTTPSProxy, noProxyEnvName: status.NoProxy} {
 					if value != "" {
 						container.Env = append(container.Env, corev1.EnvVar{Name: key, Value: value})
 					}
@@ -341,8 +357,8 @@ func TestCAPIProxyEnvVars(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "capi-controllers", Namespace: ClusterAPINamespace},
 		Spec: appsv1.DeploymentSpec{Template: corev1.PodTemplateSpec{
 			Spec: corev1.PodSpec{Containers: []corev1.Container{
-				{Name: "capi-controllers", Env: []corev1.EnvVar{{Name: "HTTP_PROXY", Value: "http://proxy"}}},
-				{Name: "sidecar"},
+				{Name: "capi-controllers", Env: []corev1.EnvVar{{Name: httpProxyEnvName, Value: testProxyURL}}},
+				{Name: sidecarContainerName},
 			}},
 		}},
 	}
@@ -354,12 +370,12 @@ func TestCAPIProxyEnvVars(t *testing.T) {
 	}{
 		{name: "no labels or annotations required", mutate: func(_ *appsv1.Deployment) {}},
 		{name: "annotation cannot redirect target", mutate: func(d *appsv1.Deployment) {
-			d.Spec.Template.Annotations = map[string]string{"capi-operator.openshift.io/inject-proxy": "sidecar"}
+			d.Spec.Template.Annotations = map[string]string{"capi-operator.openshift.io/inject-proxy": sidecarContainerName}
 		}},
 		{name: "other deployment excluded", mutate: func(d *appsv1.Deployment) { d.Name = "provider" }, wantError: true},
 		{name: "other namespace excluded", mutate: func(d *appsv1.Deployment) { d.Namespace = "other" }, wantError: true},
 		{name: "required container missing", mutate: func(d *appsv1.Deployment) {
-			d.Spec.Template.Spec.Containers[0].Name = "manager"
+			d.Spec.Template.Spec.Containers[0].Name = managerContainerName
 		}, wantError: true},
 		{name: "missing proxy without annotation still fails", mutate: func(d *appsv1.Deployment) {
 			d.Spec.Template.Spec.Containers[0].Env = nil
@@ -381,7 +397,7 @@ func TestCAPIProxyEnvVars(t *testing.T) {
 			matched := false
 
 			if err == nil {
-				expected := proxyEnvVarsFromStatus(configv1.ProxyStatus{HTTPProxy: "http://proxy"})
+				expected := proxyEnvVarsFromStatus(configv1.ProxyStatus{HTTPProxy: testProxyURL})
 				matched, err = gomega.HaveEach(gomega.ConsistOf(expected)).Match(actual)
 			}
 

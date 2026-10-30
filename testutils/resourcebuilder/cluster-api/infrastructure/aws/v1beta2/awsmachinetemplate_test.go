@@ -32,7 +32,7 @@ var _ = Describe("AWSMachineTemplate", func() {
 		It("should return a default AWSMachineTemplate when no options are specified", func() {
 			awsMachineTemplate := AWSMachineTemplate().Build()
 			Expect(awsMachineTemplate).ToNot(BeNil())
-			Expect(awsMachineTemplate.TypeMeta.APIVersion).To(Equal("infrastructure.cluster.x-k8s.io/v1beta2"))
+			Expect(awsMachineTemplate.TypeMeta.APIVersion).To(Equal(infraAPIVersion))
 			Expect(awsMachineTemplate.TypeMeta.Kind).To(Equal("AWSMachineTemplate"))
 		})
 	})
@@ -40,7 +40,7 @@ var _ = Describe("AWSMachineTemplate", func() {
 
 	Describe("WithAnnotations", func() {
 		It("should return the custom value when specified", func() {
-			annotations := map[string]string{"key": "value"}
+			annotations := map[string]string{testKey: testValue}
 			awsMachineTemplate := AWSMachineTemplate().WithAnnotations(annotations).Build()
 			Expect(awsMachineTemplate.Annotations).To(Equal(annotations))
 		})
@@ -48,7 +48,7 @@ var _ = Describe("AWSMachineTemplate", func() {
 
 	Describe("WithLabels", func() {
 		It("should return the custom value when specified", func() {
-			labels := map[string]string{"key": "value"}
+			labels := map[string]string{testKey: testValue}
 			awsMachineTemplate := AWSMachineTemplate().WithLabels(labels).Build()
 			Expect(awsMachineTemplate.Labels).To(Equal(labels))
 		})
@@ -104,7 +104,7 @@ var _ = Describe("AWSMachineTemplate", func() {
 
 	Describe("WithAdditionalSecurityGroups", func() {
 		It("should return the custom value when specified", func() {
-			groups := []capav1.AWSResourceReference{{ID: ptr.To("sg-12345")}}
+			groups := []capav1.AWSResourceReference{{ID: ptr.To(testSecurityGroupID)}}
 			awsMachineTemplate := AWSMachineTemplate().WithAdditionalSecurityGroups(groups).Build()
 			Expect(awsMachineTemplate.Spec.Template.Spec.AdditionalSecurityGroups).To(Equal(groups))
 		})
@@ -112,7 +112,7 @@ var _ = Describe("AWSMachineTemplate", func() {
 
 	Describe("WithAdditionalTags", func() {
 		It("should return the custom value when specified", func() {
-			tags := capav1.Tags{"key": "value"}
+			tags := capav1.Tags{testKey: testValue}
 			awsMachineTemplate := AWSMachineTemplate().WithAdditionalTags(tags).Build()
 			Expect(awsMachineTemplate.Spec.Template.Spec.AdditionalTags).To(Equal(tags))
 		})
@@ -293,7 +293,7 @@ var _ = Describe("AWSMachineTemplate", func() {
 
 	Describe("WithSecurityGroupOverrides", func() {
 		It("should return the custom value when specified", func() {
-			overrides := map[capav1.SecurityGroupRole]string{capav1.SecurityGroupNode: "sg-12345"}
+			overrides := map[capav1.SecurityGroupRole]string{capav1.SecurityGroupNode: testSecurityGroupID}
 			awsMachineTemplate := AWSMachineTemplate().WithSecurityGroupOverrides(overrides).Build()
 			Expect(awsMachineTemplate.Spec.Template.Spec.SecurityGroupOverrides).To(Equal(overrides))
 		})

@@ -167,7 +167,7 @@ func (m machineAndAWSMachineAndAWSCluster) toProviderSpec() (*mapiv1beta1.AWSMac
 		},
 		// UserDataSecret - Populated below.
 		// CredentialsSecret - Handled below.
-		KeyName: m.awsMachine.Spec.SSHKeyName,
+		KeyName: convertAWSSSHKeyNameToMAPI(m.awsMachine.Spec.SSHKeyName),
 		// DeviceIndex - OCPCLOUD-2707: Value must always be zero. No other values are valid in MAPA even though the value is configurable.
 		PublicIP:             m.awsMachine.Spec.PublicIP,
 		SecurityGroups:       convertAWSSecurityGroupstoMAPI(m.awsMachine.Spec.AdditionalSecurityGroups), // This is the way we want to convert security groups, as the AdditionalSecurity Groups are what gets added to MAPI SGs.
@@ -891,6 +891,18 @@ func ConvertAWSLoadBalancerToMAPI(loadBalancer *awsv1.AWSLoadBalancerSpec) (mapi
 	default:
 		return mapiv1beta1.LoadBalancerReference{}, errUnsupportedLoadBalancerType
 	}
+}
+
+// convertAWSSSHKeyNameToMAPI normalizes CAPI's tri-state SSHKeyName for MAPI.
+// CAPI: nil=cluster default, ptr("")=no key, ptr("name")=named key.
+// MAPI has no tri-state: any non-nil KeyName including "" is passed to AWS RunInstances and rejected.
+// ptr("") is normalized to nil so MAPI omits the field, matching the "no SSH key" intent.
+func convertAWSSSHKeyNameToMAPI(sshKeyName *string) *string {
+	if sshKeyName != nil && *sshKeyName == "" {
+		return nil
+	}
+
+	return sshKeyName
 }
 
 // ConvertAWSCPUOptionsToMAPI converts CAPI CPUOptions to MAPI CPUOptions.

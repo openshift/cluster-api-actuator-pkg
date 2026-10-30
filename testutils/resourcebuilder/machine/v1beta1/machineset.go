@@ -26,6 +26,9 @@ import (
 const (
 	machineSetMachineRoleLabelName = "machine.openshift.io/cluster-api-machine-role"
 	machineSetMachineTypeLabelName = "machine.openshift.io/cluster-api-machine-type"
+
+	// apiVersionMachineOpenshiftV1beta1 is the API version for machine.openshift.io/v1beta1 resources.
+	apiVersionMachineOpenshiftV1beta1 = "machine.openshift.io/v1beta1"
 )
 
 // MachineSet creates a new machineSet builder.

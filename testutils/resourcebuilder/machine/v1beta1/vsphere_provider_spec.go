@@ -110,7 +110,7 @@ func (v VSphereProviderSpecBuilder) Build() *machinev1beta1.VSphereMachineProvid
 	return &machinev1beta1.VSphereMachineProviderSpec{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "VSphereMachineProviderSpec",
-			APIVersion: "machine.openshift.io/v1beta1",
+			APIVersion: apiVersionMachineOpenshiftV1beta1,
 		},
 		NumCoresPerSocket: 4,
 		DiskGiB:           120,

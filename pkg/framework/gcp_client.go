@@ -102,7 +102,7 @@ func (g *GCPClient) GetLoadBalancerInfo(ctx context.Context, ipAddress string) (
 
 	// Extract name.
 	name := ""
-	if n, ok := rule["name"].(string); ok {
+	if n, ok := rule[nameField].(string); ok {
 		name = n
 	}
 
@@ -197,7 +197,7 @@ func GetGCPCredentialsFromInfrastructure(ctx context.Context, cl client.Client) 
 	infra := &configv1.Infrastructure{}
 
 	err := cl.Get(ctx, client.ObjectKey{
-		Name: "cluster",
+		Name: GlobalInfrastuctureName,
 	}, infra)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get infrastructure object: %w", err)

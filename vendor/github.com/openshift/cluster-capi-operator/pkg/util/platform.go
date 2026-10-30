@@ -29,7 +29,7 @@ import (
 	gcpv1 "sigs.k8s.io/cluster-api-provider-gcp/api/v1beta1"
 	ibmpowervsv1 "sigs.k8s.io/cluster-api-provider-ibmcloud/api/v1beta2"
 	openstackv1 "sigs.k8s.io/cluster-api-provider-openstack/api/v1beta1"
-	vspherev1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/v1beta1"
+	vspherev1 "sigs.k8s.io/cluster-api-provider-vsphere/api/govmomi/v1beta1"
 
 	configv1 "github.com/openshift/api/config/v1"
 )
@@ -99,10 +99,10 @@ type InfraTypes interface {
 
 // GetCAPITypesForInfrastructure returns the infrastructure objects for a given platform.
 // Returns ErrUnsupportedPlatform for unsupported platforms.
-func GetCAPITypesForInfrastructure(infra *configv1.Infrastructure) (InfraTypes, configv1.PlatformType, error) {
+func GetCAPITypesForInfrastructure(infra *configv1.Infrastructure) (InfraTypes, error) {
 	platform, err := GetPlatformFromInfra(infra)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
 	switch platform {
@@ -110,45 +110,45 @@ func GetCAPITypesForInfrastructure(infra *configv1.Infrastructure) (InfraTypes, 
 		return newInfraTypes[
 			*awsv1.AWSMachine, *awsv1.AWSCluster,
 			*awsv1.AWSMachineTemplate, *awsv1.AWSClusterTemplate,
-		](), platform, nil
+		](), nil
 	case configv1.GCPPlatformType:
 		return newInfraTypes[
 			*gcpv1.GCPMachine, *gcpv1.GCPCluster,
 			*gcpv1.GCPMachineTemplate, *gcpv1.GCPClusterTemplate,
-		](), platform, nil
+		](), nil
 	case configv1.AzurePlatformType:
 		azureCloudEnvironment := getAzureCloudEnvironment(infra.Status.PlatformStatus)
 		if azureCloudEnvironment == configv1.AzureStackCloud {
 			klog.Infof("Detected Azure Cloud Environment %q on platform %q is not supported", azureCloudEnvironment, platform)
-			return nil, platform, fmt.Errorf("%w: %s", ErrUnsupportedPlatform, platform)
+			return nil, fmt.Errorf("%w: %s", ErrUnsupportedPlatform, platform)
 		}
 
 		return newInfraTypes[
 			*azurev1.AzureMachine, *azurev1.AzureCluster,
 			*azurev1.AzureMachineTemplate, *azurev1.AzureClusterTemplate,
-		](), platform, nil
+		](), nil
 	case configv1.PowerVSPlatformType:
 		return newInfraTypes[
 			*ibmpowervsv1.IBMPowerVSMachine, *ibmpowervsv1.IBMPowerVSCluster,
 			*ibmpowervsv1.IBMPowerVSMachineTemplate, *ibmpowervsv1.IBMPowerVSClusterTemplate,
-		](), platform, nil
+		](), nil
 	case configv1.VSpherePlatformType:
 		return newInfraTypes[
 			*vspherev1.VSphereMachine, *vspherev1.VSphereCluster,
 			*vspherev1.VSphereMachineTemplate, *vspherev1.VSphereClusterTemplate,
-		](), platform, nil
+		](), nil
 	case configv1.OpenStackPlatformType:
 		return newInfraTypes[
 			*openstackv1.OpenStackMachine, *openstackv1.OpenStackCluster,
 			*openstackv1.OpenStackMachineTemplate, *openstackv1.OpenStackClusterTemplate,
-		](), platform, nil
+		](), nil
 	case configv1.BareMetalPlatformType:
 		return newInfraTypes[
 			*metal3v1.Metal3Machine, *metal3v1.Metal3Cluster,
 			*metal3v1.Metal3MachineTemplate, *metal3v1.Metal3ClusterTemplate,
-		](), platform, nil
+		](), nil
 	default:
-		return nil, platform, fmt.Errorf("%w: %s", ErrUnsupportedPlatform, platform)
+		return nil, fmt.Errorf("%w: %s", ErrUnsupportedPlatform, platform)
 	}
 }
 

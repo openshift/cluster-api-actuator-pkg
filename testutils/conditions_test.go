@@ -26,6 +26,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	testMessageOperatingAsExpected = "Operating as expected"
+	testReasonOperatorAvailable    = "OperatorAvailable"
+)
+
 var _ = Describe("Conditions", func() {
 	Context("MatchConditions", func() {
 		var condAvailable, condUpgradable metav1.Condition
@@ -34,15 +39,15 @@ var _ = Describe("Conditions", func() {
 			condAvailable = metav1.Condition{
 				Type:               "Available",
 				Status:             metav1.ConditionTrue,
-				Message:            "Operating as expected",
-				Reason:             "OperatorAvailable",
+				Message:            testMessageOperatingAsExpected,
+				Reason:             testReasonOperatorAvailable,
 				LastTransitionTime: metav1.Now(),
 			}
 
 			condUpgradable = metav1.Condition{
 				Type:               "Upgradeable",
 				Status:             metav1.ConditionTrue,
-				Message:            "Operating as expected",
+				Message:            testMessageOperatingAsExpected,
 				Reason:             "OperatorUpgradable",
 				LastTransitionTime: metav1.Now(),
 			}
@@ -105,8 +110,8 @@ var _ = Describe("Conditions", func() {
 			cond = metav1.Condition{
 				Type:               "Available",
 				Status:             metav1.ConditionTrue,
-				Message:            "Operating as expected",
-				Reason:             "OperatorAvailable",
+				Message:            testMessageOperatingAsExpected,
+				Reason:             testReasonOperatorAvailable,
 				LastTransitionTime: metav1.Now(),
 			}
 		})
@@ -159,15 +164,15 @@ var _ = Describe("Conditions", func() {
 			condAvailable = configv1.ClusterOperatorStatusCondition{
 				Type:               configv1.OperatorAvailable,
 				Status:             configv1.ConditionTrue,
-				Message:            "Operating as expected",
-				Reason:             "OperatorAvailable",
+				Message:            testMessageOperatingAsExpected,
+				Reason:             testReasonOperatorAvailable,
 				LastTransitionTime: metav1.Now(),
 			}
 
 			condUpgradable = configv1.ClusterOperatorStatusCondition{
 				Type:               configv1.OperatorUpgradeable,
 				Status:             configv1.ConditionTrue,
-				Message:            "Operating as expected",
+				Message:            testMessageOperatingAsExpected,
 				Reason:             "OperatorUpgradable",
 				LastTransitionTime: metav1.Now(),
 			}
@@ -230,8 +235,8 @@ var _ = Describe("Conditions", func() {
 			cond = configv1.ClusterOperatorStatusCondition{
 				Type:               configv1.OperatorAvailable,
 				Status:             configv1.ConditionTrue,
-				Message:            "Operating as expected",
-				Reason:             "OperatorAvailable",
+				Message:            testMessageOperatingAsExpected,
+				Reason:             testReasonOperatorAvailable,
 				LastTransitionTime: metav1.Now(),
 			}
 		})

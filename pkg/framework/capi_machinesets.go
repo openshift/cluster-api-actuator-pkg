@@ -69,13 +69,13 @@ func UpdateCAPIMachineSetName(msName string, params CAPIMachineSetParams) CAPIMa
 func CreateCAPIMachineSet(ctx context.Context, cl client.Client, params CAPIMachineSetParams) (*clusterv1.MachineSet, error) {
 	By(fmt.Sprintf("Creating MachineSet %q", params.msName))
 	selector := metav1.LabelSelector{
-		MatchLabels: map[string]string{"cluster.x-k8s.io/cluster-name": params.clusterName, "cluster.x-k8s.io/set-name": params.msName},
+		MatchLabels: map[string]string{capiClusterNameLabel: params.clusterName, "cluster.x-k8s.io/set-name": params.msName},
 	}
 	userDataSecret := "worker-user-data"
 	template := clusterv1.MachineTemplateSpec{
 		ObjectMeta: clusterv1.ObjectMeta{
 			Labels: map[string]string{
-				"cluster.x-k8s.io/cluster-name":  params.clusterName,
+				capiClusterNameLabel:             params.clusterName,
 				"cluster.x-k8s.io/set-name":      params.msName,
 				"node-role.kubernetes.io/worker": "",
 			},
@@ -88,7 +88,7 @@ func CreateCAPIMachineSet(ctx context.Context, cl client.Client, params CAPIMach
 			InfrastructureRef: params.infrastructureRef,
 		},
 	}
-	ms := capiv1resourcebuilder.MachineSet().WithName(params.msName).WithNamespace(ClusterAPINamespace).WithReplicas(params.replicas).WithClusterName(params.clusterName).WithSelector(selector).WithTemplate(template).WithLabels(map[string]string{"cluster.x-k8s.io/cluster-name": params.clusterName}).Build()
+	ms := capiv1resourcebuilder.MachineSet().WithName(params.msName).WithNamespace(ClusterAPINamespace).WithReplicas(params.replicas).WithClusterName(params.clusterName).WithSelector(selector).WithTemplate(template).WithLabels(map[string]string{capiClusterNameLabel: params.clusterName}).Build()
 
 	if params.failureDomain != "" {
 		ms.Spec.Template.Spec.FailureDomain = params.failureDomain
@@ -407,7 +407,7 @@ func HasCAPIInsufficientCapacity(ctx context.Context, cl client.Client, m *clust
 	}
 
 	// Extract status conditions from the InfraMachine
-	statusConditions, found, err := unstructured.NestedSlice(infraMachine.Object, "status", "conditions")
+	statusConditions, found, err := unstructured.NestedSlice(infraMachine.Object, statusField, conditionsField)
 	if err != nil {
 		return false, "", fmt.Errorf("failed to get status conditions from InfraMachine %s: %w", m.Spec.InfrastructureRef.Name, err)
 	}
@@ -424,8 +424,8 @@ func HasCAPIInsufficientCapacity(ctx context.Context, cl client.Client, m *clust
 		}
 
 		// Get condition type, status, and message
-		conditionType, typeOk := condition["type"].(string)
-		conditionStatus, statusOk := condition["status"].(string)
+		conditionType, typeOk := condition[conditionTypeField].(string)
+		conditionStatus, statusOk := condition[statusField].(string)
 		conditionMessage, msgOk := condition["message"].(string)
 
 		if !typeOk || !statusOk || !msgOk {
@@ -433,7 +433,7 @@ func HasCAPIInsufficientCapacity(ctx context.Context, cl client.Client, m *clust
 		}
 
 		// Check if this is a Ready condition with status False
-		if conditionType == "InstanceReady" && conditionStatus == "False" {
+		if conditionType == "InstanceReady" && conditionStatus == conditionStatusFalse {
 			// Check for capacity error messages
 			for _, errorKey := range capacityErrorKeys {
 				if strings.Contains(conditionMessage, errorKey) {

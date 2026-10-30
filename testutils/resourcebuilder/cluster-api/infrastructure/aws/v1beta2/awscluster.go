@@ -62,11 +62,14 @@ type AWSClusterBuilder struct {
 	ready           bool
 }
 
+// infraAPIVersion is the API version for cluster-api AWS infrastructure resources.
+const infraAPIVersion = "infrastructure.cluster.x-k8s.io/v1beta2"
+
 // Build builds a new AWSCluster based on the configuration provided.
 func (a AWSClusterBuilder) Build() *capav1.AWSCluster {
 	awsCluster := &capav1.AWSCluster{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "infrastructure.cluster.x-k8s.io/v1beta2",
+			APIVersion: infraAPIVersion,
 			Kind:       "AWSCluster",
 		},
 		ObjectMeta: metav1.ObjectMeta{

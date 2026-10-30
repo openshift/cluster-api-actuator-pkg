@@ -41,7 +41,7 @@ var _ = Describe("PowerVSMachineTemplate", func() {
 
 	Describe("WithAnnotations", func() {
 		It("should return the custom value when specified", func() {
-			annotations := map[string]string{"key": "value"}
+			annotations := map[string]string{testKey: testValue}
 			powerVSMachineTemplate := PowerVSMachineTemplate().WithAnnotations(annotations).Build()
 			Expect(powerVSMachineTemplate.Annotations).To(Equal(annotations))
 		})
@@ -49,7 +49,7 @@ var _ = Describe("PowerVSMachineTemplate", func() {
 
 	Describe("WithLabels", func() {
 		It("should return the custom value when specified", func() {
-			labels := map[string]string{"key": "value"}
+			labels := map[string]string{testKey: testValue}
 			powerVSMachineTemplate := PowerVSMachineTemplate().WithLabels(labels).Build()
 			Expect(powerVSMachineTemplate.Labels).To(Equal(labels))
 		})

@@ -27,6 +27,16 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
+const (
+	testLabelKey    = "key"
+	testLabelKey1   = "key1"
+	testLabelKey2   = "key2"
+	testLabelTest   = "test"
+	testLabelValue  = "value"
+	testLabelValue1 = "value1"
+	testLabelValue2 = "value2"
+)
+
 var _ = Describe("Machine", func() {
 	Describe("Build", func() {
 		It("should return a default machine when no options are specified", func() {
@@ -53,7 +63,7 @@ var _ = Describe("Machine", func() {
 
 	Describe("WithAnnotations", func() {
 		It("should return the custom value when specified", func() {
-			annotations := map[string]string{"key": "value"}
+			annotations := map[string]string{testLabelKey: testLabelValue}
 			machine := Machine().WithAnnotations(annotations).Build()
 			Expect(machine.Annotations).To(Equal(annotations))
 		})
@@ -107,14 +117,14 @@ var _ = Describe("Machine", func() {
 
 	Describe("WithLabel", func() {
 		It("should return the custom value when specified", func() {
-			machine := Machine().WithLabel("key", "value").Build()
-			Expect(machine.Labels).To(HaveKeyWithValue("key", "value"))
+			machine := Machine().WithLabel(testLabelKey, testLabelValue).Build()
+			Expect(machine.Labels).To(HaveKeyWithValue(testLabelKey, testLabelValue))
 		})
 	})
 
 	Describe("WithLabels", func() {
 		It("should return the custom value when specified", func() {
-			labels := map[string]string{"key1": "value1", "key2": "value2"}
+			labels := map[string]string{testLabelKey1: testLabelValue1, testLabelKey2: testLabelValue2}
 			machine := Machine().WithLabels(labels).Build()
 			Expect(machine.Labels).To(Equal(labels))
 		})
@@ -163,7 +173,7 @@ var _ = Describe("Machine", func() {
 		})
 
 		It("should return the custom value when specified", func() {
-			objectMeta := machinev1beta1.ObjectMeta{Labels: map[string]string{"key": "value"}}
+			objectMeta := machinev1beta1.ObjectMeta{Labels: map[string]string{testLabelKey: testLabelValue}}
 			machine := Machine().WithMachineSpecObjectMeta(objectMeta).Build()
 			Expect(machine.Spec.ObjectMeta).To(Equal(objectMeta))
 		})
@@ -188,7 +198,7 @@ var _ = Describe("Machine", func() {
 		It("should return the custom value when specified", func() {
 			ownerRefs := []metav1.OwnerReference{
 				{
-					APIVersion: "machine.openshift.io/v1beta1",
+					APIVersion: apiVersionMachineOpenshiftV1beta1,
 					Kind:       "MachineSet",
 					Name:       "parent-ms",
 					UID:        "12345",
