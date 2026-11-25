@@ -9,6 +9,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	capiv1resourcebuilder "github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/cluster-api/core/v1beta2"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -101,27 +102,52 @@ func CreateCAPIMachineSet(ctx context.Context, cl client.Client, params CAPIMach
 	return ms, nil
 }
 
-// WaitForCAPIMachineSetsDeleted polls until the given MachineSets are not found, and
-// there are zero Machines found matching the MachineSet's label selector.
+// WaitForCAPIMachineSetsDeleted waits for the given MachineSets, Machines matching
+// their selectors, and Nodes associated with those MachineSets to disappear.
 func WaitForCAPIMachineSetsDeleted(ctx context.Context, cl client.Client, machineSets ...*clusterv1.MachineSet) {
 	for _, ms := range machineSets {
-		By(fmt.Sprintf("Waiting for MachineSet %q to be deleted", ms.GetName()))
-		Eventually(func() bool {
-			selector := ms.Spec.Selector
-
-			machines, err := GetCAPIMachines(ctx, cl, &selector)
-			if err != nil || len(machines) != 0 {
-				return false // Still have Machines, or other error.
-			}
-
-			err = cl.Get(ctx, client.ObjectKey{
-				Name:      ms.GetName(),
-				Namespace: ms.GetNamespace(),
-			}, &clusterv1.MachineSet{})
-
-			return apierrors.IsNotFound(err) // MachineSet and Machines were deleted.
-		}, WaitLong, RetryMedium).Should(BeTrue(), "it should have been able to delete all the CAPI MachineSets")
+		By(fmt.Sprintf("Waiting for MachineSet %q and its Machines and Nodes to be deleted", ms.Name))
+		Eventually(func() error {
+			return checkCAPIMachineSetDeleted(ctx, cl, ms)
+		}, WaitLong, RetryMedium).Should(Succeed(), "CAPI MachineSet %q and its Machines and Nodes should be deleted", client.ObjectKeyFromObject(ms))
 	}
+}
+
+func checkCAPIMachineSetDeleted(ctx context.Context, cl client.Client, ms *clusterv1.MachineSet) error {
+	machines, err := GetCAPIMachines(ctx, cl, &ms.Spec.Selector)
+	if err != nil {
+		return err
+	}
+
+	key := client.ObjectKeyFromObject(ms)
+	if len(machines) != 0 {
+		return fmt.Errorf("%d Machines still match the selector for MachineSet %q", len(machines), key)
+	}
+
+	if err := cl.Get(ctx, key, &clusterv1.MachineSet{}); !apierrors.IsNotFound(err) {
+		if err != nil {
+			return err
+		}
+
+		return fmt.Errorf("MachineSet %q still exists", key)
+	}
+
+	// CAPI records the Machine's controller on the Node, so it can still be
+	// identified after the Machine has been deleted.
+	nodes := &corev1.NodeList{}
+	if err := cl.List(ctx, nodes); err != nil {
+		return fmt.Errorf("listing Nodes for MachineSet %q: %w", key, err)
+	}
+
+	for _, node := range nodes.Items {
+		if node.Annotations[clusterv1.OwnerKindAnnotation] == machineSetKind &&
+			node.Annotations[clusterv1.OwnerNameAnnotation] == ms.Name &&
+			node.Annotations[clusterv1.ClusterNamespaceAnnotation] == ms.Namespace {
+			return fmt.Errorf("node %q for MachineSet %q still exists", node.Name, key)
+		}
+	}
+
+	return nil
 }
 
 // DeleteCAPIMachineSets deletes the specified machinesets and returns an error on failure.
