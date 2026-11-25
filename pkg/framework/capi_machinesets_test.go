@@ -24,7 +24,7 @@ func TestCheckCAPIMachineSetDeletedWaitsForOwnedNodes(t *testing.T) {
 	ownedNode := corev1.Node{ObjectMeta: metav1.ObjectMeta{
 		Name: "worker-node",
 		Annotations: map[string]string{
-			clusterv1.OwnerKindAnnotation:        "MachineSet",
+			clusterv1.OwnerKindAnnotation:        machineSetKind,
 			clusterv1.OwnerNameAnnotation:        ms.Name,
 			clusterv1.ClusterNamespaceAnnotation: ms.Namespace,
 		},
@@ -35,6 +35,7 @@ func TestCheckCAPIMachineSetDeletedWaitsForOwnedNodes(t *testing.T) {
 	unrelatedNode := corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "control-plane-node"}}
 
 	cl := &machineSetWaitTestClient{nodes: []corev1.Node{unrelatedNode, otherNamespaceNode, ownedNode}}
+
 	err := checkCAPIMachineSetDeleted(ctx, cl, ms)
 	if err == nil || !strings.Contains(err.Error(), ownedNode.Name) || !strings.Contains(err.Error(), ms.Name) {
 		t.Fatalf("checkCAPIMachineSetDeleted() error = %v, want lingering Node and MachineSet names", err)
@@ -46,6 +47,7 @@ func TestCheckCAPIMachineSetDeletedWaitsForOwnedNodes(t *testing.T) {
 	}
 
 	listErr := errors.New("Node list unavailable")
+
 	cl.nodeListErr = listErr
 	if err := checkCAPIMachineSetDeleted(ctx, cl, ms); !errors.Is(err, listErr) {
 		t.Fatalf("checkCAPIMachineSetDeleted() error = %v, want %v", err, listErr)
@@ -69,7 +71,7 @@ func TestWaitForCAPIMachinesRunningWithRetryReturnsTerminalProvisioningCondition
 			Name:      "worker-machine",
 			Namespace: ClusterAPINamespace,
 			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(machineSet, clusterv1.GroupVersion.WithKind("MachineSet")),
+				*metav1.NewControllerRef(machineSet, clusterv1.GroupVersion.WithKind(machineSetKind)),
 			},
 		},
 		Status: clusterv1.MachineStatus{
@@ -136,6 +138,7 @@ func (c *machineSetWaitTestClient) Get(_ context.Context, key client.ObjectKey, 
 		}
 
 		*machineSet = *c.machineSet.DeepCopy()
+
 		return nil
 	}
 

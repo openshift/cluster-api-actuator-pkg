@@ -140,10 +140,10 @@ func checkCAPIMachineSetDeleted(ctx context.Context, cl client.Client, ms *clust
 	}
 
 	for _, node := range nodes.Items {
-		if node.Annotations[clusterv1.OwnerKindAnnotation] == "MachineSet" &&
+		if node.Annotations[clusterv1.OwnerKindAnnotation] == machineSetKind &&
 			node.Annotations[clusterv1.OwnerNameAnnotation] == ms.Name &&
 			node.Annotations[clusterv1.ClusterNamespaceAnnotation] == ms.Namespace {
-			return fmt.Errorf("Node %q for MachineSet %q still exists", node.Name, key)
+			return fmt.Errorf("node %q for MachineSet %q still exists", node.Name, key)
 		}
 	}
 

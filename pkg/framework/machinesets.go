@@ -48,6 +48,7 @@ type MachineSetParams struct {
 
 const (
 	machineAPIGroup = "machine.openshift.io"
+	machineSetKind  = "MachineSet"
 	Amd64           = "amd64"
 	ArchLabel       = "e2e.openshift.io/arch"
 	labelsKey       = "capacity.cluster-autoscaler.kubernetes.io/labels"
@@ -238,7 +239,7 @@ func CreateMachineSet(c runtimeclient.Client, params MachineSetParams) (*machine
 	labels[ReasonKey] = ReasonE2E
 	ms := &machinev1.MachineSet{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "MachineSet",
+			Kind:       machineSetKind,
 			APIVersion: machineAPIGroupVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -514,7 +515,7 @@ func NewMachineSet(
 ) *machinev1.MachineSet {
 	ms := machinev1.MachineSet{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "MachineSet",
+			Kind:       machineSetKind,
 			APIVersion: machineAPIGroupVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
